@@ -1,4 +1,6 @@
 conv_f_c_util.lo: conv_f_c_util.fpp
 conv_f_c_util.mod: conv_f_c_util.fpp conv_f_c_util.lo
-your_module.lo: your_module.fpp conv_f_c_util.mod
+s_molecule_c_mod.lo: s_molecule_c_mod.fpp
+s_molecule_c_mod.mod: s_molecule_c_mod.fpp s_molecule_c_mod.lo
+your_module.lo: your_module.fpp conv_f_c_util.mod s_molecule_c_mod.mod
 your_module.mod: your_module.fpp your_module.lo
