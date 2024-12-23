@@ -1,4 +1,6 @@
 import ctypes
+import numpy as np
+import numpy.typing as npt
 import c2py_util
 
 
@@ -17,63 +19,63 @@ class SMolecule:
     shift_origin: bool
     special_hydrogen: bool
     total_charge: float
-    atom_no: list[int]
-    segment_name: list[str]
-    segment_no: list[int]
-    residue_no: list[int]
-    residue_c_no: list[int]
-    residue_name: list[str]
-    atom_name: list[str]
-    atom_cls_name: list[str]
-    atom_cls_no: list[int]
-    charge: list[float]
-    mass: list[float]
-    inv_mass: list[float]
-    imove: list[int]
-    stokes_radius: list[float]
-    inv_stokes_radius: list[float]
-    chain_id: list[str]
-    atom_coord: list[list[float]]
-    atom_occupancy: list[float]
-    atom_temp_factor: list[float]
-    atom_velocity: list[list[float]]
-    light_atom_name: list[bool]
-    light_atom_mass: list[bool]
-    molecule_no: list[int]
-    bond_list: list[list[int]]
-    enm_list: list[list[int]]
-    angl_list: list[list[int]]
-    dihe_list: list[list[int]]
-    impr_list: list[list[int]]
-    cmap_list: list[list[int]]
-    molecule_atom_no: list[int]
-    molecule_mass: list[float]
-    molecule_name: list[str]
-    atom_refcoord: list[list[float]]
-    atom_fitcoord: list[list[float]]
+    atom_no: npt.NDArray[np.int64]
+    segment_name: npt.NDArray[np.str_]
+    segment_no: npt.NDArray[np.int64]
+    residue_no: npt.NDArray[np.int64]
+    residue_c_no: npt.NDArray[np.int64]
+    residue_name: npt.NDArray[np.str_]
+    atom_name: npt.NDArray[np.str_]
+    atom_cls_name: npt.NDArray[np.str_]
+    atom_cls_no: npt.NDArray[np.int64]
+    charge: npt.NDArray[np.float64]
+    mass: npt.NDArray[np.float64]
+    inv_mass: npt.NDArray[np.float64]
+    imove: npt.NDArray[np.int64]
+    stokes_radius: npt.NDArray[np.float64]
+    inv_stokes_radius: npt.NDArray[np.float64]
+    chain_id: npt.NDArray[np.str_]
+    atom_coord: npt.NDArray[np.float64]
+    atom_occupancy: npt.NDArray[np.float64]
+    atom_temp_factor: npt.NDArray[np.float64]
+    atom_velocity: npt.NDArray[np.float64]
+    light_atom_name: npt.NDArray[np.bool_]
+    light_atom_mass: npt.NDArray[np.bool_]
+    molecule_no: npt.NDArray[np.int64]
+    bond_list: npt.NDArray[np.int64]
+    enm_list: npt.NDArray[np.int64]
+    angl_list: npt.NDArray[np.int64]
+    dihe_list: npt.NDArray[np.int64]
+    impr_list: npt.NDArray[np.int64]
+    cmap_list: npt.NDArray[np.int64]
+    molecule_atom_no: npt.NDArray[np.int64]
+    molecule_mass: npt.NDArray[np.float64]
+    molecule_name: npt.NDArray[np.str_]
+    atom_refcoord: npt.NDArray[np.float64]
+    atom_fitcoord: npt.NDArray[np.float64]
     num_pc_modes: int
-    pc_mode: list[float]
+    pc_mode: npt.NDArray[np.float64]
     fep_topology: int
     num_hbonds_singleA: int
     num_hbonds_singleB: int
-    num_atoms_fep: list[int]
-    num_bonds_fep: list[int]
-    num_angles_fep: list[int]
-    num_dihedrals_fep: list[int]
-    num_impropers_fep: list[int]
-    num_cmaps_fep: list[int]
-    bond_list_fep: list[list[list[int]]]
-    angl_list_fep: list[list[list[int]]]
-    dihe_list_fep: list[list[list[int]]]
-    impr_list_fep: list[list[list[int]]]
-    cmap_list_fep: list[list[list[int]]]
-    id_singleA: list[int]
-    id_singleB: list[int]
-    fepgrp: list[int]
-    fepgrp_bond: list[list[int]]
-    fepgrp_angl: list[list[list[int]]]
-    fepgrp_dihe: list[list[list[list[int]]]]
-    fepgrp_cmap: list[int]
+    num_atoms_fep: npt.NDArray[np.int64]
+    num_bonds_fep: npt.NDArray[np.int64]
+    num_angles_fep: npt.NDArray[np.int64]
+    num_dihedrals_fep: npt.NDArray[np.int64]
+    num_impropers_fep: npt.NDArray[np.int64]
+    num_cmaps_fep: npt.NDArray[np.int64]
+    bond_list_fep: npt.NDArray[np.int64]
+    angl_list_fep: npt.NDArray[np.int64]
+    dihe_list_fep: npt.NDArray[np.int64]
+    impr_list_fep: npt.NDArray[np.int64]
+    cmap_list_fep: npt.NDArray[np.int64]
+    id_singleA: npt.NDArray[np.int64]
+    id_singleB: npt.NDArray[np.int64]
+    fepgrp: npt.NDArray[np.int64]
+    fepgrp_bond: npt.NDArray[np.int64]
+    fepgrp_angl: npt.NDArray[np.int64]
+    fepgrp_dihe: npt.NDArray[np.int64]
+    fepgrp_cmap: npt.NDArray[np.int64]
 
 
 class SMoleculeC(ctypes.Structure):
@@ -175,47 +177,47 @@ def c2py_s_molecule(src: SMoleculeC) -> SMolecule:
     dst.shift_origin  = src.shift_origin
     dst.special_hydrogen = src.special_hydrogen
     dst.total_charge  = src.total_charge
-    dst.atom_no = c2py_util.conv_int_array(src.atom_no, dst.num_atoms)
-    dst.segment_name = c2py_util.conv_str_array(src.segment_name, dst.num_atoms, 4)
-    dst.segment_no = c2py_util.conv_int_array(src.segment_no, dst.num_atoms)
-    dst.residue_no = c2py_util.conv_int_array(src.residue_no, dst.num_atoms)
-    dst.residue_c_no = c2py_util.conv_int_array(src.residue_c_no, dst.num_atoms)
-    dst.residue_name = c2py_util.conv_str_array(src.residue_name, dst.num_atoms, 6)
-    dst.atom_name = c2py_util.conv_str_array(src.atom_name, dst.num_atoms, 4)
-    dst.atom_cls_name = c2py_util.conv_str_array(src.atom_cls_name, dst.num_atoms, 6)
-    dst.atom_cls_no = c2py_util.conv_int_array(src.atom_cls_no, dst.num_atoms)
-    dst.charge = c2py_util.conv_double_array(src.charge, dst.num_atoms)
-    dst.mass = c2py_util.conv_double_array(src.mass, dst.num_atoms)
-    dst.inv_mass = c2py_util.conv_double_array(src.inv_mass, dst.num_atoms)
-    dst.imove = c2py_util.conv_int_array(src.imove, dst.num_atoms)
-    dst.stokes_radius = c2py_util.conv_double_array(src.stokes_radius, dst.num_atoms)
-    dst.inv_stokes_radius = c2py_util.conv_double_array(src.inv_stokes_radius, dst.num_atoms)
+    dst.atom_no = c2py_util.conv_int_ndarray(src.atom_no, dst.num_atoms)
+    dst.segment_name = c2py_util.conv_fixed_length_string_ndarray(src.segment_name, (dst.num_atoms, 4))
+    dst.segment_no = c2py_util.conv_int_ndarray(src.segment_no, dst.num_atoms)
+    dst.residue_no = c2py_util.conv_int_ndarray(src.residue_no, dst.num_atoms)
+    dst.residue_c_no = c2py_util.conv_int_ndarray(src.residue_c_no, dst.num_atoms)
+    dst.residue_name = c2py_util.conv_fixed_length_string_ndarray(src.residue_name, (dst.num_atoms, 6))
+    dst.atom_name = c2py_util.conv_fixed_length_string_ndarray(src.atom_name, (dst.num_atoms, 4))
+    dst.atom_cls_name = c2py_util.conv_fixed_length_string_ndarray(src.atom_cls_name, (dst.num_atoms, 6))
+    dst.atom_cls_no = c2py_util.conv_int_ndarray(src.atom_cls_no, dst.num_atoms)
+    dst.charge = c2py_util.conv_double_ndarray(src.charge, dst.num_atoms)
+    dst.mass = c2py_util.conv_double_ndarray(src.mass, dst.num_atoms)
+    dst.inv_mass = c2py_util.conv_double_ndarray(src.inv_mass, dst.num_atoms)
+    dst.imove = c2py_util.conv_int_ndarray(src.imove, dst.num_atoms)
+    dst.stokes_radius = c2py_util.conv_double_ndarray(src.stokes_radius, dst.num_atoms)
+    dst.inv_stokes_radius = c2py_util.conv_double_ndarray(src.inv_stokes_radius, dst.num_atoms)
 
-    dst.chain_id = c2py_util.conv_str_array(src.chain_id, dst.num_atoms, 1)
-    dst.atom_coord = c2py_util.conv_double_array_2d(src.atom_coord, src.num_atoms, 3)
-    dst.atom_occupancy = c2py_util.conv_double_array(src.atom_occupancy, dst.num_atoms)
-    dst.atom_temp_factor = c2py_util.conv_double_array(src.atom_temp_factor, dst.num_atoms)
-    dst.atom_velocity = c2py_util.conv_double_array_2d(src.atom_velocity, src.num_atoms, 3)
-    dst.light_atom_name = c2py_util.conv_bool_array(src.light_atom_name, src.num_atoms)
-    dst.light_atom_mass = c2py_util.conv_bool_array(src.light_atom_mass, src.num_atoms)
+    dst.chain_id = c2py_util.conv_fixed_length_string_ndarray(src.chain_id, (dst.num_atoms, 1))
+    dst.atom_coord = c2py_util.conv_double_ndarray(src.atom_coord, (src.num_atoms, 3))
+    dst.atom_occupancy = c2py_util.conv_double_ndarray(src.atom_occupancy, dst.num_atoms)
+    dst.atom_temp_factor = c2py_util.conv_double_ndarray(src.atom_temp_factor, dst.num_atoms)
+    dst.atom_velocity = c2py_util.conv_double_ndarray(src.atom_velocity, (src.num_atoms, 3))
+    dst.light_atom_name = c2py_util.conv_bool_ndarray(src.light_atom_name, src.num_atoms)
+    dst.light_atom_mass = c2py_util.conv_bool_ndarray(src.light_atom_mass, src.num_atoms)
 
-    dst.molecule_no = c2py_util.conv_int_array(src.molecule_no, dst.num_atoms)
+    dst.molecule_no = c2py_util.conv_int_ndarray(src.molecule_no, dst.num_atoms)
 
-    dst.bond_list = c2py_util.conv_int_array_2d(src.bond_list, src.num_bonds, 2)
-    dst.enm_list = c2py_util.conv_int_array_2d(src.enm_list, src.num_enm_bonds, 2)
-    dst.angl_list = c2py_util.conv_int_array_2d(src.angl_list, src.num_angles, 3)
-    dst.dihe_list = c2py_util.conv_int_array_2d(src.dihe_list, src.num_dihedrals, 4)
-    dst.impr_list = c2py_util.conv_int_array_2d(src.impr_list, src.num_impropers, 4)
-    dst.cmap_list = c2py_util.conv_int_array_2d(src.cmap_list, src.num_cmaps, 8)
+    dst.bond_list = c2py_util.conv_int_ndarray(src.bond_list, (src.num_bonds, 2))
+    dst.enm_list = c2py_util.conv_int_ndarray(src.enm_list, (src.num_enm_bonds, 2))
+    dst.angl_list = c2py_util.conv_int_ndarray(src.angl_list, (src.num_angles, 3))
+    dst.dihe_list = c2py_util.conv_int_ndarray(src.dihe_list, (src.num_dihedrals, 4))
+    dst.impr_list = c2py_util.conv_int_ndarray(src.impr_list, (src.num_impropers, 4))
+    dst.cmap_list = c2py_util.conv_int_ndarray(src.cmap_list, (src.num_cmaps, 8))
 
-    dst.molecule_atom_no = c2py_util.conv_int_array(src.molecule_atom_no, dst.num_molecules)
-    dst.molecule_mass = c2py_util.conv_double_array(src.molecule_mass, dst.num_molecules)
-    dst.molecule_name = c2py_util.conv_str_array(src.molecule_name, dst.num_molecules, 10)
-    dst.atom_refcoord = c2py_util.conv_double_array_2d(src.atom_refcoord, src.num_atoms, 3)
-    dst.atom_fitcoord = c2py_util.conv_double_array_2d(src.atom_fitcoord, src.num_atoms, 3)
+    dst.molecule_atom_no = c2py_util.conv_int_ndarray(src.molecule_atom_no, dst.num_molecules)
+    dst.molecule_mass = c2py_util.conv_double_ndarray(src.molecule_mass, dst.num_molecules)
+    dst.molecule_name = c2py_util.conv_fixed_length_string_ndarray(src.molecule_name, (dst.num_molecules, 10))
+    dst.atom_refcoord = c2py_util.conv_double_ndarray(src.atom_refcoord, (src.num_atoms, 3))
+    dst.atom_fitcoord = c2py_util.conv_double_ndarray(src.atom_fitcoord, (src.num_atoms, 3))
 
     dst.num_pc_modes = int(src.num_pc_modes)
-    dst.pc_mode = c2py_util.conv_double_array(src.pc_mode, dst.num_pc_modes)
+    dst.pc_mode = c2py_util.conv_double_ndarray(src.pc_mode, dst.num_pc_modes)
 
     dst.fep_topology = int(src.fep_topology)
     dst.num_hbonds_singleA = int(src.num_hbonds_singleA)
@@ -228,17 +230,17 @@ def c2py_s_molecule(src: SMoleculeC) -> SMolecule:
     dst.num_impropers_fep = int(src.num_impropers_fep)
     dst.num_cmaps_fep = int(src.num_cmaps_fep)
 
-    dst.bond_list_fep = c2py_util.conv_int_array_3d(src.bond_list_fep, 5, src.nbnd_fep_max, 2)
-    dst.angl_list_fep = c2py_util.conv_int_array_3d(src.angl_list_fep, 5, src.nangl_fep_max, 3)
-    dst.dihe_list_fep = c2py_util.conv_int_array_3d(src.dihe_list_fep, 5, src.ndihe_fep_max, 4)
-    dst.impr_list_fep = c2py_util.conv_int_array_3d(src.impr_list_fep, 5, src.nimpr_fep_max, 4)
-    dst.cmap_list_fep = c2py_util.conv_int_array_3d(src.cmap_list_fep, 5, src.ncmap_fep_max, 8)
+    dst.bond_list_fep = c2py_util.conv_int_ndarray(src.bond_list_fep, (5, src.nbnd_fep_max, 2))
+    dst.angl_list_fep = c2py_util.conv_int_ndarray(src.angl_list_fep, (5, src.nangl_fep_max, 3))
+    dst.dihe_list_fep = c2py_util.conv_int_ndarray(src.dihe_list_fep, (5, src.ndihe_fep_max, 4))
+    dst.impr_list_fep = c2py_util.conv_int_ndarray(src.impr_list_fep, (5, src.nimpr_fep_max, 4))
+    dst.cmap_list_fep = c2py_util.conv_int_ndarray(src.cmap_list_fep, (5, src.ncmap_fep_max, 8))
 
-    dst.id_singleA = c2py_util.conv_int_array(src.id_singleA, src.size_id_singleA)
-    dst.id_singleB = c2py_util.conv_int_array(src.id_singleB, src.size_id_singleB)
-    dst.fepgrp = c2py_util.conv_int_array(src.fepgrp, src.size_fepgrp)
-    dst.fepgrp_bond = c2py_util.conv_int_array_2d(src.fepgrp_bond, 5, 5)
-    dst.fepgrp_angl = c2py_util.conv_int_array_3d(src.fepgrp_angl, 5, 5, 5)
-    dst.fepgrp_dihe = c2py_util.conv_int_array_4d(src.fepgrp_dihe, 5, 5, 5, 5)
-    dst.fepgrp_cmap = c2py_util.conv_int_array(src.fepgrp_cmap, 5*5*5*5*5*5*5*5)
+    dst.id_singleA = c2py_util.conv_int_ndarray(src.id_singleA, src.size_id_singleA)
+    dst.id_singleB = c2py_util.conv_int_ndarray(src.id_singleB, src.size_id_singleB)
+    dst.fepgrp = c2py_util.conv_int_ndarray(src.fepgrp, src.size_fepgrp)
+    dst.fepgrp_bond = c2py_util.conv_int_ndarray(src.fepgrp_bond, (5, 5))
+    dst.fepgrp_angl = c2py_util.conv_int_ndarray(src.fepgrp_angl, (5, 5, 5))
+    dst.fepgrp_dihe = c2py_util.conv_int_ndarray(src.fepgrp_dihe, (5, 5, 5, 5))
+    dst.fepgrp_cmap = c2py_util.conv_int_ndarray(src.fepgrp_cmap, 5*5*5*5*5*5*5*5)
     return dst
