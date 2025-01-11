@@ -17,7 +17,8 @@ def conv_ndarray(src: ctypes.c_void_p, size: int | list[int],
         return np.empty(0, dtype=type_numpy)
 
 
-def conv_bool_ndarray(src: ctypes.c_void_p, size: int | list[int]) -> npt.NDArray[np.bool_]:
+def conv_bool_ndarray(src: ctypes.c_void_p, size: int | list[int]) \
+        -> npt.NDArray[np.bool_]:
     return conv_ndarray(src, size, ctypes.c_bool, np.bool_)
 
 
@@ -25,11 +26,13 @@ def conv_int_ndarray(src: ctypes.c_void_p, size: int | list[int]) -> npt.NDArray
     return conv_ndarray(src, size, ctypes.c_int, np.int64)
 
 
-def conv_double_ndarray(src: ctypes.c_void_p, size: int | list[int]) -> npt.NDArray[np.float64]:
+def conv_double_ndarray(src: ctypes.c_void_p, size: int | list[int]) \
+        -> npt.NDArray[np.float64]:
     return conv_ndarray(src, size, ctypes.c_double, np.float64)
 
 
-def conv_fixed_length_string_ndarray(src: ctypes.c_void_p, size: int | list[int]) -> npt.NDArray[np.str_]:
+def conv_fixed_length_string_ndarray(
+        src: ctypes.c_void_p, size: int | list[int]) -> npt.NDArray[np.str_]:
     if src:
         if type(int) is int:
             size = tuple(size)

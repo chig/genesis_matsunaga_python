@@ -2,6 +2,7 @@ import ctypes
 import numpy as np
 import numpy.typing as npt
 import c2py_util
+import py2c_util
 
 
 class SMolecule:
@@ -244,3 +245,86 @@ def c2py_s_molecule(src: SMoleculeC) -> SMolecule:
     dst.fepgrp_dihe = c2py_util.conv_int_ndarray(src.fepgrp_dihe, (5, 5, 5, 5))
     dst.fepgrp_cmap = c2py_util.conv_int_ndarray(src.fepgrp_cmap, 5*5*5*5*5*5*5*5)
     return dst
+
+
+def py2c_s_molecule(src: SMolecule, lib: ctypes.CDLL) -> SMoleculeC:
+    dst = SMoleculeC()
+    dst.num_deg_freedom = src.num_deg_freedom
+    dst.num_atoms     = src.num_atoms
+    dst.num_bonds     = src.num_bonds
+    dst.num_enm_bonds = src.num_enm_bonds
+    dst.num_angles    = src.num_angles
+    dst.num_dihedrals = src.num_dihedrals
+    dst.num_impropers = src.num_impropers
+    dst.num_cmaps     = src.num_cmaps
+    dst.num_residues  = src.num_residues
+    dst.num_molecules = src.num_molecules
+    dst.num_segments  = src.num_segments
+    dst.num_pc_modes = src.num_pc_modes
+    dst.fep_topology = src.fep_topology
+    dst.num_hbonds_singleA = src.num_hbonds_singleA
+    dst.num_hbonds_singleB = src.num_hbonds_singleB
+    lib.allocate_s_molecule_c(dst)
+
+    dst.shift_origin  = src.shift_origin
+    dst.special_hydrogen = src.special_hydrogen
+    dst.total_charge  = src.total_charge
+    py2c_util.write_int_ndarray(src.atom_no, dst.atom_no)
+    py2c_util.write_fixed_length_string_ndarray(
+            src.segment_name, dst.segment_name)
+    py2c_util.write_int_ndarray(src.segment_no, dst.segment_no)
+    py2c_util.write_int_ndarray(src.residue_no, dst.residue_no)
+    py2c_util.write_int_ndarray(src.residue_c_no, dst.residue_c_no)
+    py2c_util.write_fixed_length_string_ndarray(
+            src.residue_name, dst.residue_name)
+    py2c_util.write_fixed_length_string_ndarray(
+            src.atom_name, dst.atom_name)
+    py2c_util.write_fixed_length_string_ndarray(
+            src.atom_cls_name, dst.atom_cls_name)
+    py2c_util.write_int_ndarray(src.atom_cls_no, dst.atom_cls_no)
+    py2c_util.write_double_ndarray(src.charge, dst.charge)
+    py2c_util.write_double_ndarray(src.mass, dst.mass)
+    py2c_util.write_double_ndarray(src.inv_mass, dst.inv_mass)
+    py2c_util.write_int_ndarray(src.imove, dst.imove)
+    py2c_util.write_double_ndarray(src.stokes_radius, dst.stokes_radius)
+    py2c_util.write_double_ndarray(src.inv_stokes_radius, dst.inv_stokes_radius)
+
+    py2c_util.write_fixed_length_string_ndarray(src.chain_id, dst.chain_id)
+    py2c_util.write_double_ndarray(src.atom_coord, dst.atom_coord)
+    py2c_util.write_double_ndarray(src.atom_occupancy, dst.atom_occupancy)
+    py2c_util.write_double_ndarray(src.atom_temp_factor, dst.atom_temp_factor)
+    py2c_util.write_double_ndarray(src.atom_velocity, dst.atom_velocity)
+    py2c_util.write_bool_ndarray(src.light_atom_name, dst.light_atom_name)
+    py2c_util.write_bool_ndarray(src.light_atom_mass, dst.light_atom_mass)
+    py2c_util.write_int_ndarray(src.molecule_no, dst.molecule_no)
+    py2c_util.write_int_ndarray(src.bond_list, dst.bond_list)
+    py2c_util.write_int_ndarray(src.enm_list, dst.enm_list)
+    py2c_util.write_int_ndarray(src.angl_list, dst.angl_list)
+    py2c_util.write_int_ndarray(src.dihe_list, dst.dihe_list)
+    py2c_util.write_int_ndarray(src.impr_list, dst.impr_list)
+    py2c_util.write_int_ndarray(src.cmap_list, dst.cmap_list)
+    py2c_util.write_int_ndarray(src.molecule_atom_no, dst.molecule_atom_no)
+    py2c_util.write_double_ndarray(src.molecule_mass, dst.molecule_mass)
+    py2c_util.write_fixed_length_string_ndarray(src.molecule_name, dst.molecule_name)
+    py2c_util.write_double_ndarray(src.atom_refcoord, dst.atom_refcoord)
+    py2c_util.write_double_ndarray(src.atom_fitcoord, dst.atom_fitcoord)
+
+    py2c_util.write_double_ndarray(src.pc_mode, dst.pc_mode)
+    py2c_util.write_int_ndarray(src.num_atoms_fep, dst.num_atoms_fep)
+    py2c_util.write_int_ndarray(src.num_bonds_fep, dst.num_bonds_fep)
+    py2c_util.write_int_ndarray(src.num_angles_fep, dst.num_angles_fep)
+    py2c_util.write_int_ndarray(src.num_dihedrals_fep, dst.num_dihedrals_fep)
+    py2c_util.write_int_ndarray(src.num_impropers_fep, dst.num_impropers_fep)
+    py2c_util.write_int_ndarray(src.num_cmaps_fep, dst.num_cmaps_fep)
+    py2c_util.write_int_ndarray(src.bond_list_fep, dst.bond_list_fep)
+    py2c_util.write_int_ndarray(src.angl_list_fep, dst.angl_list_fep)
+    py2c_util.write_int_ndarray(src.dihe_list_fep, dst.dihe_list_fep)
+    py2c_util.write_int_ndarray(src.impr_list_fep, dst.impr_list_fep)
+    py2c_util.write_int_ndarray(src.cmap_list_fep, dst.cmap_list_fep)
+    py2c_util.write_int_ndarray(src.id_singleA, dst.id_singleA)
+    py2c_util.write_int_ndarray(src.id_singleB, dst.id_singleB)
+    py2c_util.write_int_ndarray(src.fepgrp, dst.fepgrp)
+    py2c_util.write_int_ndarray(src.fepgrp_bond, dst.fepgrp_bond)
+    py2c_util.write_int_ndarray(src.fepgrp_angl, dst.fepgrp_angl)
+    py2c_util.write_int_ndarray(src.fepgrp_dihe, dst.fepgrp_dihe)
+    py2c_util.write_int_ndarray(src.fepgrp_cmap, dst.fepgrp_cmap)

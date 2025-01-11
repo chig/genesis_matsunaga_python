@@ -20,6 +20,11 @@ module conv_f_c_util
   public :: f2c_string_array_nullcheck
   public :: f2c_double_array_nullcheck
 
+  public :: allocate_c_bool_array
+  public :: allocate_c_int_array
+  public :: allocate_c_double_array
+  public :: allocate_c_str_array
+
 contains
   ! Helper function to convert C string to Fortran string
   subroutine c2f_string(c_string, f_string)
@@ -214,4 +219,43 @@ contains
         c_dst = c_null_ptr
     end if
   end function f2c_double_array_nullcheck
+
+  !> foobar
+  type(c_ptr) function allocate_c_bool_array(size) result(c_dst)
+    implicit none
+    integer, intent(in) :: size
+    logical(c_bool), pointer :: buf(:)
+
+    allocate(buf(size))
+    c_dst = c_loc(buf)
+  end function allocate_c_bool_array
+
+  type(c_ptr) function allocate_c_int_array(size) result(c_dst)
+    implicit none
+    integer, intent(in) :: size
+    integer(c_int), pointer :: buf(:)
+
+    allocate(buf(size))
+    c_dst = c_loc(buf)
+  end function allocate_c_int_array
+
+  type(c_ptr) function allocate_c_double_array(size) result(c_dst)
+    implicit none
+    integer, intent(in) :: size
+    real(c_double), pointer :: buf(:)
+
+    allocate(buf(size))
+    c_dst = c_loc(buf)
+  end function allocate_c_double_array
+
+  type(c_ptr) function allocate_c_str_array(size, len_str) result(c_dst)
+    implicit none
+    integer, intent(in) :: size
+    integer, intent(in) :: len_str
+    character(kind=c_char), pointer :: buf(:,:)
+
+    allocate(buf(len_str, size))
+    c_dst = c_loc(buf)
+  end function allocate_c_str_array
+
 end module
