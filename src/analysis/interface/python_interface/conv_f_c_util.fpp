@@ -25,6 +25,12 @@ module conv_f_c_util
   public :: allocate_c_double_array
   public :: allocate_c_str_array
 
+  public :: c2f_bool_array
+  public :: c2f_int_array
+  public :: c2f_int_array_static
+  public :: c2f_double_array
+  public :: c2f_string_array
+
 contains
   ! Helper function to convert C string to Fortran string
   subroutine c2f_string(c_string, f_string)
@@ -258,4 +264,134 @@ contains
     c_dst = c_loc(buf)
   end function allocate_c_str_array
 
+  subroutine c2f_bool_array(f_dst, c_src, v_shape)
+    implicit none
+    logical, intent(out), allocatable :: f_dst(..)
+    type(c_ptr), intent(in) :: c_src
+    integer, intent(in) :: v_shape(:)
+    logical(c_bool), pointer :: buf(:)
+
+    select rank(f_dst)
+    rank(1)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1)))
+        f_dst = reshape(buf, [v_shape(1)])
+    rank(2)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2)])
+    rank(3)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2), v_shape(3)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2), v_shape(3)])
+    rank(4)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2), v_shape(3), v_shape(4)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2), v_shape(3), v_shape(4)])
+    rank default
+        stop
+    end select
+  end subroutine c2f_bool_array
+
+  subroutine c2f_int_array(f_dst, c_src, v_shape)
+    implicit none
+    integer, intent(out), allocatable :: f_dst(..)
+    type(c_ptr), intent(in) :: c_src
+    integer, intent(in) :: v_shape(:)
+    integer(c_int), pointer :: buf(:)
+
+    select rank(f_dst)
+    rank(1)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1)))
+        f_dst = reshape(buf, [v_shape(1)])
+    rank(2)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2)])
+    rank(3)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2), v_shape(3)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2), v_shape(3)])
+    rank(4)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2), v_shape(3), v_shape(4)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2), v_shape(3), v_shape(4)])
+    rank default
+        stop
+    end select
+  end subroutine c2f_int_array
+
+  subroutine c2f_int_array_static(f_dst, c_src, v_shape)
+    implicit none
+    integer, intent(out) :: f_dst(..)
+    type(c_ptr), intent(in) :: c_src
+    integer, intent(in) :: v_shape(:)
+    integer(c_int), pointer :: buf(:)
+
+    select rank(f_dst)
+    rank(1)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        f_dst = reshape(buf, [v_shape(1)])
+    rank(2)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        f_dst = reshape(buf, [v_shape(1), v_shape(2)])
+    rank(3)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        f_dst = reshape(buf, [v_shape(1), v_shape(2), v_shape(3)])
+    rank(4)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        f_dst = reshape(buf, [v_shape(1), v_shape(2), v_shape(3), v_shape(4)])
+    rank default
+        stop
+    end select
+  end subroutine c2f_int_array_static
+
+  subroutine c2f_double_array(f_dst, c_src, v_shape)
+    use constants_mod
+    implicit none
+    real(wp), intent(out), allocatable :: f_dst(..)
+    type(c_ptr), intent(in) :: c_src
+    integer, intent(in) :: v_shape(:)
+    real(c_double), pointer :: buf(:)
+
+    select rank(f_dst)
+    rank(1)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1)))
+        f_dst = reshape(buf, [v_shape(1)])
+    rank(2)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2)])
+    rank(3)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2), v_shape(3)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2), v_shape(3)])
+    rank(4)
+        call C_F_pointer(c_src, buf, [product(v_shape)])
+        allocate(f_dst(v_shape(1), v_shape(2), v_shape(3), v_shape(4)))
+        f_dst = reshape(buf, [v_shape(1), v_shape(2), v_shape(3), v_shape(4)])
+    rank default
+        stop
+    end select
+  end subroutine c2f_double_array
+
+  subroutine c2f_string_array(f_dst, c_src, size)
+    use constants_mod
+    implicit none
+    character(*), intent(out), allocatable :: f_dst(:)
+    type(c_ptr), intent(in) :: c_src
+    integer, intent(in) :: size
+    character(kind=c_char), pointer :: buf(:,:)
+    integer :: i, j
+
+    allocate(f_dst(size))
+    call C_F_pointer(c_src, buf, [len(f_dst(0)), size])
+    do i = 1, size
+      do j = 1, len(f_dst(0))
+        f_dst(i)(j:j) = buf(i,j)
+      end do
+    end do
+  end subroutine c2f_string_array
 end module

@@ -328,3 +328,4 @@ def py2c_s_molecule(src: SMolecule, lib: ctypes.CDLL) -> SMoleculeC:
     py2c_util.write_int_ndarray(src.fepgrp_angl, dst.fepgrp_angl)
     py2c_util.write_int_ndarray(src.fepgrp_dihe, dst.fepgrp_dihe)
     py2c_util.write_int_ndarray(src.fepgrp_cmap, dst.fepgrp_cmap)
+    return dst

@@ -108,6 +108,7 @@ module s_molecule_c_mod
   end type s_molecule_c
 
   public :: f2c_s_molecule
+  public :: c2f_s_molecule
   public :: deallocate_s_molecule_c
 
 contains
@@ -241,7 +242,101 @@ contains
     c_dst%fepgrp_angl = f2c_int_array(f_src%fepgrp_angl)
     c_dst%fepgrp_dihe = f2c_int_array(f_src%fepgrp_dihe)
     c_dst%fepgrp_cmap = f2c_int_array(f_src%fepgrp_cmap)
-  end subroutine
+  end subroutine f2c_s_molecule
+
+  subroutine c2f_s_molecule(c_src, f_dst)
+    use conv_f_c_util
+    implicit none
+    type(s_molecule_c), intent(in) :: c_src
+    type(s_molecule), intent(out) :: f_dst
+    integer(c_int), pointer :: work_int(:)
+
+    f_dst%num_deg_freedom = c_src%num_deg_freedom
+    f_dst%num_atoms = c_src%num_atoms
+    f_dst%num_bonds = c_src%num_bonds
+    f_dst%num_enm_bonds = c_src%num_enm_bonds
+    f_dst%num_angles = c_src%num_angles
+    f_dst%num_dihedrals = c_src%num_dihedrals
+    f_dst%num_impropers = c_src%num_impropers
+    f_dst%num_cmaps     = c_src%num_cmaps
+
+    f_dst%num_residues = c_src%num_residues
+    f_dst%num_molecules = c_src%num_molecules
+    f_dst%num_segments = c_src%num_segments
+
+    f_dst%shift_origin = c_src%shift_origin
+    f_dst%special_hydrogen = c_src%special_hydrogen
+
+    f_dst%total_charge = c_src%total_charge
+
+    call c2f_int_array(f_dst%atom_no, c_src%atom_no, [c_src%num_atoms])
+
+    call c2f_string_array(f_dst%segment_name, c_src%segment_name, c_src%num_atoms)
+    call c2f_int_array(f_dst%segment_no, c_src%segment_no, [c_src%num_atoms])
+    call c2f_int_array(f_dst%residue_no, c_src%residue_no, [c_src%num_atoms])
+    call c2f_int_array(f_dst%residue_c_no, c_src%residue_c_no, [c_src%num_atoms])
+    call c2f_string_array(f_dst%residue_name, c_src%residue_name, c_src%num_atoms)
+    call c2f_string_array(f_dst%atom_name, c_src%atom_name, c_src%num_atoms)
+    call c2f_string_array(f_dst%atom_cls_name, c_src%atom_cls_name, c_src%num_atoms)
+    call c2f_int_array(f_dst%atom_cls_no, c_src%atom_cls_no, [c_src%num_atoms])
+    call c2f_double_array(f_dst%charge, c_src%charge, [c_src%num_atoms])
+    call c2f_double_array(f_dst%mass, c_src%mass, [c_src%num_atoms])
+    call c2f_double_array(f_dst%inv_mass, c_src%inv_mass, [c_src%num_atoms])
+    call c2f_int_array(f_dst%imove, c_src%imove, [c_src%num_atoms])
+    call c2f_double_array(f_dst%stokes_radius, c_src%stokes_radius, [c_src%num_atoms])
+    call c2f_double_array(f_dst%inv_stokes_radius, c_src%inv_stokes_radius, [c_src%num_atoms])
+
+    call c2f_string_array(f_dst%chain_id, c_src%chain_id, c_src%num_atoms)
+    call c2f_double_array(f_dst%atom_coord, c_src%atom_coord, [3, c_src%num_atoms])
+    call c2f_double_array(f_dst%atom_occupancy, c_src%atom_occupancy, [c_src%num_atoms])
+    call c2f_double_array(f_dst%atom_temp_factor, c_src%atom_temp_factor, [c_src%num_atoms])
+    call c2f_double_array(f_dst%atom_velocity, c_src%atom_velocity, [3, c_src%num_atoms])
+    call c2f_bool_array(f_dst%light_atom_name, c_src%light_atom_name, [c_src%num_atoms])
+    call c2f_bool_array(f_dst%light_atom_mass, c_src%light_atom_mass, [c_src%num_atoms])
+
+    call c2f_int_array(f_dst%molecule_no, c_src%molecule_no, [c_src%num_atoms])
+
+    call c2f_int_array(f_dst%bond_list, c_src%bond_list, [2, c_src%num_atoms])
+    call c2f_int_array(f_dst%enm_list, c_src%enm_list, [2, c_src%num_atoms])
+    call c2f_int_array(f_dst%angl_list, c_src%angl_list, [3, c_src%num_atoms])
+    call c2f_int_array(f_dst%dihe_list, c_src%dihe_list, [4, c_src%num_atoms])
+    call c2f_int_array(f_dst%impr_list, c_src%impr_list, [4, c_src%num_atoms])
+    call c2f_int_array(f_dst%cmap_list, c_src%cmap_list, [8, c_src%num_atoms])
+
+    call c2f_int_array(f_dst%molecule_atom_no, c_src%molecule_atom_no, [c_src%num_molecules])
+    call c2f_double_array(f_dst%molecule_mass, c_src%molecule_mass, [c_src%num_molecules])
+    call c2f_string_array(f_dst%molecule_name, c_src%molecule_name, c_src%num_molecules)
+    call c2f_double_array(f_dst%atom_refcoord, c_src%atom_refcoord, [3, c_src%num_atoms])
+    call c2f_double_array(f_dst%atom_fitcoord, c_src%atom_fitcoord, [3, c_src%num_atoms])
+
+    f_dst%num_pc_modes = c_src%num_pc_modes
+    call c2f_double_array(f_dst%pc_mode, c_src%pc_mode, [c_src%num_pc_modes])
+
+    f_dst%fep_topology       = c_src%fep_topology
+    f_dst%num_hbonds_singleA = c_src%num_hbonds_singleA
+    f_dst%num_hbonds_singleB = c_src%num_hbonds_singleB
+
+    call c2f_int_array_static(f_dst%num_atoms_fep, c_src%num_atoms_fep, [5])
+    call c2f_int_array_static(f_dst%num_bonds_fep, c_src%num_bonds_fep, [5])
+    call c2f_int_array_static(f_dst%num_angles_fep, c_src%num_angles_fep, [5])
+    call c2f_int_array_static(f_dst%num_dihedrals_fep, c_src%num_dihedrals_fep, [5])
+    call c2f_int_array_static(f_dst%num_impropers_fep, c_src%num_impropers_fep, [5])
+    call c2f_int_array_static(f_dst%num_cmaps_fep, c_src%num_cmaps_fep, [5])
+
+    call c2f_int_array(f_dst%bond_list_fep, c_src%bond_list_fep, [5, c_src%nbnd_fep_max, 2])
+    call c2f_int_array(f_dst%angl_list_fep, c_src%angl_list_fep, [5, c_src%nangl_fep_max, 3])
+    call c2f_int_array(f_dst%dihe_list_fep, c_src%dihe_list_fep, [5, c_src%ndihe_fep_max, 4])
+    call c2f_int_array(f_dst%impr_list_fep, c_src%impr_list_fep, [5, c_src%nimpr_fep_max, 4])
+    call c2f_int_array(f_dst%cmap_list_fep, c_src%cmap_list_fep, [5, c_src%ncmap_fep_max, 8])
+
+    call c2f_int_array(f_dst%id_singleA, c_src%id_singleA, [c_src%size_id_singleA])
+    call c2f_int_array(f_dst%id_singleB, c_src%id_singleB, [c_src%size_id_singleB])
+    call c2f_int_array(f_dst%fepgrp, c_src%fepgrp, [c_src%size_fepgrp])
+    call c2f_int_array_static(f_dst%fepgrp_bond, c_src%fepgrp_bond, [5, 5])
+    call c2f_int_array_static(f_dst%fepgrp_angl, c_src%fepgrp_angl, [5, 5, 5])
+    call c2f_int_array_static(f_dst%fepgrp_dihe, c_src%fepgrp_dihe, [5, 5, 5, 5])
+    call c2f_int_array_static(f_dst%fepgrp_cmap, c_src%fepgrp_cmap, [5*5*5*5*5*5*5*5])
+  end subroutine c2f_s_molecule
 
   subroutine deallocate_s_molecule_c(self) &
       bind(C, name="deallocate_s_molecule_c")

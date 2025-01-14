@@ -21,6 +21,10 @@ def define_prototypes(lib: ctypes.CDLL):
             ctypes.POINTER(SMoleculeC)]
     lib.allocate_s_molecule_c.restype = None
 
+    lib.test_conv_c2f.argtypes = [
+            ctypes.POINTER(SMoleculeC)]
+    lib.test_conv_c2f.restype = None
+
 def test():
     # ライブラリをロード
     lib_name = 'libpython_interface.so'
@@ -60,7 +64,7 @@ def test():
 
     print("num_atoms = ", mol.num_atoms)
     mol_c = py2c_s_molecule(mol, lib)
+    lib.test_conv_c2f(ctypes.byref(mol_c))
 
 if __name__ == "__main__":
     test()
-

@@ -63,4 +63,12 @@ contains
     call f2c_s_molecule(molecule, out_mol)
   end subroutine define_molecule_from_pdb
 
+  subroutine test_conv_c2f(c_mol &
+      ) &
+      bind(C, name="test_conv_c2f")
+    implicit none
+    type(s_molecule_c), intent(in) :: c_mol
+    type(s_molecule) :: f_mol
+    call c2f_s_molecule(c_mol, f_mol)
+  end subroutine
 end module your_module
