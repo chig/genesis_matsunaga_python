@@ -1,7 +1,7 @@
 import ctypes
 import os
 import threading
-from s_molecule import SMoleculeC
+from s_molecule_c import SMoleculeC
 
 class LibGenesis:
     """singleton

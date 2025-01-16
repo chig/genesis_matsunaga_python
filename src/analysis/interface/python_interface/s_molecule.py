@@ -1,10 +1,12 @@
 import ctypes
+import os
 import numpy as np
 import numpy.typing as npt
 import c2py_util
 import py2c_util
 from typing import Self
-import libgenesis
+from libgenesis import LibGenesis
+from s_molecule_c import SMoleculeC
 
 
 class SMolecule:
@@ -80,88 +82,24 @@ class SMolecule:
     fepgrp_dihe: npt.NDArray[np.int64]
     fepgrp_cmap: npt.NDArray[np.int64]
 
+    def __enter__(self) -> Self:
+        return self
 
-class SMoleculeC(ctypes.Structure):
-     _fields_ = [("num_deg_freedom", ctypes.c_int),
-                 ("num_atoms", ctypes.c_int),
-                 ("num_bonds", ctypes.c_int),
-                 ("num_enm_bonds", ctypes.c_int),
-                 ("num_angles", ctypes.c_int),
-                 ("num_dihedrals", ctypes.c_int),
-                 ("num_impropers", ctypes.c_int),
-                 ("num_cmaps", ctypes.c_int),
-                 ("num_residues", ctypes.c_int),
-                 ("num_molecules", ctypes.c_int),
-                 ("num_segments", ctypes.c_int),
-                 ("shift_origin", ctypes.c_bool),
-                 ("special_hydrogen", ctypes.c_bool),
-                 ("total_charge", ctypes.c_double),
-                 ("atom_no", ctypes.c_void_p),
-                 ("segment_name", ctypes.c_void_p),
-                 ("segment_no", ctypes.c_void_p),
-                 ("residue_no", ctypes.c_void_p),
-                 ("residue_c_no", ctypes.c_void_p),
-                 ("residue_name", ctypes.c_void_p),
-                 ("atom_name", ctypes.c_void_p),
-                 ("atom_cls_name", ctypes.c_void_p),
-                 ("atom_cls_no", ctypes.c_void_p),
-                 ("charge", ctypes.c_void_p),
-                 ("mass", ctypes.c_void_p),
-                 ("inv_mass", ctypes.c_void_p),
-                 ("imove", ctypes.c_void_p),
-                 ("stokes_radius", ctypes.c_void_p),
-                 ("inv_stokes_radius", ctypes.c_void_p),
-                 ("chain_id", ctypes.c_void_p),
-                 ("atom_coord", ctypes.c_void_p),
-                 ("atom_occupancy", ctypes.c_void_p),
-                 ("atom_temp_factor", ctypes.c_void_p),
-                 ("atom_velocity", ctypes.c_void_p),
-                 ("light_atom_name", ctypes.c_void_p),
-                 ("light_atom_mass", ctypes.c_void_p),
-                 ("molecule_no", ctypes.c_void_p),
-                 ("bond_list", ctypes.c_void_p),
-                 ("enm_list", ctypes.c_void_p),
-                 ("angl_list", ctypes.c_void_p),
-                 ("dihe_list", ctypes.c_void_p),
-                 ("impr_list", ctypes.c_void_p),
-                 ("cmap_list", ctypes.c_void_p),
-                 ("molecule_atom_no", ctypes.c_void_p),
-                 ("molecule_mass", ctypes.c_void_p),
-                 ("molecule_name", ctypes.c_void_p),
-                 ("atom_refcoord", ctypes.c_void_p),
-                 ("atom_fitcoord", ctypes.c_void_p),
-                 ("num_pc_modes", ctypes.c_int),
-                 ("pc_mode", ctypes.c_void_p),
-                 ("fep_topology", ctypes.c_int),
-                 ("num_hbonds_singleA", ctypes.c_int),
-                 ("num_hbonds_singleB", ctypes.c_int),
-                 ("num_atoms_fep", ctypes.c_void_p),
-                 ("num_bonds_fep", ctypes.c_void_p),
-                 ("num_angles_fep", ctypes.c_void_p),
-                 ("num_dihedrals_fep", ctypes.c_void_p),
-                 ("num_impropers_fep", ctypes.c_void_p),
-                 ("num_cmaps_fep", ctypes.c_void_p),
-                 ("bond_list_fep", ctypes.c_void_p),
-                 ("angl_list_fep", ctypes.c_void_p),
-                 ("dihe_list_fep", ctypes.c_void_p),
-                 ("impr_list_fep", ctypes.c_void_p),
-                 ("cmap_list_fep", ctypes.c_void_p),
-                 ("id_singleA", ctypes.c_void_p),
-                 ("id_singleB", ctypes.c_void_p),
-                 ("fepgrp", ctypes.c_void_p),
-                 ("fepgrp_bond", ctypes.c_void_p),
-                 ("fepgrp_angl", ctypes.c_void_p),
-                 ("fepgrp_dihe", ctypes.c_void_p),
-                 ("fepgrp_cmap", ctypes.c_void_p),
-                 ("nbnd_fep_max", ctypes.c_int),
-                 ("nangl_fep_max", ctypes.c_int),
-                 ("ndihe_fep_max", ctypes.c_int),
-                 ("nimpr_fep_max", ctypes.c_int),
-                 ("ncmap_fep_max", ctypes.c_int),
-                 ("size_id_singleA", ctypes.c_int),
-                 ("size_id_singleB", ctypes.c_int),
-                 ("size_fepgrp", ctypes.c_int),
-                 ]
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.free()
+
+    def free(self):
+        """deallocate resources"""
+        pass
+
+    def from_pdb_file(src_file_path: str | os.PathLike) -> Self:
+        mol_c = SMoleculeC()
+        LibGenesis().lib.define_molecule_from_pdb(
+                src_file_path,
+                ctypes.byref(mol_c))
+        mol_py = c2py_s_molecule(mol_c)
+        LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
+        return mol_py
 
 
 def c2py_s_molecule(src: SMoleculeC) -> SMolecule:
@@ -266,7 +204,7 @@ def py2c_s_molecule(src: SMolecule) -> SMoleculeC:
     dst.fep_topology = src.fep_topology
     dst.num_hbonds_singleA = src.num_hbonds_singleA
     dst.num_hbonds_singleB = src.num_hbonds_singleB
-    libgenesis.LibGenesis().lib.allocate_s_molecule_c(dst)
+    LibGenesis().lib.allocate_s_molecule_c(dst)
 
     dst.shift_origin  = src.shift_origin
     dst.special_hydrogen = src.special_hydrogen
