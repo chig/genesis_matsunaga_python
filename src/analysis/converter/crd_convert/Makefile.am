@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = crd_convert
+noinst_LIBRARIES = libcrd_convert.a
+# noinst_LTLIBRARIES = libcrd_convert.la
 
 crd_convert_SOURCES = \
 	cc_option_str.fpp \
@@ -53,6 +55,14 @@ crd_convert$(EXEEXT) : $(crd_convert_ADDLIBANA) $(crd_convert_ADDLIB) \
 						$(crd_convert_OBJECTS)
 	$(FC) -o $(bin_PROGRAMS) $(crd_convert_OBJECTS) \
 		$(crd_convert_ADDLIBANA) $(crd_convert_ADDLIB) $(LDFLAGS)
+
+
+$(noinst_LIBRARIES) : $(crd_convert_ADDLIBANA) $(crd_convert_ADDLIB) \
+						$(crd_convert_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(crd_convert_OBJECTS) \
+		$(crd_convert_ADDLIBANA) $(crd_convert_ADDLIB)
+
+libcrd_convert.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)
