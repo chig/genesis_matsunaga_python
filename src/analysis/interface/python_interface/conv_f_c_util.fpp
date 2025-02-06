@@ -58,6 +58,12 @@ contains
     integer :: len_str
     integer :: limit
 
+    if (.not. present(limit_len)) then
+      limit = limit_len
+    else
+      limit = 10000000
+    end if
+
     len_str = max(len_c_str(c_string, limit), 1) ! Use a space instead of an empty string
     if (allocated(f_string)) then
       if (len(f_string) < len_str) then

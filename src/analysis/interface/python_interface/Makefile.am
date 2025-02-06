@@ -12,7 +12,8 @@ libpython_interface_la_SOURCES = \
         s_trajectories_c_mod.fpp \
         crd_convert_convert.fpp \
         crd_convert_c_mod.fpp \
-        trj_analysis_c_mod.fpp
+        trj_analysis_c_mod.fpp \
+        trj_analysis_analysis.fpp
 
 EXTRA_DIST = \
 	Makefile.depends

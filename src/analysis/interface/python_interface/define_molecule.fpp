@@ -11,6 +11,7 @@ module define_molecule
 
   private
   public :: define_molecule_from_pdb
+  public :: define_molecule_from_pdb_psf
 
   ! Define MaxFilename if it"s not available from constants_mod
   integer, parameter :: MaxFilename = 256  ! Adjust this value as needed
@@ -53,7 +54,6 @@ contains
     type(s_molecule) :: molecule
     character(:), allocatable :: fort_pdb_path
     character(:), allocatable :: fort_psf_path
-
     call c2f_string_allocate(pdb_path, fort_pdb_path)
     call c2f_string_allocate(psf_path, fort_psf_path)
     inp_info%pdbfile = trim(fort_pdb_path)

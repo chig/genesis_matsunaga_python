@@ -14,8 +14,10 @@
 
 module trj_analysis_c_mod
   use, intrinsic :: iso_c_binding
-  use ta_analyze_mod
-  use ta_setup_mod
+  use s_molecule_c_mod
+  use s_trajectories_c_mod
+  use trj_analysis_analyze_c_mod
+
   use ta_control_mod
   use ta_option_str_mod
   use trajectory_str_mod
@@ -25,17 +27,49 @@ module trj_analysis_c_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
+  use constants_mod
   implicit none
 
 contains
-  subroutine trj_analysis_c() &
+  subroutine trj_analysis_c(molecule, s_trajes_c_array, num_trajs, ctrl_path, &
+          result_distance, num_distance, num) &
           bind(C, name="trj_analysis_c")
+    use conv_f_c_util
     implicit none
+    type(s_molecule_c), intent(in) :: molecule
+    character(kind=c_char), intent(in) :: ctrl_path(*)
+    type(c_ptr), intent(in) :: s_trajes_c_array
+    integer(c_int), intent(in) :: num_trajs
+    type(c_ptr), intent(out) :: result_distance
+    integer(c_int), intent(out) :: num_distance
+    integer(c_int), intent(out) :: num
+
+    type(s_molecule) :: f_molecule
+    character(len=:), allocatable :: fort_ctrl_path
+    type(s_trajectories_c), pointer :: fort_s_trajes_c_array(:)
+    real(wp), pointer :: distance(:,:)
+
+    call C_F_POINTER(s_trajes_c_array, fort_s_trajes_c_array, [num_trajs])
+
+    call c2f_string_allocate(ctrl_path, fort_ctrl_path)
+    call c2f_s_molecule(molecule, f_molecule)
+    call trj_analysis_main(f_molecule, fort_s_trajes_c_array, &
+                           fort_ctrl_path, distance, num_distance, num)
+    result_distance = c_loc(distance)
+  end subroutine trj_analysis_c
+
+  subroutine trj_analysis_main(molecule, s_trajes_c_array, ctrl_filename, &
+                               distance, num_distance, num)
+    implicit none
+    type(s_molecule), intent(inout) :: molecule
+    type(s_trajectories_c), intent(in) :: s_trajes_c_array(:)
+    character(*), intent(in) :: ctrl_filename
+    real(wp), pointer, intent(out) :: distance(:,:)
+    integer(c_int), intent(out) :: num_distance
+    integer(c_int), intent(out) :: num
 
     ! local variables
-    character(MaxFilename) :: ctrl_filename
     type(s_ctrl_data)      :: ctrl_data
-    type(s_molecule)       :: molecule
     type(s_trj_list)       :: trj_list
     type(s_trajectory)     :: trajectory
     type(s_output)         :: output
@@ -45,12 +79,6 @@ contains
     my_city_rank = 0
     nproc_city   = 1
     main_rank    = .true.
-
-
-    ! show usage
-    !
-    call usage(ctrl_filename)
-
 
     ! [Step1] Read control file
     !
@@ -65,7 +93,7 @@ contains
     write(MsgOut,'(A)') '[STEP2] Set Relevant Variables and Structures'
     write(MsgOut,'(A)') ' '
 
-    call setup(ctrl_data, molecule, trj_list, trajectory, output, option)
+    call setup(molecule, ctrl_data, output, option)
 
 
     ! [Step3] Analyze trajectory
@@ -73,7 +101,8 @@ contains
     write(MsgOut,'(A)') '[STEP3] Analysis trajectory files'
     write(MsgOut,'(A)') ' '
 
-    call analyze(molecule, trj_list, output, option, trajectory)
+    call analyze(molecule, s_trajes_c_array, output, option, trajectory, &
+                 1, distance, num_distance, num)
 
 
     ! [Step4] Deallocate memory
@@ -84,6 +113,64 @@ contains
     call dealloc_trajectory(trajectory)
     call dealloc_trj_list(trj_list)
     call dealloc_molecules_all(molecule)
-  end subroutine trj_analysis_c
+  end subroutine trj_analysis_main
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    setup
+  !> @brief        setup variables and structures in TRJ_ANALYSIS
+  !! @authors      NT, TM
+  !! @param[in]    ctrl_data  : information of control parameters
+  !! @param[inout] trj_list   : trajectory file list information
+  !! @param[inout] trajectory : trajectory information
+  !! @param[inout] output     : output information
+  !! @param[inout] option     : option information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine setup(molecule, ctrl_data, output, option)
+    use ta_control_mod
+    use ta_option_mod
+    use ta_option_str_mod
+    use trajectory_mod
+    use output_mod
+    use input_mod
+    use trajectory_str_mod
+    use output_str_mod
+    use select_mod
+    use molecules_mod
+    use molecules_str_mod
+    use fileio_grocrd_mod
+    use fileio_grotop_mod
+    use fileio_ambcrd_mod
+    use fileio_prmtop_mod
+    use fileio_psf_mod
+    use fileio_pdb_mod
+    implicit none
+
+    ! formal arguments
+    type(s_molecule),        intent(inout) :: molecule
+    type(s_ctrl_data),       intent(in)    :: ctrl_data
+    type(s_output),          intent(inout) :: output
+    type(s_option),          intent(inout) :: option
+
+    ! setup output
+    !
+    call setup_output(ctrl_data%out_info, output)
+
+
+    ! setup selection
+    !
+    call setup_selection(ctrl_data%sel_info, molecule)
+
+
+    ! setup option
+    !
+    call setup_option(ctrl_data%opt_info, ctrl_data%sel_info, &
+                      molecule, output, option)
+
+    return
+
+  end subroutine setup
 
 end module trj_analysis_c_mod

@@ -71,22 +71,22 @@ contains
   end subroutine deallocate_s_trajectories_c_array
 
   ! Accessor for single frame
-  subroutine get_frame(trajs_fort, frame_idx, traj_fort)
-    type(s_trajectories_c), intent(in) :: trajs_fort
+  subroutine get_frame(trajs_c, frame_idx, traj_fort)
+    type(s_trajectories_c), intent(in) :: trajs_c
     integer, intent(in) :: frame_idx
     type(s_trajectory), intent(inout) :: traj_fort
     real(C_double), pointer :: coords(:,:,:), boxes(:,:,:)
 
     if (allocated(traj_fort%coord)) then
-      if (.not. all(shape(traj_fort%coord) == [3, trajs_fort%natom])) then
+      if (.not. all(shape(traj_fort%coord) == [3, trajs_c%natom])) then
         deallocate(traj_fort%coord)
-        allocate(traj_fort%coord(3,trajs_fort%natom))
+        allocate(traj_fort%coord(3,trajs_c%natom))
       end if
     else
-      allocate(traj_fort%coord(3,trajs_fort%natom))
+      allocate(traj_fort%coord(3,trajs_c%natom))
     end if
-    call C_F_POINTER(trajs_fort%coords, coords, [3, trajs_fort%natom, trajs_fort%nframe])
-    call C_F_POINTER(trajs_fort%pbc_boxes, boxes, [3, 3, trajs_fort%nframe])
+    call C_F_POINTER(trajs_c%coords, coords, [3, trajs_c%natom, trajs_c%nframe])
+    call C_F_POINTER(trajs_c%pbc_boxes, boxes, [3, 3, trajs_c%nframe])
     traj_fort%pbc_box = boxes(:, :, frame_idx)
     traj_fort%coord = coords(:, :, frame_idx)
   end subroutine
