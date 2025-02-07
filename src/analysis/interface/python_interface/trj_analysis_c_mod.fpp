@@ -31,46 +31,42 @@ module trj_analysis_c_mod
   implicit none
 
 contains
-  subroutine trj_analysis_c(molecule, s_trajes_c_array, num_trajs, ctrl_path, &
-          result_distance, num_distance, num) &
-          bind(C, name="trj_analysis_c")
+  subroutine trj_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
+                            result_distance, num_distance) &
+        bind(C, name="trj_analysis_c")
     use conv_f_c_util
     implicit none
     type(s_molecule_c), intent(in) :: molecule
-    type(c_ptr), intent(in) :: s_trajes_c_array
-    integer(c_int), intent(in) :: num_trajs
+    type(s_trajectories_c), intent(in) :: s_trajes_c
+    integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
     type(c_ptr), intent(out) :: result_distance
-    integer(c_int), intent(out) :: num_distance
-    integer(c_int), intent(out) :: num
+    integer, intent(out) :: num_distance
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
-    type(s_trajectories_c), pointer :: fort_s_trajes_c_array(:)
     real(wp), pointer :: distance(:,:)
-
-    call C_F_POINTER(s_trajes_c_array, fort_s_trajes_c_array, [num_trajs])
 
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
-    call trj_analysis_main(f_molecule, fort_s_trajes_c_array, &
-                           fort_ctrl_path, distance, num_distance, num)
+    write(0, *) "@@@", ana_period, fort_ctrl_path
+    call trj_analysis_main( &
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, distance, num_distance)
     result_distance = c_loc(distance)
   end subroutine trj_analysis_c
 
-  subroutine trj_analysis_main(molecule, s_trajes_c_array, ctrl_filename, &
-                               distance, num_distance, num)
+  subroutine trj_analysis_main( &
+          molecule, s_trajes_c, ana_period, ctrl_filename, distance, num_distance)
     implicit none
     type(s_molecule), intent(inout) :: molecule
-    type(s_trajectories_c), intent(in) :: s_trajes_c_array(:)
+    type(s_trajectories_c), intent(in) :: s_trajes_c
+    integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
     real(wp), pointer, intent(out) :: distance(:,:)
-    integer(c_int), intent(out) :: num_distance
-    integer(c_int), intent(out) :: num
+    integer, intent(out) :: num_distance
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
-    type(s_trj_list)       :: trj_list
     type(s_trajectory)     :: trajectory
     type(s_output)         :: output
     type(s_option)         :: option
@@ -101,8 +97,8 @@ contains
     write(MsgOut,'(A)') '[STEP3] Analysis trajectory files'
     write(MsgOut,'(A)') ' '
 
-    call analyze(molecule, s_trajes_c_array, output, option, trajectory, &
-                 1, distance, num_distance, num)
+    call analyze(molecule, s_trajes_c, ana_period, output, option, &
+                 distance, num_distance)
 
 
     ! [Step4] Deallocate memory
@@ -111,7 +107,6 @@ contains
     write(MsgOut,'(A)') ' '
 
     call dealloc_trajectory(trajectory)
-    call dealloc_trj_list(trj_list)
     call dealloc_molecules_all(molecule)
   end subroutine trj_analysis_main
 
@@ -121,8 +116,6 @@ contains
   !> @brief        setup variables and structures in TRJ_ANALYSIS
   !! @authors      NT, TM
   !! @param[in]    ctrl_data  : information of control parameters
-  !! @param[inout] trj_list   : trajectory file list information
-  !! @param[inout] trajectory : trajectory information
   !! @param[inout] output     : output information
   !! @param[inout] option     : option information
   !

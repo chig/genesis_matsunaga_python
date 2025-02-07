@@ -46,9 +46,9 @@ class STrajectoriesArray:
         if traj_c_array:
             self.src_c_obj = traj_c_array
             self.traj_c_array = []
-            traj_p = ctypes.cast(traj_c_array, ctypes.POINTER(STrajectoriesC))
+            self.traj_p = ctypes.cast(traj_c_array, ctypes.POINTER(STrajectoriesC))
             for i in range(0, len_array):
-                self.traj_c_array.append(STrajectories.from_trajectories_c(traj_p[i]))
+                self.traj_c_array.append(STrajectories.from_trajectories_c(self.traj_p[i]))
 
     def __enter__(self) -> Self:
         return self

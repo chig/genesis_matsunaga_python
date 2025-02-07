@@ -52,28 +52,25 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine analyze(molecule, trajes_c, output, option, trajectory, &
-                     ana_period, distance, num_distance, num)
+  subroutine analyze(molecule, trajes_c, ana_period, output, option, &
+                     distance, num_distance)
     use s_trajectories_c_mod
 
     ! formal arguments
     type(s_molecule),        intent(in)    :: molecule
-    type(s_trajectories_c),  intent(in)    :: trajes_c(:)
+    type(s_trajectories_c),  intent(in)    :: trajes_c
+    integer,                 intent(in)    :: ana_period
     type(s_output),          intent(in)    :: output
     type(s_option),          intent(inout) :: option
-    type(s_trajectory),      intent(inout) :: trajectory
-    integer,                 intent(in)    :: ana_period
     real(wp), pointer,       intent(out)   :: distance(:,:)
     integer,                 intent(out)   :: num_distance
-    integer,                 intent(out)   :: num
 
 
     ! local variables
-    type(s_trj_file)         :: trj_in
-    integer                  :: nstru, ifile, istep, num_trjfiles
-    integer                  :: dis_unit, ang_unit, tor_unit
-    integer                  :: cdis_unit, cang_unit, ctor_unit
-    integer :: i_dis
+    type(s_trajectory) :: trajectory
+    integer            :: nstru, istep, num_trjfiles
+    integer            :: dis_unit, ang_unit, tor_unit
+    integer            :: cdis_unit, cang_unit, ctor_unit
 
 
     if (option%check_only) &
@@ -81,97 +78,82 @@ contains
 
     ! open output file
     !
-    if (option%out_dis)  &
-      call open_file(dis_unit, output%disfile, IOFileOutputNew)
-    if (option%out_ang)  &
-      call open_file(ang_unit, output%angfile, IOFileOutputNew)
-    if (option%out_tor)  &
-      call open_file(tor_unit, output%torfile, IOFileOutputNew)
-    if (option%out_cdis) &
-      call open_file(cdis_unit, output%comdisfile, IOFileOutputNew)
-    if (option%out_cang) &
-      call open_file(cang_unit, output%comangfile, IOFileOutputNew)
-    if (option%out_ctor) &
-      call open_file(ctor_unit, output%comtorfile, IOFileOutputNew)
+    ! if (option%out_dis)  &
+    !   call open_file(dis_unit, output%disfile, IOFileOutputNew)
+    ! if (option%out_ang)  &
+    !   call open_file(ang_unit, output%angfile, IOFileOutputNew)
+    ! if (option%out_tor)  &
+    !   call open_file(tor_unit, output%torfile, IOFileOutputNew)
+    ! if (option%out_cdis) &
+    !   call open_file(cdis_unit, output%comdisfile, IOFileOutputNew)
+    ! if (option%out_cang) &
+    !   call open_file(cang_unit, output%comangfile, IOFileOutputNew)
+    ! if (option%out_ctor) &
+    !   call open_file(ctor_unit, output%comtorfile, IOFileOutputNew)
 
     if (option%out_dis) then
-      i_dis = 0
-      do ifile = 1, size(trajes_c)
-          i_dis = i_dis + trajes_c(ifile)%nframe
-      end do
-      allocate( distance(size(option%distance), (i_dis + ana_period - 1) / ana_period) )
       num_distance = size(option%distance)
-      num = (i_dis + ana_period - 1) / ana_period
+      allocate( distance(size(option%distance), trajes_c%nframe / ana_period) )
     end if
 
     ! analysis loop
     !
     nstru = 0
 
-    do ifile = 1, size(trajes_c)
+    do istep = 1, trajes_c%nframe
 
-      do istep = 1, trajes_c(ifile)%nframe
+      ! read trajectory
+      !   coordinates of one MD snapshot are saved in trajectory%coord)
+      !
+      call get_frame(trajes_c, istep, trajectory)
 
-        ! read trajectory
-        !   coordinates of one MD snapshot are saved in trajectory%coord)
-        !
-        call get_frame(trajes_c(ifile), istep, trajectory)
+      if (mod(istep, ana_period) == 0) then
 
-        if (mod(istep, ana_period) == 0) then
+        nstru = nstru + 1
+        write(MsgOut,*) '      number of structures = ', nstru
 
-          nstru = nstru + 1
-          write(MsgOut,*) '      number of structures = ', nstru
-
-          if (option%out_dis) then
-            call analyze_dis(trajectory, option)
-            distance(:, nstru) = option%distance
-            ! call out_result (nstru, dis_unit, option%distance)
-          end if
-
-          if (option%out_ang) then
-            call analyze_ang(trajectory, option)
-            call out_result (nstru, ang_unit, option%angle)
-          end if
-
-          if (option%out_tor) then
-            call analyze_tor(trajectory, option)
-            call out_result (nstru, tor_unit, option%torsion)
-          end if
-
-          if (option%out_cdis) then
-            call analyze_comdis(molecule, trajectory, option)
-            call out_result (nstru, cdis_unit, option%cdistance)
-          end if
-
-          if (option%out_cang) then
-            call analyze_comang(molecule, trajectory, option)
-            call out_result (nstru, cang_unit, option%cangle)
-          end if
-
-          if (option%out_ctor) then
-            call analyze_comtor(molecule, trajectory, option)
-            call out_result (nstru, ctor_unit, option%ctorsion)
-          end if
-
+        if (option%out_dis) then
+          call analyze_dis(trajectory, option)
+          distance(:, nstru) = option%distance
+          ! call out_result (nstru, dis_unit, option%distance)
         end if
 
-      end do
+        ! if (option%out_ang) then
+        !   call analyze_ang(trajectory, option)
+        !   call out_result (nstru, ang_unit, option%angle)
+        ! end if
+        !
+        ! if (option%out_tor) then
+        !   call analyze_tor(trajectory, option)
+        !   call out_result (nstru, tor_unit, option%torsion)
+        ! end if
+        !
+        ! if (option%out_cdis) then
+        !   call analyze_comdis(molecule, trajectory, option)
+        !   call out_result (nstru, cdis_unit, option%cdistance)
+        ! end if
+        !
+        ! if (option%out_cang) then
+        !   call analyze_comang(molecule, trajectory, option)
+        !   call out_result (nstru, cang_unit, option%cangle)
+        ! end if
+        !
+        ! if (option%out_ctor) then
+        !   call analyze_comtor(molecule, trajectory, option)
+        !   call out_result (nstru, ctor_unit, option%ctorsion)
+        ! end if
 
-      ! close trajectory file
-      !
-      call close_trj(trj_in)
-
+      end if
     end do
-
 
     ! close output file
     !
-    if (option%out_ctor) call close_file(ctor_unit)
-    if (option%out_cang) call close_file(cang_unit)
-    if (option%out_cdis) call close_file(cdis_unit)
-    if (option%out_tor)  call close_file(tor_unit)
-    if (option%out_ang)  call close_file(ang_unit)
-    if (option%out_dis)  call close_file(dis_unit)
+    ! if (option%out_ctor) call close_file(ctor_unit)
+    ! if (option%out_cang) call close_file(cang_unit)
+    ! if (option%out_cdis) call close_file(cdis_unit)
+    ! if (option%out_tor)  call close_file(tor_unit)
+    ! if (option%out_ang)  call close_file(ang_unit)
+    ! if (option%out_dis)  call close_file(dis_unit)
 
 
     ! Output summary

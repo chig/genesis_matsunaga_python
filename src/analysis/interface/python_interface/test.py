@@ -4,6 +4,7 @@ import pathlib
 from libgenesis import LibGenesis
 from s_molecule import SMolecule, py2c_s_molecule
 from s_trajectories import STrajectoriesArray
+from s_trajectories_c import STrajectoriesC
 import py2c_util
 
 
@@ -51,23 +52,22 @@ def test_crd():
             pass
 
 
-def trj_analysis(molecule: SMolecule, trajs :STrajectoriesArray,
+def trj_analysis(molecule: SMolecule, trajs :STrajectoriesC,
+                 ana_period: int,
                  ctrl_path: str | bytes | os.PathLike):
     mol_c = py2c_s_molecule(molecule)
-    num_trajs = ctypes.c_int(len(trajs.traj_c_array))
 
     num_distance = ctypes.c_int(0)
-    num = ctypes.c_int(0)
+    ana_period_c = ctypes.c_int(ana_period)
     result_distance = ctypes.c_void_p(None)
 
     LibGenesis().lib.trj_analysis_c(
             ctypes.byref(mol_c),
-            trajs.src_c_obj,
-            ctypes.byref(num_trajs),
+            trajs,
+            ctypes.byref(ana_period_c),
             py2c_util.pathlike_to_byte(ctrl_path),
             ctypes.byref(result_distance),
             ctypes.byref(num_distance),
-            ctypes.byref(num)
             )
 
 
@@ -82,10 +82,10 @@ def test_trj_analysis():
 
     with SMolecule.from_pdb_psf_file(pdb_path, psf_path) as mol:
         with crd_convert(mol, crd_ctrl_path) as trajs:
-            trj_analysis(mol, trajs, trj_analysis_ctrl_path)
+            trj_analysis(mol, trajs.traj_p[0], 1, trj_analysis_ctrl_path)
 
 
 if __name__ == "__main__":
     # test()
-    test_crd()
-    # test_trj_analysis()
+    # test_crd()
+    test_trj_analysis()
