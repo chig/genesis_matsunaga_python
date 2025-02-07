@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = avecrd_analysis
+noinst_LIBRARIES = libavecrd_analysis.a
+# noinst_LTLIBRARIES = libavecrd_analysis.la
 
 avecrd_analysis_SOURCES = \
 	aa_option_str.fpp \
@@ -53,6 +55,12 @@ avecrd_analysis$(EXEEXT) : $(avecrd_analysis_ADDLIBANA) $(avecrd_analysis_ADDLIB
 							$(avecrd_analysis_OBJECTS)
 	$(FC) -o $(bin_PROGRAMS) $(avecrd_analysis_OBJECTS) \
 		$(avecrd_analysis_ADDLIBANA) $(avecrd_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(avecrd_analysis_ADDLIBANA) $(avecrd_analysis_ADDLIB) \
+	$(avecrd_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(avecrd_analysis_OBJECTS) \
+		$(avecrd_analysis_ADDLIBANA) $(avecrd_analysis_ADDLIB)
+libavecrd_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

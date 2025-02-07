@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = wham_analysis
+noinst_LIBRARIES = wham_analysis.a
+# noinst_LTLIBRARIES = wham_analysis.la
 
 wham_analysis_SOURCES = \
         wa_option_str.fpp \
@@ -53,6 +55,12 @@ wham_analysis$(EXEEXT) : $(wham_analysis_ADDLIBANA) $(wham_analysis_ADDLIB) \
 							$(wham_analysis_OBJECTS)
 	$(FC) -o $(bin_PROGRAMS) $(wham_analysis_OBJECTS) \
 		$(wham_analysis_ADDLIBANA) $(wham_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(wham_analysis_ADDLIBANA) $(wham_analysis_ADDLIB) \
+	$(wham_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(wham_analysis_OBJECTS) \
+		$(wham_analysis_ADDLIBANA) $(wham_analysis_ADDLIB)
+wham_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

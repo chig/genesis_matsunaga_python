@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = msd_analysis
+noinst_LIBRARIES = libmsd_analysis.a
+# noinst_LTLIBRARIES = libmsd_analysis.la
 
 msd_analysis_SOURCES = \
 	one_molecule_str.fpp \
@@ -28,7 +30,7 @@ msd_analysis_SOURCES = \
 	ma_main.fpp
 
 EXTRA_DIST = \
-	Makefile.depends 
+	Makefile.depends
 
 msd_analysis_ADDLIB = ../../../lib/lib.a $(INT_LAPACK_LIB)
 msd_analysis_ADDLIBANA = ../../libana/libana.a
@@ -56,6 +58,12 @@ msd_analysis$(EXEEXT) : $(msd_analysis_OBJECTS) \
 		$(msd_analysis_ADDLIBANA) $(msd_analysis_ADDLIB)
 	$(FC) -o $(bin_PROGRAMS) $(msd_analysis_OBJECTS) \
 		$(msd_analysis_ADDLIBANA) $(msd_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(msd_analysis_ADDLIBANA) $(msd_analysis_ADDLIB) \
+	$(msd_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(msd_analysis_OBJECTS) \
+		$(msd_analysis_ADDLIBANA) $(msd_analysis_ADDLIB)
+libmsd_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

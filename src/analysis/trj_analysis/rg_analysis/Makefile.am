@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = rg_analysis
+noinst_LIBRARIES = librg_analysis.a
+# noinst_LTLIBRARIES = librg_analysis.la
 
 rg_analysis_SOURCES = \
 	rg_option_str.fpp \
@@ -53,6 +55,12 @@ rg_analysis$(EXEEXT) : $(rg_analysis_OBJECTS) \
 		$(rg_analysis_ADDLIBANA) $(rg_analysis_ADDLIB)
 	$(FC) -o $(bin_PROGRAMS) $(rg_analysis_OBJECTS) \
 		$(rg_analysis_ADDLIBANA) $(rg_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(rg_analysis_ADDLIBANA) $(rg_analysis_ADDLIB) \
+	$(rg_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(rg_analysis_OBJECTS) \
+		$(rg_analysis_ADDLIBANA) $(rg_analysis_ADDLIB)
+librg_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

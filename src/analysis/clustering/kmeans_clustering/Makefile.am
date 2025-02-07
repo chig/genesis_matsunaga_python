@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = kmeans_clustering
+noinst_LIBRARIES = libkmeans_clustering.a
+# noinst_LTLIBRARIES = libkmeans_clustering.la
 
 kmeans_clustering_SOURCES = \
         kc_option_str.fpp \
@@ -25,7 +27,7 @@ kmeans_clustering_SOURCES = \
         kc_main.fpp
 
 EXTRA_DIST = \
-	Makefile.depends 
+	Makefile.depends
 
 kmeans_clustering_ADDLIB = ../../../lib/lib.a $(INT_LAPACK_LIB)
 kmeans_clustering_ADDLIBANA = ../../libana/libana.a
@@ -53,6 +55,12 @@ kmeans_clustering$(EXEEXT) : $(kmeans_clustering_ADDLIBANA) $(kmeans_clustering_
 							$(kmeans_clustering_OBJECTS)
 	$(FC) -o $(bin_PROGRAMS) $(kmeans_clustering_OBJECTS) \
 		$(kmeans_clustering_ADDLIBANA) $(kmeans_clustering_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(kmeans_clustering_ADDLIBANA) $(kmeans_clustering_ADDLIB) \
+	$(kmeans_clustering_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(kmeans_clustering_OBJECTS) \
+		$(kmeans_clustering_ADDLIBANA) $(kmeans_clustering_ADDLIB)
+libkmeans_clustering.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

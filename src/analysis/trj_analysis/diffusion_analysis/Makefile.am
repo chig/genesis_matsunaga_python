@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = diffusion_analysis
+noinst_LIBRARIES = libdiffusion_analysis.a
+# noinst_LTLIBRARIES = libdiffusion_analysis.la
 
 diffusion_analysis_SOURCES = \
   	da_option_str.fpp \
@@ -25,7 +27,7 @@ diffusion_analysis_SOURCES = \
         da_main.fpp
 
 EXTRA_DIST = \
-	Makefile.depends 
+	Makefile.depends
 
 diffusion_analysis_ADDLIB = ../../../lib/lib.a $(INT_LAPACK_LIB)
 diffusion_analysis_ADDLIBANA = ../../libana/libana.a
@@ -53,6 +55,12 @@ diffusion_analysis$(EXEEXT) : $(diffusion_analysis_OBJECTS) \
 		$(diffusion_analysis_ADDLIBANA) $(diffusion_analysis_ADDLIB)
 	$(FC) -o $(bin_PROGRAMS) $(diffusion_analysis_OBJECTS) \
 		$(diffusion_analysis_ADDLIBANA) $(diffusion_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(diffusion_analysis_ADDLIBANA) $(diffusion_analysis_ADDLIB) \
+	$(diffusion_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(diffusion_analysis_OBJECTS) \
+		$(diffusion_analysis_ADDLIBANA) $(diffusion_analysis_ADDLIB)
+libdiffusion_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)
