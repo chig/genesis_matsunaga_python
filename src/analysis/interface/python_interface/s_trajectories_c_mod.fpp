@@ -14,6 +14,7 @@ module s_trajectories_c_mod
 
   public :: get_frame
   public :: set_frame
+  public :: deep_copy_s_trajectories_c
   public :: init_empty_s_trajectories_c
   public :: deallocate_s_trajectories_c
   public :: deallocate_s_trajectories_c_array
@@ -63,30 +64,29 @@ contains
     deallocate(boxes)
   end subroutine deallocate_s_trajectories_c
 
-  subroutine allocate_s_trajectories_c_array(trajs_array, len) &
-      bind(C, name="allocate_s_trajectories_c_array")
+  subroutine deep_copy_s_trajectories_c(src, dst) &
+      bind(C, name="deep_copy_s_trajectories_c")
     implicit none
-    integer(c_int), intent(in) :: len
-    type(c_ptr), intent(out) :: trajs_array
-    type(s_trajectories_c), pointer :: buf(:)
-    allocate(buf(len))
-    trajs_array = c_loc(buf)
-  end subroutine allocate_s_trajectories_c_array
+    type(s_trajectories_c), intent(in) :: src
+    type(s_trajectories_c), intent(out) :: dst
+    real(c_double), pointer :: src_coords(:,:,:)
+    real(c_double), pointer :: src_boxes(:,:,:)
+    real(c_double), pointer :: dst_coords(:,:,:)
+    real(c_double), pointer :: dst_boxes(:,:,:)
 
-  subroutine deallocate_s_trajectories_c_array(trajs_array, len) &
-      bind(C, name="deallocate_s_trajectories_c_array")
-    implicit none
-    type(c_ptr), intent(inout) :: trajs_array
-    integer(c_int), intent(in) :: len
-    type(s_trajectories_c), pointer :: buf(:)
-    integer :: i
+    dst%natom = src%natom
+    dst%nframe = dst%nframe
 
-    call C_F_POINTER(trajs_array, buf, [len])
-    do i = 1, len
-      call deallocate_s_trajectories_c(buf(i))
-    end do
-    deallocate(buf)
-  end subroutine deallocate_s_trajectories_c_array
+    allocate(dst_coords(3, dst%natom, dst%nframe))
+    call C_F_POINTER(src%coords, src_coords, [3, src%natom, src%nframe])
+    dst_coords(:,:,:) = src_coords(:,:,:)
+    dst%coords = c_loc(dst_coords)
+
+    allocate(dst_boxes(3, 3, dst%nframe))
+    call C_F_POINTER(src%pbc_boxes, src_boxes, [3, 3, src%nframe])
+    dst_boxes(:,:,:) = src_boxes(:,:,:)
+    dst%pbc_boxes = c_loc(dst_boxes)
+  end subroutine deep_copy_s_trajectories_c
 
   ! Accessor for single frame
   subroutine get_frame(trajs_c, frame_idx, traj_fort)
@@ -163,4 +163,29 @@ contains
         call init_empty_s_trajectories_c(joined, 0, 0)
     end if
   end subroutine join_s_trajectories_c
+
+  subroutine allocate_s_trajectories_c_array(trajs_array, len) &
+      bind(C, name="allocate_s_trajectories_c_array")
+    implicit none
+    integer(c_int), intent(in) :: len
+    type(c_ptr), intent(out) :: trajs_array
+    type(s_trajectories_c), pointer :: buf(:)
+    allocate(buf(len))
+    trajs_array = c_loc(buf)
+  end subroutine allocate_s_trajectories_c_array
+
+  subroutine deallocate_s_trajectories_c_array(trajs_array, len) &
+      bind(C, name="deallocate_s_trajectories_c_array")
+    implicit none
+    type(c_ptr), intent(inout) :: trajs_array
+    integer(c_int), intent(in) :: len
+    type(s_trajectories_c), pointer :: buf(:)
+    integer :: i
+
+    call C_F_POINTER(trajs_array, buf, [len])
+    do i = 1, len
+      call deallocate_s_trajectories_c(buf(i))
+    end do
+    deallocate(buf)
+  end subroutine deallocate_s_trajectories_c_array
 end module s_trajectories_c_mod

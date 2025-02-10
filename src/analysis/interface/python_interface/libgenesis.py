@@ -116,3 +116,9 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_void_p),
                 ]
         self.lib.join_s_trajectories_c.restype = None
+
+        self.lib.deep_copy_s_trajectories_c.argtypes = [
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_void_p),
+                ]
+        self.lib.deep_copy_s_trajectories_c.restype = None

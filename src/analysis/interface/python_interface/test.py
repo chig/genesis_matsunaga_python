@@ -1,14 +1,8 @@
 import ctypes
-import os
 import pathlib
-import numpy as np
-import numpy.typing as npt
 from libgenesis import LibGenesis
 from s_molecule import SMolecule, py2c_s_molecule
-from s_trajectories import STrajectories
 import genesis_exe
-import py2c_util
-import c2py_util
 
 
 def test():
@@ -38,7 +32,8 @@ def test_crd():
     #         "../../../../tests/regression_test/test_analysis/trajectories/BPTI_charmm/BPTI_run.dcd")
     with SMolecule.from_pdb_psf_file(pdb_path, psf_path) as mol:
         with genesis_exe.crd_convert(mol, ctrl_path) as trajs:
-            pass
+            for t in trajs:
+                pass
 
 
 def test_trj_analysis():
@@ -110,8 +105,8 @@ def test_drms_analysis():
 
 if __name__ == "__main__":
     # test()
-    # test_crd()
+    test_crd()
     # test_trj_analysis()
     # test_rg_analysis()
     # test_rmsd_analysis()
-    test_drms_analysis()
+    # test_drms_analysis()
