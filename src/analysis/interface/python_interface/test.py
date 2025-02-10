@@ -90,9 +90,28 @@ def test_rmsd_analysis():
                 print(rmsd)
 
 
+def test_drms_analysis():
+    # 関数を呼び出す
+    pdb_path = pathlib.Path(
+            "../../../../tests/regression_test/test_analysis/trajectories/BPTI_charmm/BPTI_ionize.pdb")
+    psf_path = pathlib.Path(
+            "../../../../tests/regression_test/test_analysis/trajectories/BPTI_charmm/BPTI_ionize.psf")
+    ref_path = pathlib.Path(
+            "../../../../tests/regression_test/test_analysis/trajectories/BPTI_charmm/BPTI_ionize.pdb")
+    crd_ctrl_path = pathlib.Path("./test_no_crd_inp")
+    rmsd_analysis_ctrl_path = pathlib.Path("./test_drms_analysis_inp")
+
+    with SMolecule.from_pdb_psf_ref_file(pdb_path, psf_path, ref_path) as mol:
+        with genesis_exe.crd_convert(mol, crd_ctrl_path) as trajs:
+            for t in trajs:
+                drms = genesis_exe.drms_analysis(mol, t, 1, rmsd_analysis_ctrl_path)
+                print(drms)
+
+
 if __name__ == "__main__":
     # test()
     # test_crd()
     # test_trj_analysis()
     # test_rg_analysis()
-    test_rmsd_analysis()
+    # test_rmsd_analysis()
+    test_drms_analysis()

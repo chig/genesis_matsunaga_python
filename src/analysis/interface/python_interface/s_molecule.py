@@ -112,6 +112,19 @@ class SMolecule:
         LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
         return mol_py
 
+    def from_pdb_psf_ref_file(src_pdb_path: str | bytes | os.PathLike,
+                              src_psf_path: str | bytes | os.PathLike,
+                              src_ref_path: str | bytes | os.PathLike) -> Self:
+        mol_c = SMoleculeC()
+        LibGenesis().lib.define_molecule_from_pdb_psf_ref(
+                py2c_util.pathlike_to_byte(src_pdb_path),
+                py2c_util.pathlike_to_byte(src_psf_path),
+                py2c_util.pathlike_to_byte(src_ref_path),
+                ctypes.byref(mol_c))
+        mol_py = c2py_s_molecule(mol_c)
+        LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
+        return mol_py
+
 
 def c2py_s_molecule(src: SMoleculeC) -> SMolecule:
     dst = SMolecule()
