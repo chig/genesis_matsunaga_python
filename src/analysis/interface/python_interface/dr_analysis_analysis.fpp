@@ -72,7 +72,7 @@ contains
 
     ! local variables
     type(s_trajectory) :: trajectory
-    integer                  :: nstru, ifile, istep, num_trjfiles
+    integer                  :: nstru, ifile, istep
     integer                  :: rms_out
     real(wp)                 :: drms, drms_cur
 

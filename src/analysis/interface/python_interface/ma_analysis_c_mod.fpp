@@ -1,8 +1,8 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
-! 
-!> Program  ra_main
-!! @brief   RMSD analysis
-!! @authors Takaharu Mori (TM), Yuji Sugita (YS)
+!
+!> Program  ma_main
+!! @brief   MSD analysis
+!! @authors Donatas Surblys (DS), Yuji Sugita (YS)
 !
 !  (c) Copyright 2014 RIKEN. All rights reserved.
 !
@@ -12,69 +12,66 @@
 #include "../../../config.h"
 #endif
 
-module ra_analysis_c_mod
+module ma_analysis_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use ra_analysis_analyze_c_mod
+  use ma_analysis_analyze_c_mod
 
-  use ra_control_mod
-  use ra_option_str_mod
-  use fitting_str_mod
+  use ma_control_mod
+  use ma_option_str_mod
   use trajectory_str_mod
   use output_str_mod
   use molecules_str_mod
-  use fileio_control_mod
   use string_mod
   use messages_mod
-  use mpi_parallel_mod
   use constants_mod
   implicit none
 
 contains
-  subroutine ra_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                           result_ra) &
-        bind(C, name="ra_analysis_c")
+  subroutine ma_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
+                           result_msd, num_analysis_mols, num_delta) &
+        bind(C, name="ma_analysis_c")
     use conv_f_c_util
     implicit none
     type(s_molecule_c), intent(in) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
-    type(c_ptr), intent(out) :: result_ra
+    type(c_ptr), intent(out) :: result_msd
+    integer, intent(out) :: num_analysis_mols
+    integer, intent(out) :: num_delta
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
-    real(wp), pointer :: ra(:)
+    real(wp), pointer :: msd(:,:)
 
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
-    call ra_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, ra)
-    result_ra = c_loc(ra)
-  end subroutine ra_analysis_c
+    call ma_analysis_main( &
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, &
+        msd, num_analysis_mols, num_delta)
+    result_msd = c_loc(msd)
+  end subroutine ma_analysis_c
 
-  subroutine ra_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename, ra)
+  subroutine ma_analysis_main( &
+          molecule,s_trajes_c, ana_period, ctrl_filename, &
+          result_msd, num_analysis_mols, num_delta)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
-    real(wp), pointer, intent(out) :: ra(:)
+    real(wp), pointer, intent(out) :: result_msd(:,:)
+    integer, intent(out) :: num_analysis_mols
+    integer, intent(out) :: num_delta
+
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
     type(s_trajectory)     :: trajectory
-    type(s_fitting)        :: fitting
     type(s_output)         :: output
     type(s_option)         :: option
-
-
-    my_city_rank = 0
-    nproc_city   = 1
-    main_rank    = .true.
-
 
     ! [Step1] Read control file
     !
@@ -84,21 +81,21 @@ contains
     call control(ctrl_filename, ctrl_data)
 
 
-    ! [Step2] Set relevant variables and structures 
+    ! [Step2] Set relevant variables and structures
     !
     write(MsgOut,'(A)') '[STEP2] Set Relevant Variables and Structures'
     write(MsgOut,'(A)') ' '
 
-    call setup(molecule, ctrl_data, fitting, output, option)
+    call setup(molecule, ctrl_data, output, option)
 
 
     ! [Step3] Analyze trajectory
     !
-    write(MsgOut,'(A)') '[STEP3] Analysis trajectory files'
+    write(MsgOut,'(A)') '[STEP3] Analysis of trajectory files'
     write(MsgOut,'(A)') ' '
 
     call analyze(molecule, s_trajes_c, ana_period, output, option, &
-                 fitting, ra)
+                 result_msd, num_analysis_mols, num_delta)
 
 
     ! [Step4] Deallocate memory
@@ -108,12 +105,12 @@ contains
 
     call dealloc_trajectory(trajectory)
     call dealloc_molecules_all(molecule)
-end subroutine ra_analysis_main
+end subroutine ma_analysis_main
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
   !  Subroutine    setup
-  !> @brief        setup variables and structures in TRJ_ANALYSIS
+  !> @brief        setup variables and structures
   !! @authors      TM
   !! @param[in]    ctrl_data  : information of control parameters
   !! @param[inout] output     : output information
@@ -121,12 +118,10 @@ end subroutine ra_analysis_main
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup(molecule, ctrl_data, fitting, output, option)
-    use ra_control_mod
-    use ra_option_mod
-    use ra_option_str_mod
-    use fitting_mod
-    use fitting_str_mod
+  subroutine setup(molecule, ctrl_data, output, option)
+    use ma_control_mod
+    use ma_option_mod
+    use ma_option_str_mod
     use trajectory_mod
     use output_mod
     use input_mod
@@ -135,20 +130,23 @@ end subroutine ra_analysis_main
     use select_mod
     use molecules_mod
     use molecules_str_mod
-    use fileio_grocrd_mod
-    use fileio_grotop_mod
-    use fileio_ambcrd_mod
-    use fileio_prmtop_mod
     use fileio_psf_mod
     use fileio_pdb_mod
+    use fileio_ambcrd_mod
+    use fileio_prmtop_mod
+    use select_molecules_mod
     implicit none
+
 
     ! formal arguments
     type(s_ctrl_data),       intent(in)    :: ctrl_data
     type(s_molecule),        intent(inout) :: molecule
-    type(s_fitting),         intent(inout) :: fitting
     type(s_output),          intent(inout) :: output
     type(s_option),          intent(inout) :: option
+
+    ! local variables
+    type(s_selmols), dimension(:), allocatable      :: selmols
+    type(s_one_molecule), dimension(:), allocatable :: allmols
 
 
     ! setup output
@@ -160,21 +158,18 @@ end subroutine ra_analysis_main
     !
     call setup_selection(ctrl_data%sel_info, molecule)
 
-
-    ! setup fitting
+    ! setup molecule selection
     !
-    call setup_fitting(ctrl_data%fit_info, ctrl_data%sel_info, &
-                       molecule, fitting)
-
+    call setup_molselect(ctrl_data%molsel_info, ctrl_data%sel_info, &
+      molecule, selmols, allmols=allmols)
 
     ! setup option
     !
-    call setup_option(ctrl_data%opt_info, ctrl_data%sel_info, &
-                      molecule, option)
+    call setup_option(ctrl_data%opt_info, selmols, allmols, molecule, option)
 
 
     return
 
   end subroutine setup
 
-end module ra_analysis_c_mod
+end module ma_analysis_c_mod

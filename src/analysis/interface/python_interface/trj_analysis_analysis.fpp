@@ -68,7 +68,7 @@ contains
 
     ! local variables
     type(s_trajectory) :: trajectory
-    integer            :: nstru, istep, num_trjfiles
+    integer            :: nstru, istep
     integer            :: dis_unit, ang_unit, tor_unit
     integer            :: cdis_unit, cang_unit, ctor_unit
 

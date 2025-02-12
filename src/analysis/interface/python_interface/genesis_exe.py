@@ -74,6 +74,18 @@ def rg_analysis(molecule: SMolecule, trajs :STrajectories,
                 ana_period: int,
                 ctrl_path: str | bytes | os.PathLike
                 ) -> npt.NDArray[np.float64]:
+    """
+    Executes rg_analysis.
+
+    Args:
+        molecule:
+        trajs:
+        ana_period:
+        ctrl_path:
+
+    Returns:
+        rg
+    """
     mol_c = py2c_s_molecule(molecule)
 
     ana_period_c = ctypes.c_int(ana_period)
@@ -100,6 +112,18 @@ def rmsd_analysis(molecule: SMolecule, trajs :STrajectories,
                 ana_period: int,
                 ctrl_path: str | bytes | os.PathLike
                 ) -> npt.NDArray[np.float64]:
+    """
+    Executes rmsd_analysis.
+
+    Args:
+        molecule:
+        trajs:
+        ana_period:
+        ctrl_path:
+
+    Returns:
+        rmsd
+    """
     mol_c = py2c_s_molecule(molecule)
 
     ana_period_c = ctypes.c_int(ana_period)
@@ -126,6 +150,18 @@ def drms_analysis(molecule: SMolecule, trajs :STrajectories,
                 ana_period: int,
                 ctrl_path: str | bytes | os.PathLike
                 ) -> npt.NDArray[np.float64]:
+    """
+    Executes drms_analysis.
+
+    Args:
+        molecule:
+        trajs:
+        ana_period:
+        ctrl_path:
+
+    Returns:
+        drms
+    """
     mol_c = py2c_s_molecule(molecule)
 
     ana_period_c = ctypes.c_int(ana_period)
@@ -146,3 +182,45 @@ def drms_analysis(molecule: SMolecule, trajs :STrajectories,
             ctypes.byref(result_dr_c),
             ctypes.byref(n_frame_c))
     return result_dr
+
+
+def msd_analysis(molecule: SMolecule, trajs :STrajectories,
+                ana_period: int,
+                ctrl_path: str | bytes | os.PathLike
+                ) -> tuple(npt.NDArray[np.float64]):
+    """
+    Executes msd_analysis.
+
+    Args:
+        molecule:
+        trajs:
+        ana_period:
+        ctrl_path:
+
+    Returns:
+        msd
+    """
+    mol_c = py2c_s_molecule(molecule)
+
+    ana_period_c = ctypes.c_int(ana_period)
+    num_analysis_mols_c = ctypes.c_int(0)
+    num_delta_c = ctypes.c_int(0)
+    result_msd_c = ctypes.c_void_p(None)
+
+    LibGenesis().lib.ma_analysis_c(
+            ctypes.byref(mol_c),
+            ctypes.byref(trajs.get_c_obj()),
+            ctypes.byref(ana_period_c),
+            py2c_util.pathlike_to_byte(ctrl_path),
+            ctypes.byref(result_msd_c),
+            ctypes.byref(num_analysis_mols_c),
+            ctypes.byref(num_delta_c),
+            )
+    result_msd = c2py_util.conv_double_ndarray(
+            result_msd_c, [num_delta_c.value, num_analysis_mols_c.value])
+    LibGenesis().lib.deallocate_double2(
+            ctypes.byref(result_msd_c),
+            ctypes.byref(num_delta_c), ctypes.byref(num_analysis_mols_c))
+    return result_msd
+
+

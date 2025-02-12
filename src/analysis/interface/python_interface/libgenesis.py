@@ -96,6 +96,25 @@ class LibGenesis:
                 ]
         self.lib.ra_analysis_c.restype = None
 
+        self.lib.dr_analysis_c.argtyes = [
+                ctypes.POINTER(SMoleculeC),
+                ctypes.POINTER(STrajectoriesC),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.POINTER(ctypes.c_void_p),
+                ]
+        self.lib.dr_analysis_c.restype = None
+
+        self.lib.ma_analysis_c.argtyes = [
+                ctypes.POINTER(SMoleculeC),
+                ctypes.POINTER(STrajectoriesC),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_int),
+                ]
+        self.lib.ma_analysis_c.restype = None
 
         self.lib.deallocate_double.argtypes = [
                 ctypes.POINTER(ctypes.c_void_p),

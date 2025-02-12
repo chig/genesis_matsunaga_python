@@ -105,7 +105,6 @@ contains
     write(MsgOut,'(A)') ' '
 
     call dealloc_trajectory(trajectory)
-    call dealloc_option_all(option)
     call dealloc_molecules_all(molecule)
   end subroutine dr_analysis_main
 

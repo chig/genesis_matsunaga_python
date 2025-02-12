@@ -61,7 +61,7 @@ contains
 
     ! local variables
     type(s_trajectory) :: trajectory
-    integer                   :: nstru, istep, num_trjfiles
+    integer                   :: nstru, istep
     integer                   :: i, iatom, rg_out, idx
     real(wp)                  :: com(3), weight, tot_weight, rg
 
