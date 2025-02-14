@@ -121,6 +121,22 @@ class LibGenesis:
                 ]
         self.lib.diffusion_analysis_c.restype = None
 
+        self.lib.hb_analysis_c.argtypes = [
+                ctypes.POINTER(SMoleculeC),
+                ctypes.POINTER(STrajectoriesC),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ]
+        self.lib.hb_analysis_c.restype = None
+
+        self.lib.aa_analysis_c.argtypes = [
+                ctypes.POINTER(SMoleculeC),
+                ctypes.POINTER(STrajectoriesC),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ]
+        self.lib.aa_analysis_c.restype = None
+
         self.lib.deallocate_double.argtypes = [
                 ctypes.POINTER(ctypes.c_void_p),
                 ctypes.POINTER(ctypes.c_int),

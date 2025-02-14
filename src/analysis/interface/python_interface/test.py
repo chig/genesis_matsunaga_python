@@ -136,6 +136,20 @@ def test_diffusion_analysis():
     genesis_exe.diffusion_analysis(ctrl_path)
 
 
+def test_avecrd_analysis():
+    # 関数を呼び出す
+    pdb_path = pathlib.Path("BPTI_ionize.pdb")
+    psf_path = pathlib.Path("BPTI_ionize.psf")
+    crd_ctrl_path = pathlib.Path("test_no_crd_inp")
+    aa_analysis_ctrl_path = pathlib.Path("test_avecrd_analysis_inp")
+
+    with SMolecule.from_pdb_psf_file(pdb_path, psf_path) as mol:
+        with genesis_exe.crd_convert(mol, crd_ctrl_path) as trajs:
+            for t in trajs:
+                genesis_exe.avecrd_analysis(
+                        mol, t, 1, aa_analysis_ctrl_path)
+
+
 def main():
     if os.path.exists("out"):
       os.remove("out")
@@ -158,13 +172,16 @@ def main():
     # test_msd_analysis()
     if os.path.exists("out"):
         os.remove("out")
-    test_hb_analysis_Count_atom()
+    # test_hb_analysis_Count_atom()
     if os.path.exists("out"):
         os.remove("out")
-    test_hb_analysis_Count_snap()
-    # if os.path.exists("out"):
-    #     os.remove("out")
+    # test_hb_analysis_Count_snap()
+    if os.path.exists("out"):
+        os.remove("out")
     # test_diffusion_analysis()
+    if os.path.exists("out"):
+        os.remove("out")
+    test_avecrd_analysis()
 
 
 if __name__ == "__main__":

@@ -225,9 +225,9 @@ def msd_analysis(molecule: SMolecule, trajs :STrajectories,
 
 
 def hb_analysis(molecule: SMolecule, trajs :STrajectories,
-                 ana_period: int,
-                 ctrl_path: str | bytes | os.PathLike
-                 ):
+                ana_period: int,
+                ctrl_path: str | bytes | os.PathLike
+                ):
     """
     Executes hb_analysis.
 
@@ -241,16 +241,13 @@ def hb_analysis(molecule: SMolecule, trajs :STrajectories,
         none
     """
     mol_c = py2c_s_molecule(molecule)
-    num_distance = ctypes.c_int(0)
     ana_period_c = ctypes.c_int(ana_period)
-    result_distance_c = ctypes.c_void_p(None)
     LibGenesis().lib.hb_analysis_c(
             ctypes.byref(mol_c),
             ctypes.byref(trajs.get_c_obj()),
             ctypes.byref(ana_period_c),
             py2c_util.pathlike_to_byte(ctrl_path),
             )
-    n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
     return
 
 
@@ -267,3 +264,32 @@ def diffusion_analysis(ctrl_path: str | bytes | os.PathLike):
     LibGenesis().lib.diffusion_analysis_c(
             py2c_util.pathlike_to_byte(ctrl_path),
             )
+
+
+def avecrd_analysis(molecule: SMolecule, trajs :STrajectories,
+                ana_period: int,
+                ctrl_path: str | bytes | os.PathLike
+                ):
+    """
+    Executes aa_analysis.
+
+    Args:
+        molecule:
+        trajs:
+        ana_period:
+        ctrl_path:
+
+    Returns:
+        none
+    """
+    mol_c = py2c_s_molecule(molecule)
+    ana_period_c = ctypes.c_int(ana_period)
+    LibGenesis().lib.aa_analysis_c(
+            ctypes.byref(mol_c),
+            ctypes.byref(trajs.get_c_obj()),
+            ctypes.byref(ana_period_c),
+            py2c_util.pathlike_to_byte(ctrl_path),
+            )
+    return
+
+

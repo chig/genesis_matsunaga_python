@@ -77,8 +77,8 @@ contains
 
     ! formal arguments
     type(s_molecule), target, intent(in)    :: molecule
-    type(s_trajectories_c),  intent(in)     :: trajes_c
-    integer,                 intent(in)     :: ana_period
+    type(s_trajectories_c),   intent(in)    :: trajes_c
+    integer,                  intent(in)    :: ana_period
     type(s_option),           intent(in)    :: option
     type(s_output),           intent(in)    :: output
 

@@ -1,3 +1,7 @@
+aa_analysis_analysis.lo: aa_analysis_analysis.fpp s_trajectories_c_mod.mod 
+aa_analysis_analyze_c_mod.mod: aa_analysis_analysis.fpp aa_analysis_analysis.lo
+aa_analysis_c_mod.lo: aa_analysis_c_mod.fpp aa_analysis_analyze_c_mod.mod conv_f_c_util.mod s_trajectories_c_mod.mod s_molecule_c_mod.mod 
+aa_analysis_c_mod.mod: aa_analysis_c_mod.fpp aa_analysis_c_mod.lo
 conv_f_c_util.lo: conv_f_c_util.fpp  
 conv_f_c_util.mod: conv_f_c_util.fpp conv_f_c_util.lo
 crd_convert_c_mod.lo: crd_convert_c_mod.fpp crd_convert_convert.mod conv_f_c_util.mod s_trajectories_c_mod.mod s_molecule_c_mod.mod 
