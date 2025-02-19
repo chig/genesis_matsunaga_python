@@ -14,8 +14,8 @@
 
 module mbar_analysis_analyze_c_mod
 
-  use ma_option_str_mod
-  use ma_matrix_mod
+  use mbar_option_str_mod
+  use mbar_matrix_mod
   use fileio_trj_mod
   use measure_mod
   use trajectory_str_mod

@@ -18,8 +18,8 @@
   use s_trajectories_c_mod
   use mbar_analysis_analyze_c_mod
 
-  use ma_control_mod
-  use ma_option_str_mod
+  use mbar_control_mod
+  use mbar_option_str_mod
   use output_str_mod
   use input_str_mod
   use molecules_str_mod
@@ -68,7 +68,6 @@
     type(s_option)         :: option
     type(s_input)          :: input
     type(s_output)         :: output
-    type(s_molecule)       :: molecule
 
 
     my_city_rank = 0
@@ -124,9 +123,9 @@ end subroutine mbar_analysis_main
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine setup(ctrl_data, molecule, option, input, output)
-    use ma_control_mod
-    use ma_option_mod
-    use ma_option_str_mod
+    use mbar_control_mod
+    use mbar_option_mod
+    use mbar_option_str_mod
     use output_mod
     use input_mod
     use output_str_mod
