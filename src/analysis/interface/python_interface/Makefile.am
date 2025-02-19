@@ -40,9 +40,9 @@ libpython_interface_la_SOURCES = \
         aa_analysis_c_mod.fpp \
         aa_analysis_analysis.fpp \
         wa_analysis_c_mod.fpp \
-        wa_analysis_analysis.fpp \
-        mbar_analysis_c_mod.fpp \
-        mbar_analysis_analysis.fpp
+        wa_analysis_analysis.fpp
+#        mbar_analysis_c_mod.fpp \
+#        mbar_analysis_analysis.fpp
 #        kc_analysis_c_mod.fpp \
 #        kc_analysis_analysis.fpp
 
