@@ -32,7 +32,8 @@ module trj_analysis_c_mod
 
 contains
   subroutine trj_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                            result_distance, num_distance) &
+                            result_distance, num_distance, &
+                            result_angle, num_angle) &
         bind(C, name="trj_analysis_c")
     use conv_f_c_util
     implicit none
@@ -41,28 +42,53 @@ contains
     integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
     type(c_ptr), intent(out) :: result_distance
-    integer, intent(out) :: num_distance
+    integer(c_int), intent(out) :: num_distance
+    type(c_ptr), intent(out) :: result_angle
+    integer(c_int), intent(out) :: num_angle
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
-    real(wp), pointer :: distance(:,:)
+    real(wp), pointer :: distance_f(:,:) => null()
+    real(wp), pointer :: angle_f(:,:) => null()
+    integer :: num_distance_f
+    integer :: num_angle_f
 
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call trj_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, distance, num_distance)
-    result_distance = c_loc(distance)
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, &
+        distance_f, num_distance_f, &
+        angle_f, num_angle_f)
+
+    if (associated(distance_f)) then
+      result_distance = c_loc(distance_f)
+      num_distance = num_distance_f
+    else
+      result_distance = c_null_ptr
+      num_distance = 0
+    end if
+    if (associated(angle_f)) then
+      result_angle = c_loc(angle_f)
+      num_angle = num_angle_f
+    else
+      result_angle = c_null_ptr
+      num_angle = 0
+    end if
   end subroutine trj_analysis_c
 
   subroutine trj_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename, distance, num_distance)
+          molecule, s_trajes_c, ana_period, ctrl_filename, &
+          result_distance, num_distance, &
+          result_angle, num_angle)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
-    real(wp), pointer, intent(out) :: distance(:,:)
+    real(wp), pointer, intent(out) :: result_distance(:,:)
     integer, intent(out) :: num_distance
+    real(wp), pointer, intent(out) :: result_angle(:,:)
+    integer, intent(out) :: num_angle
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -97,7 +123,8 @@ contains
     write(MsgOut,'(A)') ' '
 
     call analyze(molecule, s_trajes_c, ana_period, output, option, &
-                 distance, num_distance)
+                 result_distance, num_distance, &
+                 result_angle, num_angle)
 
 
     ! [Step4] Deallocate memory

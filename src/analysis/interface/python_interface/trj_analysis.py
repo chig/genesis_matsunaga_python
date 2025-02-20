@@ -1,8 +1,6 @@
 import os
-import ctypes
 import pathlib
-from libgenesis import LibGenesis
-from s_molecule import SMolecule, py2c_s_molecule
+from s_molecule import SMolecule
 import genesis_exe
 
 
@@ -18,7 +16,7 @@ def test_trj_analysis():
             for t in trajs:
                 d = genesis_exe.trj_analysis(
                         mol, t, 1, trj_analysis_ctrl_path)
-                print(d)
+                print(d, flush=True)
 
 
 def main():

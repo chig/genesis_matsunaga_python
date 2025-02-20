@@ -36,7 +36,7 @@ def crd_convert(molecule: SMolecule,
 def trj_analysis(molecule: SMolecule, trajs :STrajectories,
                  ana_period: int,
                  ctrl_path: str | bytes | os.PathLike
-                 ) -> tuple(npt.NDArray[np.float64]):
+                 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Executes trj_analysis.
 
@@ -47,27 +47,45 @@ def trj_analysis(molecule: SMolecule, trajs :STrajectories,
         ctrl_path:
 
     Returns:
-        distance
+        (distance, angle)
     """
-    mol_c = py2c_s_molecule(molecule)
     num_distance = ctypes.c_int(0)
-    ana_period_c = ctypes.c_int(ana_period)
+    num_angle = ctypes.c_int(0)
     result_distance_c = ctypes.c_void_p(None)
-    LibGenesis().lib.trj_analysis_c(
-            ctypes.byref(mol_c),
-            ctypes.byref(trajs.get_c_obj()),
-            ctypes.byref(ana_period_c),
-            py2c_util.pathlike_to_byte(ctrl_path),
-            ctypes.byref(result_distance_c),
-            ctypes.byref(num_distance),
-            )
-    n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
-    result_distance = c2py_util.conv_double_ndarray(
+    result_angle_c = ctypes.c_void_p(None)
+    ana_period_c = ctypes.c_int(ana_period)
+    mol_c = ctypes.c_void_p(None)
+    try:
+        mol_c = py2c_s_molecule(molecule)
+        LibGenesis().lib.trj_analysis_c(
+                ctypes.byref(mol_c),
+                ctypes.byref(trajs.get_c_obj()),
+                ctypes.byref(ana_period_c),
+                py2c_util.pathlike_to_byte(ctrl_path),
+                ctypes.byref(result_distance_c),
+                ctypes.byref(num_distance),
+                ctypes.byref(result_angle_c),
+                ctypes.byref(num_angle),
+                )
+        n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
+        result_distance = (c2py_util.conv_double_ndarray(
             result_distance_c, [n_frame_c.value, num_distance.value])
-    LibGenesis().lib.deallocate_double2(
-            ctypes.byref(result_distance_c),
-            ctypes.byref(n_frame_c), ctypes.byref(num_distance))
-    return result_distance
+                           if result_distance_c else None)
+        result_angle = (c2py_util.conv_double_ndarray(
+                result_angle_c, [n_frame_c.value, num_angle.value])
+                        if result_angle_c else None)
+        return (result_distance, result_angle)
+    finally:
+        if result_angle_c:
+            LibGenesis().lib.deallocate_double2(
+                    ctypes.byref(result_angle_c),
+                    ctypes.byref(n_frame_c), ctypes.byref(num_angle))
+        if result_distance_c:
+            LibGenesis().lib.deallocate_double2(
+                    ctypes.byref(result_distance_c),
+                    ctypes.byref(n_frame_c), ctypes.byref(num_distance))
+        if mol_c:
+            LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
 
 def rg_analysis(molecule: SMolecule, trajs :STrajectories,

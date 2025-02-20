@@ -53,7 +53,8 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine analyze(molecule, trajes_c, ana_period, output, option, &
-                     distance, num_distance)
+                     distance, num_distance, &
+                     angle, num_angle)
     use s_trajectories_c_mod
 
     ! formal arguments
@@ -64,6 +65,8 @@ contains
     type(s_option),          intent(inout) :: option
     real(wp), pointer,       intent(out)   :: distance(:,:)
     integer,                 intent(out)   :: num_distance
+    real(wp), pointer,       intent(out)   :: angle(:,:)
+    integer,                 intent(out)   :: num_angle
 
 
     ! local variables
@@ -93,7 +96,11 @@ contains
 
     if (option%out_dis) then
       num_distance = size(option%distance)
-      allocate( distance(size(option%distance), trajes_c%nframe / ana_period) )
+      allocate( distance(num_distance, trajes_c%nframe / ana_period) )
+    end if
+    if (option%out_ang) then
+      num_angle = size(option%angle)
+      allocate( angle(num_angle, trajes_c%nframe / ana_period) )
     end if
 
     ! analysis loop
@@ -115,13 +122,13 @@ contains
         if (option%out_dis) then
           call analyze_dis(trajectory, option)
           distance(:, nstru) = option%distance
-          ! call out_result (nstru, dis_unit, option%distance)
         end if
 
-        ! if (option%out_ang) then
-        !   call analyze_ang(trajectory, option)
-        !   call out_result (nstru, ang_unit, option%angle)
-        ! end if
+        if (option%out_ang) then
+          call analyze_ang(trajectory, option)
+          angle(:, nstru) = option%angle
+        end if
+
         !
         ! if (option%out_tor) then
         !   call analyze_tor(trajectory, option)
