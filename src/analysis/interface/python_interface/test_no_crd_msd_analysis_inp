@@ -7,16 +7,15 @@ trjfile        = out
  
 [TRAJECTORY]
 trjfile1       = BPTI_run.dcd
-md_step1       = 10
-mdout_period1  = 1
+md_step1       = 10000
+mdout_period1  = 1000
 ana_period1    = 1
-repeat1        = 1
 trj_format     = DCD
 trj_type       = COOR+BOX
 trj_natom      = 0
  
 [SELECTION]
-group1         = all             # selection group 1
+group1         = all
  
 [FITTING]
 fitting_method = NO              # [NO,TR,TR+ROT,TR+ZROT,XYTR,XYTR+ZROT]

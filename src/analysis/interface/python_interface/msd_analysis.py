@@ -11,6 +11,7 @@ def test_msd_analysis():
     # 関数を呼び出す
     pdb_path = pathlib.Path("BPTI_ionize.pdb")
     psf_path = pathlib.Path("BPTI_ionize.psf")
+    #crd_ctrl_path = pathlib.Path("test_no_crd_msd_analysis_inp")
     crd_ctrl_path = pathlib.Path("test_no_crd_inp")
     msd_analysis_ctrl_path = pathlib.Path("test_msd_analysis_inp")
 
@@ -24,6 +25,8 @@ def test_msd_analysis():
 def main():
     if os.path.exists("out"):
         os.remove("out")
+    if os.path.exists("out1"):
+        os.remove("out1")
     test_msd_analysis()
 
 

@@ -284,6 +284,7 @@ def msd_analysis(molecule: SMolecule, trajs :STrajectories,
             ctypes.byref(num_analysis_mols_c),
             ctypes.byref(num_delta_c),
             )
+
     result_msd = c2py_util.conv_double_ndarray(
             result_msd_c, [num_delta_c.value, num_analysis_mols_c.value])
     LibGenesis().lib.deallocate_double2(
@@ -418,6 +419,33 @@ def mbar_analysis(ctrl_path: str | bytes | os.PathLike
         none
     """
     LibGenesis().lib.mbar_analysis_c(
+            py2c_util.pathlike_to_byte(ctrl_path),
+            )
+    return
+
+
+def kmeans_clustering(molecule: SMolecule, trajs :STrajectories,
+                ana_period: int,
+                ctrl_path: str | bytes | os.PathLike
+                ):
+    """
+    Executes kmeans_clustering.
+
+    Args:
+        molecule:
+        trajs:
+        ana_period:
+        ctrl_path:
+
+    Returns:
+        TODO
+    """
+    mol_c = py2c_s_molecule(molecule)
+    ana_period_c = ctypes.c_int(ana_period)
+    LibGenesis().lib.kc_analysis_c(
+            ctypes.byref(mol_c),
+            ctypes.byref(trajs.get_c_obj()),
+            ctypes.byref(ana_period_c),
             py2c_util.pathlike_to_byte(ctrl_path),
             )
     return

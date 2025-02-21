@@ -29,8 +29,8 @@ module ma_analysis_c_mod
   implicit none
 
 contains
-  subroutine ma_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                           result_msd, num_analysis_mols, num_delta) &
+   subroutine ma_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
+                            result_msd, num_analysis_mols, num_delta) &
         bind(C, name="ma_analysis_c")
     use conv_f_c_util
     implicit none
@@ -104,6 +104,7 @@ contains
     write(MsgOut,'(A)') ' '
 
     call dealloc_trajectory(trajectory)
+    call dealloc_option(option)
     call dealloc_molecules_all(molecule)
 end subroutine ma_analysis_main
 

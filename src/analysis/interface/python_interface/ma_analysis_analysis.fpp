@@ -156,8 +156,8 @@ contains
 
     ! open output file
     !
-    !if (output%msdfile /= '') &
-    !  call open_file(msd_out, output%msdfile, IOFileOutputNew)
+    if (output%msdfile /= '') &
+      call open_file(msd_out, output%msdfile, IOFileOutputNew)
 
     num_analysis_mols = size(option%analysis_mols)
     num_delta = option%delta
@@ -220,8 +220,8 @@ contains
     sd_sums_local = 0_wp
     !$omp end parallel
 
-    !md_steps_analysis = sum(ceiling(real(trj_list%md_steps(:), wp) &
-    !  / trj_list%ana_periods(:)))
+    ! md_steps_analysis = sum(ceiling(real(trj_list%md_steps(:), wp) &
+    !   / trj_list%ana_periods(:)))
     md_steps_analysis = trajes_c%nframe /  ana_period
     write(MsgOut, '(A, i0)') "md_steps_analysis=", md_steps_analysis
 
@@ -240,20 +240,16 @@ contains
     ! make sure coord shape matches with other trajectory files
     call get_frame(trajes_c, 1, trajectory)
 
-    write(MsgOut, '(A)') "here 1"
     ! first unwrap system according to molecules
     call unwrap_molecules(trajectory%pbc_box, option%all_mols, &
       trajectory%coord)
-    write(MsgOut, '(A)') "here 2"
 
     ! unwrap again for all analysis molecules to align substructures
     call unwrap_molecules(trajectory%pbc_box, all_analysis_mols, &
       trajectory%coord)
-    write(MsgOut, '(A)') "here 3"
 
     allocate(coord_prev(3, size(trajectory%coord, 2)))
     coord_prev(:, :) = trajectory%coord
-    write(MsgOut, '(A)') "here 4"
 
     ! global analysis step number
     istep = 0
@@ -371,19 +367,19 @@ contains
     end do
 
 
-    !if (output%msdfile /= '') then
-    !  do i = 1, option%delta
-    !    write(msd_out, '(i0)', advance="no") i
-    !    do j = 1, size(option%analysis_mols)
-    !      write(msd_out, '(x, es25.16e3)', advance="no") msd(j, i)
-    !    end do
-    !    write(msd_out, '()')
-    !  end do
-    !end if
+    if (output%msdfile /= '') then
+      do i = 1, option%delta
+        write(msd_out, '(i0)', advance="no") i
+        do j = 1, size(option%analysis_mols)
+          write(msd_out, '(x, es25.16e3)', advance="no") msd(j, i)
+        end do
+        write(msd_out, '()')
+      end do
+    end if
 
     ! close output file
     !
-    !if (output%msdfile /= '') call close_file(msd_out)
+    if (output%msdfile /= '') call close_file(msd_out)
 
     ! Output summary
     !
