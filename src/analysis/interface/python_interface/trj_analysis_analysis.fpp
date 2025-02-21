@@ -54,7 +54,11 @@ contains
 
   subroutine analyze(molecule, trajes_c, ana_period, output, option, &
                      distance, num_distance, &
-                     angle, num_angle)
+                     angle, num_angle, &
+                     torsion, num_torsion, &
+                     cdis, num_cdis, &
+                     cang, num_cang, &
+                     ctor, num_ctor)
     use s_trajectories_c_mod
 
     ! formal arguments
@@ -67,6 +71,14 @@ contains
     integer,                 intent(out)   :: num_distance
     real(wp), pointer,       intent(out)   :: angle(:,:)
     integer,                 intent(out)   :: num_angle
+    real(wp), pointer,       intent(out)   :: torsion(:,:)
+    integer,                 intent(out)   :: num_torsion
+    real(wp), pointer,       intent(out)   :: cdis(:,:)
+    integer,                 intent(out)   :: num_cdis
+    real(wp), pointer,       intent(out)   :: cang(:,:)
+    integer,                 intent(out)   :: num_cang
+    real(wp), pointer,       intent(out)   :: ctor(:,:)
+    integer,                 intent(out)   :: num_ctor
 
 
     ! local variables
@@ -74,33 +86,36 @@ contains
     integer            :: nstru, istep
     integer            :: dis_unit, ang_unit, tor_unit
     integer            :: cdis_unit, cang_unit, ctor_unit
+    integer            :: num_out_frame
 
 
     if (option%check_only) &
       return
 
-    ! open output file
-    !
-    ! if (option%out_dis)  &
-    !   call open_file(dis_unit, output%disfile, IOFileOutputNew)
-    ! if (option%out_ang)  &
-    !   call open_file(ang_unit, output%angfile, IOFileOutputNew)
-    ! if (option%out_tor)  &
-    !   call open_file(tor_unit, output%torfile, IOFileOutputNew)
-    ! if (option%out_cdis) &
-    !   call open_file(cdis_unit, output%comdisfile, IOFileOutputNew)
-    ! if (option%out_cang) &
-    !   call open_file(cang_unit, output%comangfile, IOFileOutputNew)
-    ! if (option%out_ctor) &
-    !   call open_file(ctor_unit, output%comtorfile, IOFileOutputNew)
-
+    num_out_frame = trajes_c%nframe / ana_period
     if (option%out_dis) then
       num_distance = size(option%distance)
-      allocate( distance(num_distance, trajes_c%nframe / ana_period) )
+      allocate( distance(num_distance, num_out_frame) )
     end if
     if (option%out_ang) then
       num_angle = size(option%angle)
-      allocate( angle(num_angle, trajes_c%nframe / ana_period) )
+      allocate( angle(num_angle, num_out_frame) )
+    end if
+    if (option%out_tor) then
+      num_torsion = size(option%torsion)
+      allocate( torsion(num_torsion, num_out_frame) )
+    end if
+    if (option%out_cdis) then
+      num_cdis = size(option%cdistance)
+      allocate( cdis(num_cdis, num_out_frame) )
+    end if
+    if (option%out_cang) then
+      num_cang = size(option%cangle)
+      allocate( cang(num_cang, num_out_frame) )
+    end if
+    if (option%out_ctor) then
+      num_ctor = size(option%ctorsion)
+      allocate( ctor(num_ctor, num_out_frame) )
     end if
 
     ! analysis loop
@@ -123,45 +138,28 @@ contains
           call analyze_dis(trajectory, option)
           distance(:, nstru) = option%distance
         end if
-
         if (option%out_ang) then
           call analyze_ang(trajectory, option)
           angle(:, nstru) = option%angle
         end if
-
-        !
-        ! if (option%out_tor) then
-        !   call analyze_tor(trajectory, option)
-        !   call out_result (nstru, tor_unit, option%torsion)
-        ! end if
-        !
-        ! if (option%out_cdis) then
-        !   call analyze_comdis(molecule, trajectory, option)
-        !   call out_result (nstru, cdis_unit, option%cdistance)
-        ! end if
-        !
-        ! if (option%out_cang) then
-        !   call analyze_comang(molecule, trajectory, option)
-        !   call out_result (nstru, cang_unit, option%cangle)
-        ! end if
-        !
-        ! if (option%out_ctor) then
-        !   call analyze_comtor(molecule, trajectory, option)
-        !   call out_result (nstru, ctor_unit, option%ctorsion)
-        ! end if
-
+        if (option%out_tor) then
+          call analyze_tor(trajectory, option)
+          torsion(:, nstru) = option%torsion
+        end if
+        if (option%out_cdis) then
+          call analyze_comdis(molecule, trajectory, option)
+          cdis(:, nstru) = option%cdistance
+        end if
+        if (option%out_cang) then
+          call analyze_comang(molecule, trajectory, option)
+          cang(:, nstru) = option%cangle
+        end if
+        if (option%out_ctor) then
+          call analyze_comang(molecule, trajectory, option)
+          ctor(:, nstru) = option%ctorsion
+        end if
       end if
     end do
-
-    ! close output file
-    !
-    ! if (option%out_ctor) call close_file(ctor_unit)
-    ! if (option%out_cang) call close_file(cang_unit)
-    ! if (option%out_cdis) call close_file(cdis_unit)
-    ! if (option%out_tor)  call close_file(tor_unit)
-    ! if (option%out_ang)  call close_file(ang_unit)
-    ! if (option%out_dis)  call close_file(dis_unit)
-
 
     ! Output summary
     !

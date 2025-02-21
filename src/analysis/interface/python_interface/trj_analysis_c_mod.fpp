@@ -33,7 +33,11 @@ module trj_analysis_c_mod
 contains
   subroutine trj_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
                             result_distance, num_distance, &
-                            result_angle, num_angle) &
+                            result_angle, num_angle, &
+                            result_torsion, num_torsion, &
+                            result_cdis, num_cdis, &
+                            result_cang, num_cang, &
+                            result_ctor, num_ctor) &
         bind(C, name="trj_analysis_c")
     use conv_f_c_util
     implicit none
@@ -45,20 +49,40 @@ contains
     integer(c_int), intent(out) :: num_distance
     type(c_ptr), intent(out) :: result_angle
     integer(c_int), intent(out) :: num_angle
+    type(c_ptr), intent(out) :: result_torsion
+    integer(c_int), intent(out) :: num_torsion
+    type(c_ptr), intent(out) :: result_cdis
+    integer(c_int), intent(out) :: num_cdis
+    type(c_ptr), intent(out) :: result_cang
+    integer(c_int), intent(out) :: num_cang
+    type(c_ptr), intent(out) :: result_ctor
+    integer(c_int), intent(out) :: num_ctor
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
     real(wp), pointer :: distance_f(:,:) => null()
-    real(wp), pointer :: angle_f(:,:) => null()
     integer :: num_distance_f
+    real(wp), pointer :: angle_f(:,:) => null()
     integer :: num_angle_f
+    real(wp), pointer :: torsion_f(:,:) => null()
+    integer :: num_torsion_f
+    real(wp), pointer :: cdis_f(:,:) => null()
+    integer :: num_cdis_f
+    real(wp), pointer :: cang_f(:,:) => null()
+    integer :: num_cang_f
+    real(wp), pointer :: ctor_f(:,:) => null()
+    integer :: num_ctor_f
 
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call trj_analysis_main( &
         f_molecule, s_trajes_c, ana_period, fort_ctrl_path, &
         distance_f, num_distance_f, &
-        angle_f, num_angle_f)
+        angle_f, num_angle_f, &
+        torsion_f, num_torsion_f, &
+        cdis_f, num_cdis_f, &
+        cang_f, num_cang_f, &
+        ctor_f, num_ctor_f)
 
     if (associated(distance_f)) then
       result_distance = c_loc(distance_f)
@@ -74,12 +98,44 @@ contains
       result_angle = c_null_ptr
       num_angle = 0
     end if
+    if (associated(torsion_f)) then
+      result_torsion = c_loc(torsion_f)
+      num_torsion = num_torsion_f
+    else
+      result_torsion = c_null_ptr
+      num_torsion = 0
+    end if
+    if (associated(cdis_f)) then
+      result_cdis = c_loc(cdis_f)
+      num_cdis = num_cdis_f
+    else
+      result_cdis = c_null_ptr
+      num_cdis = 0
+    end if
+    if (associated(cang_f)) then
+      result_cang = c_loc(cang_f)
+      num_cang = num_cang_f
+    else
+      result_cang = c_null_ptr
+      num_cang = 0
+    end if
+    if (associated(ctor_f)) then
+      result_ctor = c_loc(ctor_f)
+      num_ctor = num_ctor_f
+    else
+      result_ctor = c_null_ptr
+      num_ctor = 0
+    end if
   end subroutine trj_analysis_c
 
   subroutine trj_analysis_main( &
           molecule, s_trajes_c, ana_period, ctrl_filename, &
           result_distance, num_distance, &
-          result_angle, num_angle)
+          result_angle, num_angle, &
+          result_torsion, num_torsion, &
+          result_cdis, num_cdis, &
+          result_cang, num_cang, &
+          result_ctor, num_ctor)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
@@ -89,6 +145,14 @@ contains
     integer, intent(out) :: num_distance
     real(wp), pointer, intent(out) :: result_angle(:,:)
     integer, intent(out) :: num_angle
+    real(wp), pointer, intent(out) :: result_torsion(:,:)
+    integer, intent(out) :: num_torsion
+    real(wp), pointer, intent(out) :: result_cdis(:,:)
+    integer, intent(out) :: num_cdis
+    real(wp), pointer, intent(out) :: result_cang(:,:)
+    integer, intent(out) :: num_cang
+    real(wp), pointer, intent(out) :: result_ctor(:,:)
+    integer, intent(out) :: num_ctor
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -124,7 +188,11 @@ contains
 
     call analyze(molecule, s_trajes_c, ana_period, output, option, &
                  result_distance, num_distance, &
-                 result_angle, num_angle)
+                 result_angle, num_angle, &
+                 result_torsion, num_torsion, &
+                 result_cdis, num_cdis, &
+                 result_cang, num_cang, &
+                 result_ctor, num_ctor)
 
 
     ! [Step4] Deallocate memory

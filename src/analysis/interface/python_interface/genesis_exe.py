@@ -36,7 +36,12 @@ def crd_convert(molecule: SMolecule,
 def trj_analysis(molecule: SMolecule, trajs :STrajectories,
                  ana_period: int,
                  ctrl_path: str | bytes | os.PathLike
-                 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+                 ) -> tuple[npt.NDArray[np.float64],
+                            npt.NDArray[np.float64],
+                            npt.NDArray[np.float64],
+                            npt.NDArray[np.float64],
+                            npt.NDArray[np.float64],
+                            npt.NDArray[np.float64]]:
     """
     Executes trj_analysis.
 
@@ -47,12 +52,20 @@ def trj_analysis(molecule: SMolecule, trajs :STrajectories,
         ctrl_path:
 
     Returns:
-        (distance, angle)
+        (distance, angle, torsion, cdis, cang, ctor)
     """
     num_distance = ctypes.c_int(0)
-    num_angle = ctypes.c_int(0)
     result_distance_c = ctypes.c_void_p(None)
+    num_angle = ctypes.c_int(0)
     result_angle_c = ctypes.c_void_p(None)
+    num_torsion = ctypes.c_int(0)
+    result_torsion_c = ctypes.c_void_p(None)
+    num_cdis = ctypes.c_int(0)
+    result_cdis_c = ctypes.c_void_p(None)
+    num_cang = ctypes.c_int(0)
+    result_cang_c = ctypes.c_void_p(None)
+    num_ctor = ctypes.c_int(0)
+    result_ctor_c = ctypes.c_void_p(None)
     ana_period_c = ctypes.c_int(ana_period)
     mol_c = ctypes.c_void_p(None)
     try:
@@ -66,6 +79,14 @@ def trj_analysis(molecule: SMolecule, trajs :STrajectories,
                 ctypes.byref(num_distance),
                 ctypes.byref(result_angle_c),
                 ctypes.byref(num_angle),
+                ctypes.byref(result_torsion_c),
+                ctypes.byref(num_torsion),
+                ctypes.byref(result_cdis_c),
+                ctypes.byref(num_cdis),
+                ctypes.byref(result_cang_c),
+                ctypes.byref(num_cang),
+                ctypes.byref(result_ctor_c),
+                ctypes.byref(num_ctor),
                 )
         n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
         result_distance = (c2py_util.conv_double_ndarray(
@@ -74,8 +95,37 @@ def trj_analysis(molecule: SMolecule, trajs :STrajectories,
         result_angle = (c2py_util.conv_double_ndarray(
                 result_angle_c, [n_frame_c.value, num_angle.value])
                         if result_angle_c else None)
-        return (result_distance, result_angle)
+        result_torsion = (c2py_util.conv_double_ndarray(
+                result_torsion_c, [n_frame_c.value, num_torsion.value])
+                        if result_torsion_c else None)
+        result_cdis = (c2py_util.conv_double_ndarray(
+            result_cdis_c, [n_frame_c.value, num_cdis.value])
+                           if result_distance_c else None)
+        result_cang = (c2py_util.conv_double_ndarray(
+                result_cang_c, [n_frame_c.value, num_cang.value])
+                        if result_angle_c else None)
+        result_ctor = (c2py_util.conv_double_ndarray(
+                result_ctor_c, [n_frame_c.value, num_ctor.value])
+                        if result_ctor_c else None)
+        return (result_distance, result_angle, result_torsion,
+                result_cdis, result_cang, result_ctor)
     finally:
+        if result_ctor_c:
+            LibGenesis().lib.deallocate_double2(
+                    ctypes.byref(result_ctor_c),
+                    ctypes.byref(n_frame_c), ctypes.byref(num_ctor))
+        if result_cang_c:
+            LibGenesis().lib.deallocate_double2(
+                    ctypes.byref(result_cang_c),
+                    ctypes.byref(n_frame_c), ctypes.byref(num_cang))
+        if result_cdis_c:
+            LibGenesis().lib.deallocate_double2(
+                    ctypes.byref(result_cdis_c),
+                    ctypes.byref(n_frame_c), ctypes.byref(num_cdis))
+        if result_torsion_c:
+            LibGenesis().lib.deallocate_double2(
+                    ctypes.byref(result_torsion_c),
+                    ctypes.byref(n_frame_c), ctypes.byref(num_torsion))
         if result_angle_c:
             LibGenesis().lib.deallocate_double2(
                     ctypes.byref(result_angle_c),
