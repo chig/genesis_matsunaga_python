@@ -71,7 +71,6 @@ contains
 
     ! local variables
     type(s_trajectory) :: trajectory
-    type(s_trj_file)         :: trj_in
     type(s_pdb)              :: pdb_out
     real(wp)                 :: rmsd, min_rmsd, convergency, accel, min_convergency
     real(wp)                 :: diff_coord(3)
@@ -484,7 +483,7 @@ contains
 
       do istep = 1, trajes_c%nframe
 
-        call read_trj(trj_in, trajectory)
+        call get_frame(trajes_c, istep, trajectory)
 
         if (mod(istep, ana_period) == 0) then
 
