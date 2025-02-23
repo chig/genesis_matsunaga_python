@@ -2165,7 +2165,6 @@ contains
       if (option%dimension == 1) then
 
         write(fmt,'(a,i0,a)') '(', option%nblocks,'f25.16)'
-        write(MsgOut,*) nbrella, option%nblocks
 
         do i = 1, nbrella
           write(file,fmt=fmt) (f_k(j)%v(i)*out_unit,j=1,option%nblocks)
