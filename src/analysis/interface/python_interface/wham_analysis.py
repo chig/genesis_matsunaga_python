@@ -1,19 +1,19 @@
 import os
-import ctypes
 import pathlib
-from libgenesis import LibGenesis
-from s_molecule import SMolecule, py2c_s_molecule
 import genesis_exe
 
 
 def test_wham_analysis():
     ctrl_path = pathlib.Path("test_wham_analysis_inp")
-    genesis_exe.wham_analysis(ctrl_path)
+    pmf = genesis_exe.wham_analysis(300, 2, ctrl_path)
+    print(pmf)
 
 
 def main():
     if os.path.exists("out"):
         os.remove("out")
+    if os.path.exists("pmf"):
+        os.remove("pmf")
     test_wham_analysis()
 
 

@@ -330,7 +330,7 @@ def diffusion_analysis(msd_data: npt.NDArray[np.float64],
         ctrl_path:
 
     Returns:
-        TODO
+        diffusion
     """
     c_msd = None
     c_out = ctypes.c_void_p(0)
@@ -390,38 +390,62 @@ def avecrd_analysis(molecule: SMolecule, trajs :STrajectories,
     return
 
 
-def wham_analysis(ctrl_path: str | bytes | os.PathLike
+def wham_analysis(n_bins: int, n_bin_x: int,
+                ctrl_path: str | bytes | os.PathLike
                 ):
     """
     Executes wham_analysis.
 
     Args:
+        n_bins:
+        n_bin_x
         ctrl_path:
 
     Returns:
-        none
+        pmf
     """
+    result_pmf_c = ctypes.c_void_p(None)
+    n_bins_c = ctypes.c_int(n_bins)
+    n_bin_x_c = ctypes.c_int(n_bin_x)
     LibGenesis().lib.wa_analysis_c(
             py2c_util.pathlike_to_byte(ctrl_path),
+            ctypes.byref(result_pmf_c),
             )
-    return
+    result_pmf = c2py_util.conv_double_ndarray(
+            result_pmf_c, [n_bins_c.value, n_bin_x_c.value])
+    LibGenesis().lib.deallocate_double2(
+            ctypes.byref(result_pmf_c),
+            ctypes.byref(n_bins_c), ctypes.byref(n_bin_x_c))
+    return result_pmf
 
 
-def mbar_analysis(ctrl_path: str | bytes | os.PathLike
+def mbar_analysis(n_replica: int, n_blocks: int,
+                ctrl_path: str | bytes | os.PathLike
                 ):
     """
     Executes mbar_analysis.
 
     Args:
+        n_replica:
+        n_blocks:
         ctrl_path:
 
     Returns:
-        none
+        fene
     """
+    result_fene_c = ctypes.c_void_p(None)
+    n_replica_c = ctypes.c_int(n_replica)
+    n_blocks_c = ctypes.c_int(n_blocks)
     LibGenesis().lib.mbar_analysis_c(
             py2c_util.pathlike_to_byte(ctrl_path),
+            ctypes.byref(result_fene_c),
             )
-    return
+    result_fene = c2py_util.conv_double_ndarray(
+             result_fene_c, [n_replica_c.value, n_blocks_c.value])
+    LibGenesis().lib.deallocate_double2(
+            ctypes.byref(result_fene_c),
+            ctypes.byref(n_replica_c), ctypes.byref(n_blocks_c))
+    return result_fene
 
 
 def kmeans_clustering(molecule: SMolecule, trajs :STrajectories,

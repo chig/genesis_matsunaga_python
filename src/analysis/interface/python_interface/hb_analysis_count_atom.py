@@ -4,7 +4,7 @@ from s_molecule import SMolecule
 import genesis_exe
 
 
-def test_hb_analysis():
+def test_hb_analysis_Count_atom():
     # 関数を呼び出す
     pdb_path = pathlib.Path("RALP_DPPC_run.pdb")
     psf_path = pathlib.Path("RALP_DPPC.psf")
@@ -23,7 +23,7 @@ def main():
         os.remove("out")
     if os.path.exists("out1"):
         os.remove("out1")
-    test_hb_analysis()
+    test_hb_analysis_Count_atom()
 
 
 if __name__ == "__main__":

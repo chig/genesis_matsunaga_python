@@ -1,8 +1,6 @@
 import os
-import ctypes
 import pathlib
-from libgenesis import LibGenesis
-from s_molecule import SMolecule, py2c_s_molecule
+from s_molecule import SMolecule
 import genesis_exe
 
 

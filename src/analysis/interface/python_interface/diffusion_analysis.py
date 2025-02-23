@@ -1,8 +1,5 @@
 import os
-import ctypes
 import pathlib
-from libgenesis import LibGenesis
-from s_molecule import SMolecule, py2c_s_molecule
 import genesis_exe
 import msd_reader
 
