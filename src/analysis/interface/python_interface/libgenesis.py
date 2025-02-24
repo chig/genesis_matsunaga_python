@@ -132,6 +132,7 @@ class LibGenesis:
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
+                ctypes.c_void_p,
                 ]
         self.lib.hb_analysis_c.restype = None
 
@@ -191,6 +192,11 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_int),
                 ]
         self.lib.deallocate_double2.restype = None
+
+        self.lib.deallocate_c_string.argtypes = [
+                ctypes.POINTER(ctypes.c_void_p),
+                ]
+        self.lib.deallocate_c_string.restype = None
 
         self.lib.join_s_trajectories_c.argtypes = [
                 ctypes.POINTER(ctypes.c_void_p),

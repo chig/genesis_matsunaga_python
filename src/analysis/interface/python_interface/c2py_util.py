@@ -44,3 +44,9 @@ def conv_fixed_length_string_ndarray(
         return dst.reshape(size)
     else:
         return np.empty(0, dtype=np.str_)
+
+def conv_string(c_char_ptr: ctypes.c_void_p, encoding: str = 'utf-8') -> str:
+    if not c_char_ptr:
+        raise ValueError("Invalid pointer: c_char_ptr is None")
+    byte_str = ctypes.string_at(c_char_ptr)
+    return byte_str.decode(encoding)

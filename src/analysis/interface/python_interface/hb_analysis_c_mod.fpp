@@ -32,7 +32,7 @@ module hb_analysis_c_mod
 
 contains
   subroutine hb_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                           result_hb, num_hb) &
+                           out_text_ptr) &
         bind(C, name="hb_analysis_c")
     use conv_f_c_util
     implicit none
@@ -40,29 +40,30 @@ contains
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
-    type(c_ptr), intent(out) :: result_hb
-    integer, intent(out) :: num_hb
+    type(c_ptr), intent(out) :: out_text_ptr
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
-    real(wp), pointer :: hb(:,:)
+    character(len=:), allocatable :: out_text_f
+    character(kind=c_char), pointer :: out_text_c(:)
 
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call hb_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, hb, num_hb)
-    result_hb = c_loc(hb)
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, out_text_f)
+    call dealloc_molecules_all(f_molecule)
+    call f2c_string(out_text_f, out_text_c)
+    out_text_ptr = c_loc(out_text_c(1))
   end subroutine hb_analysis_c
 
   subroutine hb_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename, hb, num_hb)
+          molecule, s_trajes_c, ana_period, ctrl_filename, out_text)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
-    real(wp), pointer, intent(out) :: hb(:,:)
-    integer, intent(out) :: num_hb
+    character(len=:), allocatable, intent(out) :: out_text
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -104,7 +105,8 @@ contains
                  s_trajes_c, &
                  ana_period, &
                  option,     &
-                 output)
+                 output,     &
+                 out_text)
 
     ! [Step4] Deallocate memory
     !
@@ -113,7 +115,6 @@ contains
 
     call dealloc_option(option)
     call dealloc_trajectory(trajectory)
-    call dealloc_molecules_all(molecule)
   end subroutine hb_analysis_main
 
   !======1=========2=========3=========4=========5=========6=========7=========8

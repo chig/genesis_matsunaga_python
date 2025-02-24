@@ -11,6 +11,7 @@ module conv_f_c_util
 
   public :: c2f_string
   public :: c2f_string_allocate
+  public :: f2c_string
   public :: f2c_bool_array
   public :: f2c_int_array
   public :: f2c_string_array
@@ -34,6 +35,7 @@ module conv_f_c_util
 
   public :: deallocate_double
   public :: deallocate_double2
+  public :: deallocate_c_string
 
 contains
   ! Helper function to convert C string to Fortran string
@@ -76,6 +78,20 @@ contains
     end if
     call c2f_string(c_string, f_string)
   end subroutine c2f_string_allocate
+
+  subroutine f2c_string(f_string, c_string)
+        character(len=*), intent(in) :: f_string
+        character(kind=c_char), pointer, intent(out) :: c_string(:)
+        integer :: c_char_len
+        integer :: i
+
+        c_char_len = len_trim(f_string)
+        allocate(character(kind=c_char) :: c_string(c_char_len + 1))
+        do i = 1, c_char_len
+            c_string(i) = f_string(i:i)
+        end do
+        c_string(c_char_len + 1) = c_null_char
+    end subroutine f2c_string
 
   integer function len_c_str(c_string, limit_len) result(len_str)
     implicit none
@@ -481,4 +497,30 @@ contains
     call C_F_pointer(c_src, buf, [size2, size1])
     deallocate(buf)
   end subroutine
+
+  subroutine deallocate_c_string(c_str) &
+          bind(C, name="deallocate_c_string")
+    implicit none
+    type(c_ptr), intent(inout) :: c_str
+    character(kind=c_char), pointer :: f_str(:)
+    integer :: i, len_str
+
+    call c_f_pointer(c_str, f_str, [huge(0)])
+
+    if (associated(f_str)) then
+      ! find null end
+      len_str = 0
+      do i = 1, huge(0)
+        if (f_str(i) == c_null_char) then
+          len_str = i
+          exit
+        end if
+      end do
+      call c_f_pointer(c_str, f_str, [len_str])
+      deallocate(f_str)
+      nullify(f_str)
+    end if
+    c_str = c_null_ptr
+  end subroutine deallocate_c_string
+
 end module

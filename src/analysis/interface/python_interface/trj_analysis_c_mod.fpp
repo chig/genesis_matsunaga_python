@@ -83,6 +83,7 @@ contains
         cdis_f, num_cdis_f, &
         cang_f, num_cang_f, &
         ctor_f, num_ctor_f)
+    call dealloc_molecules_all(f_molecule)
 
     if (associated(distance_f)) then
       result_distance = c_loc(distance_f)
@@ -201,7 +202,6 @@ contains
     write(MsgOut,'(A)') ' '
 
     call dealloc_trajectory(trajectory)
-    call dealloc_molecules_all(molecule)
   end subroutine trj_analysis_main
 
   !======1=========2=========3=========4=========5=========6=========7=========8

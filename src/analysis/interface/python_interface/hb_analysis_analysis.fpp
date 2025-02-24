@@ -13,7 +13,6 @@
 #endif
 
 module hb_analysis_analyze_c_mod
-
   use hb_option_str_mod
   use fileio_trj_mod
   use measure_mod
@@ -26,7 +25,7 @@ module hb_analysis_analyze_c_mod
   use messages_mod
   use constants_mod
   use atom_libs_mod
- 
+
   implicit none
   private
 
@@ -72,7 +71,7 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine analyze(molecule, trajes_c, ana_period, option, output)
+  subroutine analyze(molecule, trajes_c, ana_period, option, output, out_text)
     use s_trajectories_c_mod
 
     ! formal arguments
@@ -81,12 +80,13 @@ contains
     integer,                  intent(in)    :: ana_period
     type(s_option),           intent(in)    :: option
     type(s_output),           intent(in)    :: output
+    character(len=:), allocatable, intent(out) :: out_text
 
     ! local variables
     type(s_trajectory) :: trajectory
     integer                   :: nstru, istep
     integer                   :: iatm, jatm, idx, jdx
-    integer                   :: out_unit, hb_out
+    integer                   :: hb_out
 
     integer,          pointer :: numa(:)
     integer,          pointer :: numr(:)
@@ -106,13 +106,17 @@ contains
     type(s_hb_info)                 :: hb_list
     real(wp)                        :: dist, dha_angle, hda_angle
 
+    integer :: out_text_size
+    integer :: out_buf_size
+    integer :: iostat
+
 
     ! formats
-100 format(i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,1x,i7,1x,a4' | ',F6.3,2F9.3)
-102 format(i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,1x,i7,1x,a4' | ',i10)
-104 format(i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6)
-106 format(i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,1x,i7,1x,a4)
-108 format('snapshot',i10,' : ',i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,1x,i7,1x,a4)
+100 format(i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,1x,i7,1x,a4' | ',F6.3,2F9.3,'@')
+102 format(i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,1x,i7,1x,a4' | ',i10,'@')
+104 format(i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,'@')
+106 format(i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,1x,i7,1x,a4,'@')
+108 format('snapshot',i10,' : ',i10,' | ',a4,1x,a6,1x,i7,1x,a4,' .. ',a4,1x,a6,1x,i7,1x,a4,'@')
 
 
     numa => molecule%atom_no
@@ -130,11 +134,12 @@ contains
     !  end if
     !end if
 
+    out_buf_size = 1024
+    out_text_size = 0
     if (output%hb_listfile /= '') then
       call open_file(hb_out, output%hb_listfile, IOFileOutputNew)
     end if
-    call open_file(out_unit, output%outfile, IOFileOutputNew)
-
+    allocate(character(len=out_buf_size) :: out_text)
 
     ! setup polar atoms (O, N)
     !
@@ -242,20 +247,36 @@ contains
                     iatm = analysis_group(idx)%atom_no
                     jatm = target_group(jdx)%atom_no
 
-                    write(out_unit,108) &
-                         nstru - 1, continue_Hbond(jdx, idx), &
-                         nama(iatm), namr(iatm), numr(iatm), seg(iatm), &
-                         nama(jatm), namr(jatm), numr(jatm), seg(jatm)
+                    do
+                      write(out_text(out_text_size+1:),108, iostat=iostat) &
+                           nstru - 1, continue_Hbond(jdx, idx), &
+                           nama(iatm), namr(iatm), numr(iatm), seg(iatm), &
+                           nama(jatm), namr(jatm), numr(jatm), seg(jatm)
+                      if (iostat == 0) then
+                        exit
+                      end if
+                      call resize_buffer_text(out_text, out_buf_size)
+                    end do
+                    out_text_size = out_text_size &
+                        + count_written_characters(out_text(out_text_size+1:))
 
                     continue_Hbond(jdx, idx) = 0
                   end if
                 end if
-            end select  
+            end select
           end do
         end do
 
         if (option%output_type == HBOutputModeCountSnap) then
-          write(out_unit,'(i10,2x,i10)') nstru, hb_total
+          do
+            write(out_text(out_text_size+1:),'(i10,2x,i10)', iostat=iostat) nstru, hb_total
+            if (iostat == 0) then
+              exit
+            end if
+            call resize_buffer_text(out_text, out_buf_size)
+          end do
+          out_text_size = out_text_size &
+              + count_written_characters(out_text(out_text_size+1:))
         end if
 
       end if
@@ -276,14 +297,31 @@ contains
           jatm = partner_atom(partner_idx)%atom_no
 
           if (partner_atom(partner_idx)%solvent) then
-            write(out_unit, 104) hb_count(partner_idx, idx), &
-                                 nama(iatm), namr(iatm), numr(iatm), seg(iatm), &
-                                 nama(jatm), namr(jatm)
-
+            do
+              write(out_text(out_text_size+1:), 104, iostat=iostat) &
+                  hb_count(partner_idx, idx), &
+                  nama(iatm), namr(iatm), numr(iatm), seg(iatm), &
+                  nama(jatm), namr(jatm)
+              if (iostat == 0) then
+                exit
+              end if
+              call resize_buffer_text(out_text, out_buf_size)
+            end do
+            out_text_size = out_text_size &
+                + count_written_characters(out_text(out_text_size+1:))
           else
-            write(out_unit, 106) hb_count(partner_idx, idx), &
-                                 nama(iatm), namr(iatm), numr(iatm), seg(iatm), &
-                                 nama(jatm), namr(jatm), numr(jatm), seg(jatm)
+            do
+              write(out_text(out_text_size+1:), 106, iostat=iostat) &
+                  hb_count(partner_idx, idx), &
+                  nama(iatm), namr(iatm), numr(iatm), seg(iatm), &
+                  nama(jatm), namr(jatm), numr(jatm), seg(jatm)
+              if (iostat == 0) then
+                exit
+              end if
+              call resize_buffer_text(out_text, out_buf_size)
+            end do
+            out_text_size = out_text_size &
+                + count_written_characters(out_text(out_text_size+1:))
           end if
         end do
       end do
@@ -295,17 +333,23 @@ contains
           iatm = analysis_group(idx)%atom_no
           jatm =   target_group(jdx)%atom_no
 
-          if (continue_Hbond(jdx, idx) > 0) &
-            write(out_unit, 108) nstru, continue_Hbond(jdx, idx), &
-                                 nama(iatm), namr(iatm), numr(iatm), seg(iatm), &
-                                 nama(jatm), namr(jatm), numr(jatm), seg(jatm)
+          if (continue_Hbond(jdx, idx) > 0) then
+            do
+              write(out_text(out_text_size+1:), 108, iostat=iostat) &
+                  nstru, continue_Hbond(jdx, idx), &
+                  nama(iatm), namr(iatm), numr(iatm), seg(iatm), &
+                  nama(jatm), namr(jatm), numr(jatm), seg(jatm)
+              if (iostat == 0) then
+                exit
+              end if
+              call resize_buffer_text(out_text, out_buf_size)
+            end do
+            out_text_size = out_text_size &
+                + count_written_characters(out_text(out_text_size+1:))
+          end if
         end do
       end do
     end select
-
-    ! close output file
-    !
-    call close_file(out_unit)
 
     ! Output summary
     !
@@ -322,6 +366,27 @@ contains
 
   end subroutine analyze
 
+  subroutine resize_buffer_text(buf, size)
+    character(len=:), allocatable, intent(inout) :: buf
+    integer, intent(inout) :: size
+
+    integer :: new_size
+    character(len=:), allocatable :: temp
+    new_size = size * 2
+    allocate(character(len=new_size) :: temp)
+    temp(:size) = buf(:size)
+    deallocate(buf)
+    call move_alloc(temp, buf)
+    size = new_size
+  end subroutine resize_buffer_text
+
+  function count_written_characters(str) result(count)
+    character(len=*), intent(in) :: str
+    integer :: count
+
+    count = len_trim(str)
+  end function count_written_characters
+
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
   !  Subroutine    get_polar_atoms
@@ -332,7 +397,7 @@ contains
   !! @param[out]   polar_atom  : hydrogen bond-able atom information
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
-              
+
   subroutine get_polar_atom(molecule, select_atom, polar_atom)
 
     ! formal variables

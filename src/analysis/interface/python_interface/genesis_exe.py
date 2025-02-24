@@ -311,12 +311,17 @@ def hb_analysis(molecule: SMolecule, trajs :STrajectories,
     """
     mol_c = py2c_s_molecule(molecule)
     ana_period_c = ctypes.c_int(ana_period)
+    result = ctypes.c_void_p()
     LibGenesis().lib.hb_analysis_c(
             ctypes.byref(mol_c),
             ctypes.byref(trajs.get_c_obj()),
             ctypes.byref(ana_period_c),
             py2c_util.pathlike_to_byte(ctrl_path),
+            ctypes.byref(result),
             )
+    s = c2py_util.conv_string(result)
+    LibGenesis().lib.deallocate_c_string(ctypes.byref(result))
+    print(s)
     return
 
 
