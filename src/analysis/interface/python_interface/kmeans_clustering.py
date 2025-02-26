@@ -14,8 +14,10 @@ def test_kmeans_clustering():
     with SMolecule.from_pdb_psf_file(pdb_path, psf_path) as mol:
         with genesis_exe.crd_convert(mol, crd_ctrl_path) as trajs:
             for t in trajs:
-                genesis_exe.kmeans_clustering(
+                pdb, cluster_idx = genesis_exe.kmeans_clustering(
                         mol, t, 1, kmeans_clustering_ctrl_path)
+                print(pdb)
+                print(cluster_idx)
 
 
 def main():

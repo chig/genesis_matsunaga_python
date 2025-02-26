@@ -166,6 +166,9 @@ class LibGenesis:
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_int),
                 ]
         self.lib.kc_analysis_c.restype = None
 
@@ -184,6 +187,12 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_int),
                 ]
         self.lib.allocate_c_double_array2.restype = ctypes.c_void_p
+
+        self.lib.deallocate_int.argtypes = [
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_int),
+                ]
+        self.lib.deallocate_int.restype = None
 
         self.lib.deallocate_double.argtypes = [
                 ctypes.POINTER(ctypes.c_void_p),

@@ -33,31 +33,55 @@ module kc_analysis_c_mod
   implicit none
 
 contains
-  subroutine kc_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path) &
+  subroutine kc_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
+          out_pdb_ptr, cluster_index, size_cluster_index) &
         bind(C, name="kc_analysis_c")
     use conv_f_c_util
     implicit none
     type(s_molecule_c), intent(in) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
-    integer, intent(in) :: ana_period
+    integer(c_int), intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
+    type(c_ptr), intent(out) :: out_pdb_ptr
+    type(c_ptr), intent(out) :: cluster_index
+    integer(c_int), intent(out) :: size_cluster_index
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
+    character(len=:), allocatable :: out_pdb_f
+    character(kind=c_char), pointer :: out_pdb_c(:)
+    integer, allocatable :: cluster_index_f(:)
 
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call kc_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path)
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, &
+        out_pdb_f, cluster_index_f)
+    if (allocated(out_pdb_f)) then
+      call f2c_string(out_pdb_f, out_pdb_c)
+      out_pdb_ptr = c_loc(out_pdb_c(1))
+    else
+      out_pdb_ptr = c_null_ptr
+    end if
+    if (allocated(cluster_index_f)) then
+        cluster_index = f2c_int_array(cluster_index_f)
+        size_cluster_index = size(cluster_index_f)
+    else
+        cluster_index = c_null_ptr
+        size_cluster_index = 0
+    end if
   end subroutine kc_analysis_c
 
   subroutine kc_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename)
+          molecule, s_trajes_c, ana_period, ctrl_filename, &
+          out_pdb, cluster_index)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
+    character(len=:), allocatable, intent(out) :: out_pdb
+    integer, allocatable,     intent(out) :: cluster_index(:)
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -105,7 +129,9 @@ contains
                  ana_period, &
                  fitting,    &
                  option,     &
-                 output)
+                 output,     &
+                 out_pdb,    &
+                 cluster_index)
 
 
     ! [Step4] Deallocate memory

@@ -33,6 +33,7 @@ module conv_f_c_util
   public :: c2f_double_array
   public :: c2f_string_array
 
+  public :: deallocate_int
   public :: deallocate_double
   public :: deallocate_double2
   public :: deallocate_c_string
@@ -474,6 +475,17 @@ contains
       end do
     end do
   end subroutine c2f_string_array
+
+  subroutine deallocate_int(c_src, size) &
+          bind(C, name="deallocate_int")
+    implicit none
+    type(c_ptr), intent(in) :: c_src
+    integer(c_int), intent(in) :: size
+    integer(c_int), pointer :: buf(:)
+
+    call C_F_pointer(c_src, buf, [size])
+    deallocate(buf)
+  end subroutine
 
   subroutine deallocate_double(c_src, size) &
           bind(C, name="deallocate_double")

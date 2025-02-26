@@ -57,8 +57,9 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine analyze(molecule, input, trajes_c, ana_period, &
-                     fitting, option, output)
+                     fitting, option, output, out_pdb, cluster_index)
     use s_trajectories_c_mod
+    use internal_file_type_mod
 
     ! formal arguments
     type(s_molecule),        intent(inout) :: molecule
@@ -68,6 +69,8 @@ contains
     type(s_fitting),         intent(inout) :: fitting
     type(s_option),          intent(inout) :: option
     type(s_output),          intent(inout) :: output
+    character(len=:), allocatable, intent(out) :: out_pdb
+    integer, allocatable,     intent(out) :: cluster_index(:)
 
     ! local variables
     type(s_trajectory) :: trajectory
@@ -75,7 +78,7 @@ contains
     real(wp)                 :: rmsd, min_rmsd, convergency, accel, min_convergency
     real(wp)                 :: diff_coord(3)
     integer                  :: i, j, k, idx, nclst, iclst, jclst, iseed
-    integer                  :: idx_in, idx_out
+    integer                  :: idx_in
     integer                  :: natom, niter, ntraj, nstru
     integer                  :: iatom, iiter, itraj, istep, istru
     integer                  :: rms_out, alloc_stat
@@ -92,7 +95,6 @@ contains
     real(wp),         allocatable :: min_rmsd_clst(:)
     real(wp),         allocatable :: sum_rmsd(:)
     integer,          allocatable :: diff1(:), diff2(:)
-    integer,          allocatable :: cluster_index(:)
     integer,          allocatable :: cluster_index_old(:)
     integer,          allocatable :: center_index(:)
     integer,          allocatable :: ndata(:)
@@ -202,9 +204,6 @@ contains
 
     ! open output files
     !
-    if (output%indexfile /= '') &
-      call open_file(idx_out, output%indexfile, IOFileOutputNew)
-
     if (output%trjfile /= '') then
       allocate(trj_out(nclst))
       do iclst = 1, nclst
@@ -462,16 +461,6 @@ contains
     end do
 
 
-    ! output index file
-    !
-    if (output%indexfile /= '') then
-      do istru = 1, nstru
-        write(idx_out,'(I10,1X,I10)') istru, cluster_index(istru)
-      end do
-      call close_file(idx_out)
-    end if
-
-
     ! output PDB file of cluster center and new trajectory files
     !
     if (output%pdbfile /= '' .or. output%trjfile /= '' ) then
@@ -508,7 +497,7 @@ contains
                 call export_molecules(molecule, option%trjout_atom, pdb_out)
                 write(MsgOut,'(A,I10,A)') '   structure = ',istru, '  >  ' // &
                                            trim(get_replicate_name1(output%pdbfile,iclst))
-                call output_pdb(get_replicate_name1(output%pdbfile,iclst), pdb_out)
+                call write_pdb_to_string(out_pdb, pdb_out)
                 call dealloc_pdb_all(pdb_out)
               end if
             end if
@@ -541,7 +530,6 @@ contains
 
     ! close output file
     !
-    call close_file(idx_out)
 
     if  (output%trjfile /= '') then
       do iclst = 1, nclst
@@ -566,7 +554,7 @@ contains
     deallocate(sqrt_mass, av0_coord_tmp, ave_coord_tmp, av0_coord_tmp2, &
                av0_coord, ave_coord, cnt_coord, trj_coord,              &
                init_cluster, sum_rmsd, center_index, min_rmsd_clst,     &
-               diff1, diff2, ndata, cluster_index,cluster_index_old)
+               diff1, diff2, ndata, cluster_index_old)
 
     if (output%trjfile /= '') then
       deallocate(trj_out)
