@@ -3,7 +3,7 @@ import os
 import numpy as np
 import numpy.typing as npt
 from libgenesis import LibGenesis
-from s_molecule import SMolecule, py2c_s_molecule
+from s_molecule import SMolecule
 from s_trajectories import STrajectories, STrajectoriesArray
 import c2py_util
 import py2c_util
@@ -23,7 +23,7 @@ def crd_convert(molecule: SMolecule,
     """
     buf = ctypes.c_void_p(None)
     num_trajs_c = ctypes.c_int(0)
-    mol_c = py2c_s_molecule(molecule)
+    mol_c = molecule.to_SMoleculeC()
     LibGenesis().lib.crd_convert_c(
             ctypes.byref(mol_c),
             py2c_util.pathlike_to_byte(ctrl_filename),
@@ -69,7 +69,7 @@ def trj_analysis(molecule: SMolecule, trajs :STrajectories,
     ana_period_c = ctypes.c_int(ana_period)
     mol_c = ctypes.c_void_p(None)
     try:
-        mol_c = py2c_s_molecule(molecule)
+        mol_c = molecule.to_SMoleculeC()
         LibGenesis().lib.trj_analysis_c(
                 ctypes.byref(mol_c),
                 ctypes.byref(trajs.get_c_obj()),
@@ -154,7 +154,7 @@ def rg_analysis(molecule: SMolecule, trajs :STrajectories,
     Returns:
         rg
     """
-    mol_c = py2c_s_molecule(molecule)
+    mol_c = molecule.to_SMoleculeC()
 
     ana_period_c = ctypes.c_int(ana_period)
     result_rg_c = ctypes.c_void_p(None)
@@ -192,7 +192,7 @@ def rmsd_analysis(molecule: SMolecule, trajs :STrajectories,
     Returns:
         rmsd
     """
-    mol_c = py2c_s_molecule(molecule)
+    mol_c = molecule.to_SMoleculeC()
 
     ana_period_c = ctypes.c_int(ana_period)
     result_ra_c = ctypes.c_void_p(None)
@@ -230,7 +230,7 @@ def drms_analysis(molecule: SMolecule, trajs :STrajectories,
     Returns:
         drms
     """
-    mol_c = py2c_s_molecule(molecule)
+    mol_c = molecule.to_SMoleculeC()
 
     ana_period_c = ctypes.c_int(ana_period)
     result_dr_c = ctypes.c_void_p(None)
@@ -268,7 +268,7 @@ def msd_analysis(molecule: SMolecule, trajs :STrajectories,
     Returns:
         msd
     """
-    mol_c = py2c_s_molecule(molecule)
+    mol_c = molecule.to_SMoleculeC()
 
     ana_period_c = ctypes.c_int(ana_period)
     num_analysis_mols_c = ctypes.c_int(0)
@@ -309,7 +309,7 @@ def hb_analysis(molecule: SMolecule, trajs :STrajectories,
     Returnsu:
         TODO
     """
-    mol_c = py2c_s_molecule(molecule)
+    mol_c = molecule.to_SMoleculeC()
     ana_period_c = ctypes.c_int(ana_period)
     result = ctypes.c_void_p()
     LibGenesis().lib.hb_analysis_c(
@@ -386,7 +386,7 @@ def avecrd_analysis(molecule: SMolecule, trajs :STrajectories,
     mol_c = None
     pdb_ave_c = ctypes.c_void_p()
     try:
-        mol_c = py2c_s_molecule(molecule)
+        mol_c = molecule.to_SMoleculeC()
         ana_period_c = ctypes.c_int(ana_period)
         LibGenesis().lib.aa_analysis_c(
                 ctypes.byref(mol_c),
@@ -485,7 +485,7 @@ def kmeans_clustering(molecule: SMolecule, trajs :STrajectories,
     pdb_c = ctypes.c_void_p()
     cluster_index_c = ctypes.c_void_p()
     try:
-        mol_c = py2c_s_molecule(molecule)
+        mol_c = molecule.to_SMoleculeC()
         ana_period_c = ctypes.c_int(ana_period)
         cluster_size = ctypes.c_int(0)
         LibGenesis().lib.kc_analysis_c(

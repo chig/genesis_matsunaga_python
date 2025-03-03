@@ -1,8 +1,7 @@
-import os
 import ctypes
 import pathlib
 from libgenesis import LibGenesis
-from s_molecule import SMolecule, py2c_s_molecule
+from s_molecule import SMolecule
 
 
 def test():
@@ -16,7 +15,7 @@ def test():
             print(mol.atom_no[i], mol.segment_name[i], mol.atom_name[i])
 
         print("num_atoms = ", mol.num_atoms)
-        mol_c = py2c_s_molecule(mol)
+        mol_c = mol.to_SMoleculeC()
         LibGenesis().lib.test_conv_c2f(ctypes.byref(mol_c))
 
 
