@@ -100,7 +100,7 @@ contains
     integer,          allocatable :: ndata(:)
     integer,          allocatable :: ndata_old(:)
     logical,          allocatable :: init_cluster(:)
-    type(s_trj_file), allocatable :: trj_out(:)
+    ! type(s_trj_file), allocatable :: trj_out(:)
 
     if (option%check_only) &
       return
@@ -204,16 +204,16 @@ contains
 
     ! open output files
     !
-    if (output%trjfile /= '') then
-      allocate(trj_out(nclst))
-      do iclst = 1, nclst
-        call open_trj(trj_out(iclst),                             &
-                      get_replicate_name1(output%trjfile, iclst), &
-                      option%trjout_format, &
-                      option%trjout_type,   &
-                      IOFileOutputNew)
-      end do
-    end if
+    ! if (output%trjfile /= '') then
+    !   allocate(trj_out(nclst))
+    !   do iclst = 1, nclst
+    !     call open_trj(trj_out(iclst),                             &
+    !                   get_replicate_name1(output%trjfile, iclst), &
+    !                   option%trjout_format, &
+    !                   option%trjout_type,   &
+    !                   IOFileOutputNew)
+    !   end do
+    ! end if
 
 
     ! analysis loop
@@ -513,7 +513,7 @@ contains
                                  trajectory%coord,    &
                                  trajectory%coord)
 
-                call write_trj(trj_out(iclst), trajectory, option%trjout_atom, molecule)
+                ! call write_trj(trj_out(iclst), trajectory, option%trjout_atom, molecule)
               end if
             end if
 
@@ -531,11 +531,11 @@ contains
     ! close output file
     !
 
-    if  (output%trjfile /= '') then
-      do iclst = 1, nclst
-        call close_trj (trj_out(iclst))
-      end do
-    end if
+    ! if  (output%trjfile /= '') then
+    !   do iclst = 1, nclst
+    !     call close_trj (trj_out(iclst))
+    !   end do
+    ! end if
 
 
     ! Output summary
@@ -556,9 +556,9 @@ contains
                init_cluster, sum_rmsd, center_index, min_rmsd_clst,     &
                diff1, diff2, ndata, cluster_index_old)
 
-    if (output%trjfile /= '') then
-      deallocate(trj_out)
-    end if
+    ! if (output%trjfile /= '') then
+    !   deallocate(trj_out)
+    ! end if
 
 
     return

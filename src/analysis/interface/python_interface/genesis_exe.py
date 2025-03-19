@@ -102,14 +102,17 @@ def trj_analysis(molecule: SMolecule, trajs :STrajectories,
             ctrl_files.write_ctrl_selection(
                     ctrl, selection_group, selection_mole_name)
             ctrl.write(b"[OPTION]\n")
-            ctrl_files.write_value(ctrl, "check_only", check_only)
-            ctrl_files.write_iterable(ctrl, "distance", distance)
-            ctrl_files.write_iterable(ctrl, "dist_weight", dist_weight)
-            ctrl_files.write_iterable(ctrl, "angle", angle)
-            ctrl_files.write_iterable(ctrl, "torsion", torsion)
-            ctrl_files.write_iterable(ctrl, "com_distance", com_distance)
-            ctrl_files.write_iterable(ctrl, "com_angle", com_angle)
-            ctrl_files.write_iterable(ctrl, "com_torsion", com_torsion)
+            ctrl_files.write_kwargs(
+                    ctrl,
+                    check_only = check_only,
+                    distance = distance,
+                    dist_weight = dist_weight,
+                    angle = angle,
+                    torsion = torsion,
+                    com_distance = com_distance,
+                    com_angle = com_angle,
+                    com_torsion = com_torsion,
+                    )
 
             ctrl.seek(0)
             LibGenesis().lib.trj_analysis_c(
@@ -564,18 +567,20 @@ def kmeans_clustering(
             ctrl_files.write_ctrl_fitting(
                     ctrl, fitting_method, fitting_atom, zrot_ngrid, zrot_grid_size, mass_weight)
             ctrl.write(b"[OPTION]\n")
-            ctrl_files.write_value(ctrl, "check_only", check_only)
-            ctrl_files.write_value(ctrl, "allow_backup", allow_backup)
-            ctrl_files.write_value(ctrl, "analysis_atom", analysis_atom)
-            ctrl_files.write_value(ctrl, "num_clusters", num_clusters)
-            ctrl_files.write_value(ctrl, "max_iteration", max_iteration)
-            ctrl_files.write_value(ctrl, "stop_threshold", stop_threshold)
-            ctrl_files.write_value(ctrl, "stop_threshold", stop_threshold)
-            ctrl_files.write_value(ctrl, "num_iterations", num_iterations)
-            ctrl_files.write_value(ctrl, "trjout_atom", trjout_atom)
-            ctrl_files.write_value(ctrl, "trjout_format", trjout_format)
-            ctrl_files.write_value(ctrl, "trjout_type", trjout_type)
-            ctrl_files.write_value(ctrl, "iseed", iseed)
+            ctrl_files.write_kwargs(
+                    ctrl,
+                    check_only = check_only,
+                    allow_backup = allow_backup,
+                    analysis_atom = analysis_atom,
+                    num_clusters = num_clusters,
+                    max_iteration = max_iteration,
+                    stop_threshold = stop_threshold,
+                    num_iterations = num_iterations,
+                    trjout_atom = trjout_atom,
+                    trjout_format = trjout_format,
+                    trjout_type = trjout_type,
+                    iseed = iseed,
+                    )
 
             ctrl.seek(0)
             LibGenesis().lib.kc_analysis_c(

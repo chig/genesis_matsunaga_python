@@ -289,15 +289,11 @@ def write_ctrl_selection(dst: TextIO, group: Optional[Iterable[str]] = None,
     """
     Write selection information to a file.
     """
-    if group is None:
-        group = []
-    if mole_name is None:
-        mole_name = []
     dst.write(b"[SELECTION]\n")
-    for i, g in enumerate(group, start=1):
-        dst.write(f"group{i} = {g}\n".encode('utf-8'))
-    for i, m in enumerate(mole_name, start=1):
-        dst.write(f"mole_name{i} = {m}\n".encode('utf-8'))
+    write_kwargs(dst,
+                 group = group,
+                 mole_name = mole_name,
+                 )
 
 
 def write_ctrl_fitting(
@@ -320,15 +316,13 @@ def write_ctrl_fitting(
         mass_weight:
     """
     dst.write(b"[FITTING]\n")
-    if fitting_method is not None:
-        dst.write(f"fitting_method = {fitting_method}\n".encode('utf-8'))
-    if fitting_atom is not None:
-        dst.write(f"fitting_atom = {fitting_atom}\n".encode('utf-8'))
-    if zrot_ngrid is not None:
-        dst.write(f"zrot_ngrid = {zrot_ngrid}\n".encode('utf-8'))
-    if zrot_grid_size is not None:
-        dst.write(f"zrot_grid_size = {zrot_grid_size:.6D}\n".encode('utf-8'))
-    write_yes_no(dst, "mass_weight", mass_weight)
+    write_kwargs(dst,
+                 fitting_method = fitting_method,
+                 fitting_atom = fitting_atom,
+                 zrot_ngrid = zrot_ngrid,
+                 zrot_grid_size = zrot_grid_size,
+                 mass_weight = mass_weight,
+                 )
 
 
 def write_string(dst: TextIO, name: str, v: Optional[str]) -> None:
@@ -352,6 +346,14 @@ def write_float(dst: TextIO, name: str, v: Optional[float]) -> None:
         dst.write(f"{name} = {v:.12E}\n".encode('utf-8'))
 
 
+def write_numbering_values(
+        dst: TextIO, name: str,
+        vals: Optional[Iterable[Optional[Union[bool, int, float, str]]]]
+        ) -> None:
+    for idx, v in enumerate(vals, 1):
+        write_value(dst, f"{name}{idx}", v)
+
+
 def write_value(dst: TextIO, name: str, v: Optional[Union[bool, int, float, str]]) -> None:
     if v is None:
         pass
@@ -363,13 +365,18 @@ def write_value(dst: TextIO, name: str, v: Optional[Union[bool, int, float, str]
         write_float(dst, name, v)
     elif isinstance(v, str):
         write_string(dst, name, v)
+    elif isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
+        write_numbering_values(dst, name, v)
     else:
         raise TypeError(f"Unsupported type for value: {type(v)}")
 
 
-def write_iterable(
-        dst: TextIO, name: str,
-        vals: Optional[Iterable[Optional[Union[bool, int, float, str]]]]
-        ) -> None:
-    for idx, v in enumerate(vals, 1):
-        write_value(dst, f"{name}{idx}", v)
+def write_values(
+        dst: TextIO,
+        values: Iterable[tuple[str, Optional[Union[bool, int, float, str]]]]) -> None:
+    for name, v in values:
+        write_value(dst, name, v)
+
+
+def write_kwargs(dst: TextIO, **kwargs) -> None:
+    write_values(dst, kwargs.items())
