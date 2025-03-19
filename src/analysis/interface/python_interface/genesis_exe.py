@@ -184,10 +184,21 @@ def trj_analysis(molecule: SMolecule, trajs :STrajectories,
             LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
 
+RgAnalysisResult = namedtuple(
+        'RgAnalysisResult',
+        ['rg'])
+
+
 def rg_analysis(molecule: SMolecule, trajs :STrajectories,
-                ana_period: int,
-                ctrl_path: str | bytes | os.PathLike
-                ) -> npt.NDArray[np.float64]:
+        ana_period: Optional[int] = 1,
+        selection_group: Optional[Iterable[str]] = None,
+        selection_mole_name: Optional[Iterable[str]] = None,
+        fitting_method: Optional[str] = None,
+        fitting_atom: Optional[int] = None,
+        check_only: Optional[bool] = None,
+        analysis_atom: Optional[int] = None,
+        mass_weighted: Optional[bool] = None,
+        ) -> RgAnalysisResult:
     """
     Executes rg_analysis.
 
@@ -195,37 +206,68 @@ def rg_analysis(molecule: SMolecule, trajs :STrajectories,
         molecule:
         trajs:
         ana_period:
-        ctrl_path:
-
     Returns:
         rg
     """
     mol_c = molecule.to_SMoleculeC()
-
     ana_period_c = ctypes.c_int(ana_period)
-    result_rg_c = ctypes.c_void_p(None)
+    result_rg_c = ctypes.c_void_p()
+    try:
+        mol_c = molecule.to_SMoleculeC()
+        with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=True) as ctrl:
+            ctrl_files.write_ctrl_output(
+                    ctrl,
+                    rgfile = "dummy.rg")
+            ctrl_files.write_ctrl_selection(
+                    ctrl, selection_group, selection_mole_name)
+            ctrl_files.write_ctrl_fitting(
+                    ctrl, fitting_method, fitting_atom)
+            ctrl.write(b"[OPTION]\n")
+            ctrl_files.write_kwargs(
+                    ctrl,
+                    check_only = check_only,
+                    analysis_atom = analysis_atom,
+                    mass_weighted = mass_weighted,
+                    )
 
-    LibGenesis().lib.rg_analysis_c(
-            ctypes.byref(mol_c),
-            ctypes.byref(trajs.get_c_obj()),
-            ctypes.byref(ana_period_c),
-            py2c_util.pathlike_to_byte(ctrl_path),
-            ctypes.byref(result_rg_c),
-            )
-
-    n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
-    result_rg = c2py_util.conv_double_ndarray(
+            ctrl.seek(0)
+            LibGenesis().lib.rg_analysis_c(
+                    ctypes.byref(mol_c),
+                    ctypes.byref(trajs.get_c_obj()),
+                    ctypes.byref(ana_period_c),
+                    py2c_util.pathlike_to_byte(ctrl.name),
+                    ctypes.byref(result_rg_c),
+                    )
+        n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
+        result_rg = (c2py_util.conv_double_ndarray(
             result_rg_c, n_frame_c.value)
-    LibGenesis().lib.deallocate_double(
-            ctypes.byref(result_rg_c),
-            ctypes.byref(n_frame_c))
-    return result_rg
+                    if result_rg_c else None)
+        return RgAnalysisResult(
+                result_rg)
+    finally:
+        if result_rg_c:
+            LibGenesis().lib.deallocate_double(
+                    ctypes.byref(result_rg_c),
+                    ctypes.byref(n_frame_c))
+        if mol_c:
+            LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
 
-def rmsd_analysis(molecule: SMolecule, trajs :STrajectories,
-                ana_period: int,
-                ctrl_path: str | bytes | os.PathLike
-                ) -> npt.NDArray[np.float64]:
+RmsdAnalysisResult = namedtuple(
+        'RmsdAnalysisResult',
+        ['rmsd'])
+
+
+def rmsd_analysis(
+        molecule: SMolecule, trajs :STrajectories,
+        ana_period: Optional[int] = 1,
+        selection_group: Optional[Iterable[str]] = None,
+        selection_mole_name: Optional[Iterable[str]] = None,
+        fitting_method: Optional[str] = None,
+        fitting_atom: Optional[int] = None,
+        check_only: Optional[bool] = None,
+        analysis_atom: Optional[int] = None,
+        ) -> RmsdAnalysisResult:
     """
     Executes rmsd_analysis.
 
@@ -233,37 +275,75 @@ def rmsd_analysis(molecule: SMolecule, trajs :STrajectories,
         molecule:
         trajs:
         ana_period:
-        ctrl_path:
-
     Returns:
         rmsd
     """
-    mol_c = molecule.to_SMoleculeC()
-
+    mol_c = None
     ana_period_c = ctypes.c_int(ana_period)
-    result_ra_c = ctypes.c_void_p(None)
+    result_rmsd_c = ctypes.c_void_p()
+    try:
+        mol_c = molecule.to_SMoleculeC()
+        with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=True) as ctrl:
+            ctrl_files.write_ctrl_output(
+                    ctrl,
+                    rmsfile = "dummy.rms")
+            ctrl_files.write_ctrl_selection(
+                    ctrl, selection_group, selection_mole_name)
+            ctrl_files.write_ctrl_fitting(
+                    ctrl, fitting_method, fitting_atom)
+            ctrl.write(b"[OPTION]\n")
+            ctrl_files.write_kwargs(
+                    ctrl,
+                    check_only = check_only,
+                    analysis_atom = analysis_atom,
+                    )
 
-    LibGenesis().lib.ra_analysis_c(
-            ctypes.byref(mol_c),
-            ctypes.byref(trajs.get_c_obj()),
-            ctypes.byref(ana_period_c),
-            py2c_util.pathlike_to_byte(ctrl_path),
-            ctypes.byref(result_ra_c),
-            )
+            ctrl.seek(0)
+            LibGenesis().lib.ra_analysis_c(
+                    ctypes.byref(mol_c),
+                    ctypes.byref(trajs.get_c_obj()),
+                    ctypes.byref(ana_period_c),
+                    py2c_util.pathlike_to_byte(ctrl.name),
+                    ctypes.byref(result_rmsd_c),
+                    )
+        n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
+        result_rmsd = (c2py_util.conv_double_ndarray(
+            result_rmsd_c, n_frame_c.value)
+                    if result_rmsd_c else None)
+        return RmsdAnalysisResult(
+                result_rmsd)
+    finally:
+        if result_rmsd_c:
+            LibGenesis().lib.deallocate_double(
+                    ctypes.byref(result_rmsd_c),
+                    ctypes.byref(n_frame_c))
+        if mol_c:
+            LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
-    n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
-    result_ra = c2py_util.conv_double_ndarray(
-            result_ra_c, n_frame_c.value)
-    LibGenesis().lib.deallocate_double(
-            ctypes.byref(result_ra_c),
-            ctypes.byref(n_frame_c))
-    return result_ra
+
+DrmsAnalysisResult = namedtuple(
+        'DrmsAnalysisResult',
+        ['drms'])
 
 
-def drms_analysis(molecule: SMolecule, trajs :STrajectories,
-                ana_period: int,
-                ctrl_path: str | bytes | os.PathLike
-                ) -> npt.NDArray[np.float64]:
+def drms_analysis(
+        molecule: SMolecule, trajs :STrajectories,
+        ana_period: Optional[int] = 1,
+        selection_group: Optional[Iterable[str]] = None,
+        selection_mole_name: Optional[Iterable[str]] = None,
+        fitting_method: Optional[str] = None,
+        fitting_atom: Optional[int] = None,
+        check_only: Optional[bool] = None,
+        contact_groups: Optional[int] = None,
+        ignore_hydrogen: Optional[bool] = None,
+        two_states: Optional[bool] = None,
+        avoid_bonding: Optional[bool] = None,
+        exclude_residues: Optional[int] = None,
+        minimum_distance: Optional[float] = None,
+        maximum_distance: Optional[float] = None,
+        pbc_correct: Optional[bool] = None,
+        verbose: Optional[bool] = None,
+        ) -> DrmsAnalysisResult:
     """
     Executes drms_analysis.
 
@@ -271,31 +351,58 @@ def drms_analysis(molecule: SMolecule, trajs :STrajectories,
         molecule:
         trajs:
         ana_period:
-        ctrl_path:
-
     Returns:
         drms
     """
-    mol_c = molecule.to_SMoleculeC()
-
+    mol_c = None
     ana_period_c = ctypes.c_int(ana_period)
-    result_dr_c = ctypes.c_void_p(None)
+    result_drms_c = ctypes.c_void_p()
+    try:
+        mol_c = molecule.to_SMoleculeC()
+        with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=True) as ctrl:
+            ctrl_files.write_ctrl_output(
+                    ctrl,
+                    rmsfile = "dummy.rms")
+            ctrl_files.write_ctrl_selection(
+                    ctrl, selection_group, selection_mole_name)
+            ctrl_files.write_ctrl_fitting(
+                    ctrl, fitting_method, fitting_atom)
+            ctrl.write(b"[OPTION]\n")
+            ctrl_files.write_kwargs(
+                    ctrl,
+                    check_only = check_only,
+                    contact_groups = contact_groups,
+                    ignore_hydrogen = ignore_hydrogen,
+                    two_states = two_states,
+                    avoid_bonding = avoid_bonding,
+                    exclude_residues = exclude_residues,
+                    minimum_distance = minimum_distance,
+                    maximum_distance = maximum_distance,
+                    pbc_correct = pbc_correct,
+                    verbose = verbose,
+                    )
 
-    LibGenesis().lib.dr_analysis_c(
-            ctypes.byref(mol_c),
-            ctypes.byref(trajs.get_c_obj()),
-            ctypes.byref(ana_period_c),
-            py2c_util.pathlike_to_byte(ctrl_path),
-            ctypes.byref(result_dr_c),
-            )
-
-    n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
-    result_dr = c2py_util.conv_double_ndarray(
-            result_dr_c, n_frame_c.value)
-    LibGenesis().lib.deallocate_double(
-            ctypes.byref(result_dr_c),
-            ctypes.byref(n_frame_c))
-    return result_dr
+            ctrl.seek(0)
+            LibGenesis().lib.dr_analysis_c(
+                    ctypes.byref(mol_c),
+                    ctypes.byref(trajs.get_c_obj()),
+                    ctypes.byref(ana_period_c),
+                    py2c_util.pathlike_to_byte(ctrl.name),
+                    ctypes.byref(result_drms_c),
+                    )
+        n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
+        result_drms = (c2py_util.conv_double_ndarray(
+            result_drms_c, n_frame_c.value)
+                    if result_drms_c else None)
+        return DrmsAnalysisResult(
+                result_drms)
+    finally:
+        if result_drms_c:
+            LibGenesis().lib.deallocate_double(
+                    ctypes.byref(result_drms_c),
+                    ctypes.byref(n_frame_c))
+        if mol_c:
+            LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
 
 def msd_analysis(molecule: SMolecule, trajs :STrajectories,
