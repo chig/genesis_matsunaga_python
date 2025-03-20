@@ -551,10 +551,22 @@ def diffusion_analysis(msd_data: npt.NDArray[np.float64],
                     ctypes.byref(c_out), ctypes.byref(ci))
 
 
-def avecrd_analysis(molecule: SMolecule, trajs :STrajectories,
-                ana_period: int,
-                ctrl_path: str | bytes | os.PathLike
-                ):
+AvecrdAnalysisResult = namedtuple(
+        'AvecrdAnalysisResult',
+        ['pdb_str'])
+
+
+def avecrd_analysis(
+        molecule: SMolecule, trajs :STrajectories,
+        ana_period: Optional[int] = 1,
+        selection_group: Optional[Iterable[str]] = None,
+        selection_mole_name: Optional[Iterable[str]] = None,
+        fitting_method: Optional[str] = None,
+        fitting_atom: Optional[int] = None,
+        check_only: Optional[bool] = None,
+        num_iterations: Optional[int] = None,
+        analysis_atom: Optional[int] = None,
+        ):
     """
     Executes aa_analysis.
 
@@ -562,35 +574,50 @@ def avecrd_analysis(molecule: SMolecule, trajs :STrajectories,
         molecule:
         trajs:
         ana_period:
-        ctrl_path:
-
     Returns:
-        TODO
+        (pdb,)
     """
     mol_c = None
     pdb_ave_c = ctypes.c_void_p()
+    ana_period_c = ctypes.c_int(ana_period)
     try:
         mol_c = molecule.to_SMoleculeC()
-        ana_period_c = ctypes.c_int(ana_period)
-        LibGenesis().lib.aa_analysis_c(
-                ctypes.byref(mol_c),
-                ctypes.byref(trajs.get_c_obj()),
-                ctypes.byref(ana_period_c),
-                py2c_util.pathlike_to_byte(ctrl_path),
-                ctypes.byref(pdb_ave_c),
-                )
-        if pdb_ave_c:
-            s = c2py_util.conv_string(pdb_ave_c)
-            LibGenesis().lib.deallocate_c_string(ctypes.byref(pdb_ave_c))
-            print(s)
-        else:
-            s = None
+        with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=True) as ctrl:
+            ctrl_files.write_ctrl_output(
+                    ctrl,
+                    pdb_avefile = "dummy.pdb")
+            ctrl_files.write_ctrl_selection(
+                    ctrl, selection_group, selection_mole_name)
+            ctrl_files.write_ctrl_fitting(
+                    ctrl, fitting_method, fitting_atom)
+            ctrl.write(b"[OPTION]\n")
+            ctrl_files.write_kwargs(
+                    ctrl,
+                    check_only = check_only,
+                    num_iterations = num_iterations,
+                    analysis_atom = analysis_atom,
+                    )
+
+            ctrl.seek(0)
+            LibGenesis().lib.aa_analysis_c(
+                    ctypes.byref(mol_c),
+                    ctypes.byref(trajs.get_c_obj()),
+                    ctypes.byref(ana_period_c),
+                    py2c_util.pathlike_to_byte(ctrl.name),
+                    ctypes.byref(pdb_ave_c),
+                    )
+            if pdb_ave_c:
+                pdb_ave = c2py_util.conv_string(pdb_ave_c)
+                LibGenesis().lib.deallocate_c_string(ctypes.byref(pdb_ave_c))
+            else:
+                pdb_ave = None
+            return AvecrdAnalysisResult(pdb_ave)
     finally:
         if mol_c:
             LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
         if pdb_ave_c:
             LibGenesis().lib.deallocate_c_string(ctypes.byref(pdb_ave_c))
-    return
+    return None
 
 
 def wham_analysis(ctrl_path: str | bytes | os.PathLike
