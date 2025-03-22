@@ -2,7 +2,7 @@ import ctypes
 from collections import namedtuple
 import os
 import tempfile
-from typing import Iterable, Optional, TextIO
+from typing import Iterable, Optional
 import numpy as np
 import numpy.typing as npt
 from libgenesis import LibGenesis
@@ -105,13 +105,13 @@ def trj_analysis(molecule: SMolecule, trajs :STrajectories,
             ctrl_files.write_kwargs(
                     ctrl,
                     check_only = check_only,
-                    distance = distance,
-                    dist_weight = dist_weight,
-                    angle = angle,
-                    torsion = torsion,
-                    com_distance = com_distance,
-                    com_angle = com_angle,
-                    com_torsion = com_torsion,
+                    distance = ctrl_files.NumberingData(distance),
+                    dist_weight = ctrl_files.NumberingData(dist_weight),
+                    angle = ctrl_files.NumberingData(angle),
+                    torsion = ctrl_files.NumberingData(torsion),
+                    com_distance = ctrl_files.NumberingData(com_distance),
+                    com_angle = ctrl_files.NumberingData(com_angle),
+                    com_torsion = ctrl_files.NumberingData(com_torsion),
                     )
 
             ctrl.seek(0)

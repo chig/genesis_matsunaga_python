@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterable, Optional, TextIO, Union
+from typing import Any, Iterable, Optional, TextIO
 
 
 def write_ctrl_input(
@@ -291,8 +291,8 @@ def write_ctrl_selection(dst: TextIO, group: Optional[Iterable[str]] = None,
     """
     dst.write(b"[SELECTION]\n")
     write_kwargs(dst,
-                 group = group,
-                 mole_name = mole_name,
+                 group = NumberingData(group),
+                 mole_name = NumberingData(mole_name),
                  )
 
 
@@ -303,8 +303,8 @@ def write_ctrl_molecule_selection(dst: TextIO, selection: Optional[Iterable[str]
     """
     dst.write(b"[MOLECULE_SELECTION]\n")
     write_kwargs(dst,
-                 selection = selection,
-                 mode = mode,
+                 selection = NumberingData(selection),
+                 mode = NumberingData(mode),
                  )
 
 
@@ -337,57 +337,64 @@ def write_ctrl_fitting(
                  )
 
 
-def write_string(dst: TextIO, name: str, v: Optional[str]) -> None:
-    if v is not None:
-        dst.write(f"{name} = {v}\n".encode('utf-8'))
+def bool_to_yes_no(v: bool) -> str:
+    return "YES" if v else "NO"
 
 
-def write_yes_no(dst: TextIO, name: str, v: Optional[bool]) -> None:
+def float_to_str(v: float) -> str:
+    return f"{v:.12E}"
+
+
+def iterable_to_str(vals: Iterable[Any]) -> str:
+    return ' '.join(map(value_to_str_auto, vals))
+
+
+
+def value_to_str_auto(v: Any) -> Optional[str]:
+    if isinstance(v, bool):
+        return bool_to_yes_no(v)
+    elif isinstance(v, float):
+        return float_to_str(v)
+    elif isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
+        return iterable_to_str(v)
+    else:
+        return str(v)
+
+
+def write_value(dst: TextIO, name: str,
+                v: Optional[Any]):
     if v is not None:
-        dst.write("{} = {}\n".format(name, "YES" if v else "NO")
+        dst.write("{} = {}\n".format(name, value_to_str_auto(v))
                    .encode('utf-8'))
-
-
-def write_int(dst: TextIO, name: str, v: Optional[int]) -> None:
-    if v is not None:
-        dst.write(f"{name} = {v}\n".encode('utf-8'))
-
-
-def write_float(dst: TextIO, name: str, v: Optional[float]) -> None:
-    if v is not None:
-        dst.write(f"{name} = {v:.12E}\n".encode('utf-8'))
 
 
 def write_numbering_values(
         dst: TextIO, name: str,
-        vals: Optional[Iterable[Optional[Union[bool, int, float, str]]]]
+        vals: Optional[Iterable[Any]]
         ) -> None:
-    for idx, v in enumerate(vals, 1):
-        write_value(dst, f"{name}{idx}", v)
+    """
+    name1 = vals[0]
+    name2 = vals[1]
+    name3 = vals[2]
+    """
+    if vals is not None:
+        for idx, v in enumerate(vals, 1):
+            write_value(dst, f"{name}{idx}", v)
 
 
-def write_value(dst: TextIO, name: str, v: Optional[Union[bool, int, float, str]]) -> None:
-    if v is None:
-        pass
-    elif isinstance(v, bool):
-        write_yes_no(dst, name, v)
-    elif isinstance(v, int):
-        write_int(dst, name, v)
-    elif isinstance(v, float):
-        write_float(dst, name, v)
-    elif isinstance(v, str):
-        write_string(dst, name, v)
-    elif isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
-        write_numbering_values(dst, name, v)
-    else:
-        raise TypeError(f"Unsupported type for value: {type(v)}")
+class NumberingData:
+    def __init__(self, src: Iterable[Any]):
+        self.src = src
 
 
 def write_values(
         dst: TextIO,
-        values: Iterable[tuple[str, Optional[Union[bool, int, float, str]]]]) -> None:
+        values: Iterable[tuple[str, Optional[Any]]]) -> None:
     for name, v in values:
-        write_value(dst, name, v)
+        if isinstance(v, NumberingData):
+            write_numbering_values(dst, name, v.src)
+        else:
+            write_value(dst, name, v)
 
 
 def write_kwargs(dst: TextIO, **kwargs) -> None:
