@@ -380,6 +380,12 @@ class SMolecule:
                   psf: Union[str, bytes, os.PathLike] = '',
                   ref: Union[str, bytes, os.PathLike] = '',
                   fit: Union[str, bytes, os.PathLike] = '',
+                  prmtop: Union[str, bytes, os.PathLike] = '',
+                  ambcrd: Union[str, bytes, os.PathLike] = '',
+                  ambref: Union[str, bytes, os.PathLike] = '',
+                  grotop: Union[str, bytes, os.PathLike] = '',
+                  grocrd: Union[str, bytes, os.PathLike] = '',
+                  groref: Union[str, bytes, os.PathLike] = '',
                   ) -> Self:
         mol_c = SMoleculeC()
         try:
@@ -390,6 +396,12 @@ class SMolecule:
                 py2c_util.pathlike_to_byte(psf),
                 py2c_util.pathlike_to_byte(ref),
                 py2c_util.pathlike_to_byte(fit),
+                py2c_util.pathlike_to_byte(prmtop),
+                py2c_util.pathlike_to_byte(ambcrd),
+                py2c_util.pathlike_to_byte(ambref),
+                py2c_util.pathlike_to_byte(grotop),
+                py2c_util.pathlike_to_byte(grocrd),
+                py2c_util.pathlike_to_byte(groref),
                 ctypes.byref(mol_c)
             )
             mol_py = SMolecule.from_SMoleculeC(mol_c)

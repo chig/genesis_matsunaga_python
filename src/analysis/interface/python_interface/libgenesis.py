@@ -33,6 +33,12 @@ class LibGenesis:
                 ctypes.c_char_p,
                 ctypes.c_char_p,
                 ctypes.c_char_p,
+                ctypes.c_char_p,
+                ctypes.c_char_p,
+                ctypes.c_char_p,
+                ctypes.c_char_p,
+                ctypes.c_char_p,
+                ctypes.c_char_p,
                 ctypes.POINTER(SMoleculeC),
                 ]
         self.lib.define_molecule_from_file.restype = None

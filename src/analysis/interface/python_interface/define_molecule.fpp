@@ -23,6 +23,12 @@ contains
           psf_filename, &
           ref_filename, &
           fit_filename, &
+          prmtop_filename, &
+          ambcrd_filename, &
+          ambref_filename, &
+          grotop_filename, &
+          grocrd_filename, &
+          groref_filename, &
           out_mol) &
       bind(C, name="define_molecule_from_file")
     use fileio_top_mod
@@ -45,6 +51,12 @@ contains
     character(kind=c_char), intent(in) :: psf_filename(*)
     character(kind=c_char), intent(in) :: ref_filename(*)
     character(kind=c_char), intent(in) :: fit_filename(*)
+    character(kind=c_char), intent(in) :: prmtop_filename(*)
+    character(kind=c_char), intent(in) :: ambcrd_filename(*)
+    character(kind=c_char), intent(in) :: ambref_filename(*)
+    character(kind=c_char), intent(in) :: grotop_filename(*)
+    character(kind=c_char), intent(in) :: grocrd_filename(*)
+    character(kind=c_char), intent(in) :: groref_filename(*)
     ! Output parameters
     type(s_molecule_c), intent(out) :: out_mol
     ! Local variables
@@ -55,6 +67,12 @@ contains
     type(s_psf) :: psf
     type(s_pdb) :: ref
     type(s_pdb) :: fit
+    type(s_prmtop) :: prmtop
+    type(s_ambcrd) :: ambcrd
+    type(s_ambcrd) :: ambref
+    type(s_grotop) :: grotop
+    type(s_grocrd) :: grocrd
+    type(s_grocrd) :: groref
     type(s_molecule) :: molecule
     character(MaxFilename) :: filename
 
@@ -88,9 +106,42 @@ contains
       inp_info%fitfile = trim(filename)
       call input_files(inp_info, fit=fit)
     end if
+    if (prmtop_filename(1) /= c_null_char) then
+      call c2f_string(prmtop_filename, filename)
+      inp_info%prmtopfile = trim(filename)
+      call input_files(inp_info, prmtop=prmtop)
+    end if
+    if (ambcrd_filename(1) /= c_null_char) then
+      call c2f_string(ambcrd_filename, filename)
+      inp_info%ambcrdfile = trim(filename)
+      call input_files(inp_info, ambcrd=ambcrd)
+    end if
+    if (ambref_filename(1) /= c_null_char) then
+      call c2f_string(ambref_filename, filename)
+      inp_info%ambreffile = trim(filename)
+      call input_files(inp_info, ambref=ambref)
+    end if
+    if (grotop_filename(1) /= c_null_char) then
+      call c2f_string(grotop_filename, filename)
+      inp_info%grotopfile = trim(filename)
+      call input_files(inp_info, grotop=grotop)
+    end if
+    if (grocrd_filename(1) /= c_null_char) then
+      call c2f_string(grocrd_filename, filename)
+      inp_info%grocrdfile = trim(filename)
+      call input_files(inp_info, grocrd=grocrd)
+    end if
+    if (groref_filename(1) /= c_null_char) then
+      call c2f_string(groref_filename, filename)
+      inp_info%groreffile = trim(filename)
+      call input_files(inp_info, groref=groref)
+    end if
     call define_molecules(molecule, &
-        pdb=pdb, top=top, gpr=gpr, psf=psf, ref=ref, fit=fit)
+        pdb=pdb, top=top, gpr=gpr, psf=psf, ref=ref, fit=fit, &
+        prmtop=prmtop, ambcrd=ambcrd, ambref=ambref, &
+        grotop=grotop, grocrd=grocrd, groref=groref)
     call f2c_s_molecule(molecule, out_mol)
+
   end subroutine define_molecule_from_file
 
 end module define_molecule
