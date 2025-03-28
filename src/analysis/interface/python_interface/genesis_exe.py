@@ -685,7 +685,7 @@ def wham_analysis(
         selection_mole_name: Optional[Iterable[str]] = None,
         function: Optional[Iterable[str]] = None,
         select_index: Iterable[Iterable[int]] = None,
-        constant: Iterable[Iterable[int]] = None,
+        constant: Iterable[Iterable[float]] = None,
         reference: Iterable[Iterable[float]] = None,
         is_periodic: Iterable[bool] = None,
         box_size: Iterable[float] = None,
@@ -762,32 +762,100 @@ def wham_analysis(
                     ctypes.byref(n_bins), ctypes.byref(n_bin_x))
 
 
-def mbar_analysis(ctrl_path: str | bytes | os.PathLike
-                ):
+def mbar_analysis(
+        psffile: Optional[str] = None,
+        prmtopfile: Optional[str] = None,
+        ambcrdfile: Optional[str] = None,
+        grotopfile: Optional[str] = None,
+        grocrdfile: Optional[str] = None,
+        pdbfile: Optional[str] = None,
+        dcdfile: Optional[str] = None,
+        cvfile: Optional[str] = None,
+        check_only: Optional[bool] = None,
+        allow_backup: Optional[bool] = None,
+        nreplica: Optional[int] = None,
+        input_type: Optional[str] = None,
+        dimension: Optional[int] = None,
+        temperature: Optional[float] = None,
+        target_temperature: Optional[float] = None,
+        nblocks: Optional[int] = None,
+        tolerance: Optional[float] = None,
+        rest_function: Optional[Iterable[int]] = None,
+        grids: Optional[Iterable[tuple[float, float, int]]] = None,
+        selection_group: Optional[Iterable[str]] = None,
+        selection_mole_name: Optional[Iterable[str]] = None,
+        constant: Iterable[Iterable[float]] = None,
+        reference: Iterable[Iterable[float]] = None,
+        is_periodic: Iterable[bool] = None,
+        box_size: Iterable[float] = None,
+        ):
     """
     Executes mbar_analysis.
 
     Args:
-        ctrl_path:
-
     Returns:
         fene
     """
     result_fene_c = ctypes.c_void_p(None)
     n_replica = ctypes.c_int(0)
     n_blocks = ctypes.c_int(0)
-    LibGenesis().lib.mbar_analysis_c(
-            py2c_util.pathlike_to_byte(ctrl_path),
-            ctypes.byref(result_fene_c),
-            ctypes.byref(n_replica),
-            ctypes.byref(n_blocks),
-            )
-    result_fene = c2py_util.conv_double_ndarray(
-             result_fene_c, [n_replica.value, n_blocks.value])
-    LibGenesis().lib.deallocate_double2(
-            ctypes.byref(result_fene_c),
-            ctypes.byref(n_replica), ctypes.byref(n_blocks))
-    return result_fene
+    try:
+        with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=True) as ctrl:
+            ctrl_files.write_ctrl_input(
+                    ctrl,
+                    psffile = psffile,
+                    prmtopfile = prmtopfile,
+                    ambcrdfile = ambcrdfile,
+                    grotopfile = grotopfile,
+                    grocrdfile = grocrdfile,
+                    pdbfile = pdbfile,
+                    dcdfile = dcdfile,
+                    cvfile = cvfile,
+                    )
+            ctrl_files.write_ctrl_output(
+                    ctrl,
+                    fenefile = "fene.dat")
+            ctrl.write(b'[MBAR]\n')
+            ctrl_files.write_kwargs(
+                    ctrl,
+                    check_only = check_only,
+                    allow_backup = allow_backup,
+                    nreplica = nreplica,
+                    input_type = input_type,
+                    dimension = dimension,
+                    temperature = temperature,
+                    target_temperature = target_temperature,
+                    nblocks = nblocks,
+                    tolerance = tolerance,
+                    rest_function = ctrl_files.NumberingData(rest_function),
+                    grids = ctrl_files.NumberingData(grids),
+                    )
+            ctrl_files.write_ctrl_selection(
+                    ctrl, selection_group, selection_mole_name)
+            ctrl.write(b'[RESTRAINTS]\n')
+            ctrl_files.write_kwargs(
+                    ctrl,
+                    constant     = ctrl_files.NumberingData(constant),
+                    reference    = ctrl_files.NumberingData(reference),
+                    is_periodic  = ctrl_files.NumberingData(is_periodic),
+                    box_size     = ctrl_files.NumberingData(box_size),
+                    )
+
+            ctrl.seek(0)
+            LibGenesis().lib.mbar_analysis_c(
+                    py2c_util.pathlike_to_byte(ctrl.name),
+                    ctypes.byref(result_fene_c),
+                    ctypes.byref(n_replica),
+                    ctypes.byref(n_blocks),
+                    )
+            result_fene = c2py_util.conv_double_ndarray(
+                    result_fene_c, [n_replica.value, n_blocks.value])
+            return result_fene
+    finally:
+        if result_fene_c:
+            LibGenesis().lib.deallocate_double2(
+                    ctypes.byref(result_fene_c),
+                    ctypes.byref(n_replica), ctypes.byref(n_blocks))
 
 
 KmeansClusteringResult = namedtuple(

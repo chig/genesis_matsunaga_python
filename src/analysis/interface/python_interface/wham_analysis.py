@@ -23,8 +23,6 @@ def test_wham_analysis():
 def main():
     if os.path.exists("out"):
         os.remove("out")
-    if os.path.exists("pmf"):
-        os.remove("pmf")
     test_wham_analysis()
 
 

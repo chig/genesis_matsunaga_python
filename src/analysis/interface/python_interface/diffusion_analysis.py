@@ -1,5 +1,4 @@
 import os
-import pathlib
 import genesis_exe
 import msd_reader
 
