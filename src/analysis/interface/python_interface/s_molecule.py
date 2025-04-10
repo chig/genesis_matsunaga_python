@@ -423,7 +423,6 @@ class SMolecule:
         -------
         md.element.Element or None
         """
-        print("@@@", atom_name, type(atom_name))
         special_cases = {
             "FE": "Fe",
             "ZN": "Zn",
@@ -553,14 +552,28 @@ try:
         names = []
         chainids = []
         elements = []
+        occupancies = []
         formal_chages = []
+        residue_names = []
+        residueids = []
+        seg_ids = []
+        prev_resid = -1
+        prev_segid = -1
         for i in range(0, self.num_atoms):
             ids.append(self.atom_no[i])
-            names.append(self.atom_name[i].astype(str))
+            names.append(self.atom_name[i])
             chainids.append(str(self.chain_id[i]))
             elements.append(
-                    SMolecule.guess_atom_element(self.atom_name[i].astype(str)))
+                    SMolecule.guess_atom_element(self.atom_name[i]))
+            occupancies.append(self.atom_occupancy[i])
             formal_chages.append(self.charge[i])
+            if prev_resid != self.residue_no[i]:
+                residueids.append(self.residue_no[i])
+                residue_names.append(self.residue_name[i])
+                prev_resid = self.residue_no[i]
+            if prev_segid != self.segment_no[i]:
+                seg_ids.append(self.segment_no[i])
+                prev_segid = self.segment_no[i]
 
         attrs = []
         for vals, Attr, dtype in (
@@ -568,7 +581,11 @@ try:
                 (names, mdaattr.Atomnames, object),
                 (chainids, mdaattr.ChainIDs, object),
                 (elements, mdaattr.Elements, object),
+                (occupancies, mdaattr.Occupancies, np.float64),
                 (formal_chages, mdaattr.FormalCharges, np.float64),
+                (residueids, mdaattr.Resids, np.int64),
+                (residue_names, mdaattr.Resnames, object),
+                (seg_ids, mdaattr.Segids, np.int64),
                 ):
             attrs.append(Attr(np.array(vals, dtype=dtype)))
         top = mdaTopology(
@@ -580,6 +597,14 @@ try:
         return top
 
     SMolecule.to_mdanalysis_topology = to_mdanalysis_topology
+
+
+    def to_mdanalysis_universe(self) -> mda.Universe:
+        top = self.to_mdanalysis_topology()
+        uni = mda.Universe(top)
+        return uni
+
+    SMolecule.to_mdanalysis_universe = to_mdanalysis_universe
 
     @staticmethod
     def from_mdanalysis_universe(uni: mda.Universe) -> Self:

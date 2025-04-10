@@ -102,9 +102,8 @@ try:
     from MDAnalysis.lib.mdamath import triclinic_box
 
     def to_mdanalysis_universe(self, smol: SMolecule) -> mda.Universe:
-        top = smol.to_mdanalysis_topology()
-        uni = mda.Universe(topology = top)
-        # self.add_coordinates_to_mdanalysis_universe(uni)
+        uni = smol.to_mdanalysis_universe()
+        self.add_coordinates_to_mdanalysis_universe(uni)
         return uni
 
     STrajectories.to_mdanalysis_universe = to_mdanalysis_universe
