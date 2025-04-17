@@ -1,10 +1,10 @@
-import os
 import genesis_exe
-import msd_reader
+import numpy as np
 
 
 def test_diffusion_analysis():
-    msd = msd_reader.read_msd_from_file("msd.data")
+    msd = np.loadtxt("msd.data", dtype=np.float64)
+    print(msd)
     ret = genesis_exe.diffusion_analysis(
             msd,
             time_step = 2,
