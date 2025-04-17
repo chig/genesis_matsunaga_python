@@ -156,16 +156,6 @@ class SMolecule:
         self.fepgrp_dihe = np.array([])
         self.fepgrp_cmap = np.array([])
 
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.free()
-
-    def free(self):
-        """deallocate resources"""
-        pass
-
     @staticmethod
     def from_SMoleculeC(src: SMoleculeC) -> Self:
         dst = SMolecule()
