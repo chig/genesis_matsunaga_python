@@ -2,6 +2,10 @@ import ctypes
 
 
 class SMoleculeC(ctypes.Structure):
+    """
+    Definition for accessing the Genesis's s_molecule object
+    allocated in the memory area of the C language interface from Python.
+    """
     _fields_ = [("num_deg_freedom", ctypes.c_int),
                 ("num_atoms", ctypes.c_int),
                 ("num_bonds", ctypes.c_int),

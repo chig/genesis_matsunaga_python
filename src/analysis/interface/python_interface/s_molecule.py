@@ -1,16 +1,22 @@
 import ctypes
 import os
 import tempfile
+from typing import Optional, Self, Union
 import numpy as np
 import numpy.typing as npt
 import c2py_util
 import py2c_util
-from typing import Self, Union
 from libgenesis import LibGenesis
 from s_molecule_c import SMoleculeC
 
 
 class SMolecule:
+    """
+    Python implementation that holds data equivalent to Genesis' s_molecule type.
+
+    This class holds data equivalent to Genesis' s_molecule type.
+    Data is held on the memory area allocated by python.
+    """
     num_deg_freedom: int
     num_atoms: int
     num_bonds: int
@@ -84,6 +90,13 @@ class SMolecule:
     fepgrp_cmap: npt.NDArray[np.int64]
 
     def __init__(self) -> Self:
+        """
+        Initialize an empty instance.
+
+        Returns
+        -------
+        An instance that has no data.
+        """
         self.num_deg_freedom = 0
         self.num_atoms = 0
         self.num_bonds = 0
@@ -158,6 +171,18 @@ class SMolecule:
 
     @staticmethod
     def from_SMoleculeC(src: SMoleculeC) -> Self:
+        """
+        Create molecular structure from a Genesis's s_molecule object.
+
+        Parameters
+        ----------
+        src: a Genesis's s_molecule object.
+
+        Returns
+        -------
+        An instance that has same data as src.
+
+        """
         dst = SMolecule()
         dst.num_deg_freedom = src.num_deg_freedom
         dst.num_atoms = src.num_atoms
@@ -287,6 +312,14 @@ class SMolecule:
         return dst
 
     def to_SMoleculeC(self) -> SMoleculeC:
+        """
+        Create a Genesis's s_molecule object for C language interface.
+
+        Returns
+        -------
+        An instance that can adapt to C language interface input.
+
+        """
         dst = SMoleculeC()
         dst.num_deg_freedom = self.num_deg_freedom
         dst.num_atoms = self.num_atoms
@@ -384,8 +417,42 @@ class SMolecule:
                   grocrd: Union[str, bytes, os.PathLike] = '',
                   groref: Union[str, bytes, os.PathLike] = '',
                   ) -> Self:
-        mol_c = SMoleculeC()
+        """
+        Load molecular structure from the specified files.
+
+        This method initializes an object by loading various types of molecular
+        structure files (e.g., PDB, topology, coordinate files).
+
+        Parameters
+        ----------
+        pdb : Path to the PDB file. containing atomic coordinates.
+        top : Path to the topology file.
+        gpr : Path to the GPR file (GROMACS parameter file).
+        psf : Path to the PSF file (CHARMM/NAMD Protein Structure File).
+        ref : Path to the reference file for alignment or comparison.
+        fit : Path to the fitting file for structural alignment.
+        prmtop : Path to the AMBER PRMTOP file (topology file).
+        ambcrd : Path to the AMBER coordinate file (CRD format).
+        ambref : Path to the AMBER reference file.
+        grotop : Path to the GROMACS topology file (TOP format).
+        grocrd : Path to the GROMACS coordinate file (GRO format).
+        groref : Path to the GROMACS reference file.
+
+        Returns
+        -------
+        An instance of the class initialized with the provided file paths.
+
+        Notes
+        -----
+        - At least one of the input file paths must be provided to initialize the object.
+
+        Examples
+        --------
+        >>> obj = SMolecule.from_file(pdb="example.pdb", top="example.top")
+        """
+        mol_c = None
         try:
+            mol_c = SMoleculeC()
             LibGenesis().lib.define_molecule_from_file(
                 py2c_util.pathlike_to_byte(pdb),
                 py2c_util.pathlike_to_byte(top),
@@ -404,16 +471,17 @@ class SMolecule:
             mol_py = SMolecule.from_SMoleculeC(mol_c)
             return mol_py
         finally:
-            LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
+            if mol_c:
+                LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
     @staticmethod
-    def guess_atom_element(atom_name) -> str:
+    def guess_atom_element(atom_name: str) -> Optional[str]:
         """
         Guess the element from an atom name.
 
         Parameters
         ----------
-        atom_name :
+        atom_name : atom name
 
         Returns
         -------
@@ -475,11 +543,13 @@ try:
 
     SMolecule.to_mdtraj_topology = to_mdtraj_topology
 
+    @staticmethod
     def from_mdtraj_topology(src: md.Topology) -> Self:
         return from_mdtraj_topology_via_pdb(src)
 
     SMolecule.from_mdtraj_topology = from_mdtraj_topology
 
+    @staticmethod
     def from_mdtraj_trajectory(src: md.Trajectory) -> Self:
         return from_mdtraj_trajectory_via_pdb(src)
 
@@ -537,13 +607,13 @@ try:
         return from_mdtraj_trajectory_via_pdb(empty_traj)
 
     @staticmethod
-    def guess_atom_element_mdtraj(atom_name) -> md.element.Element:
+    def guess_atom_element_mdtraj(atom_name) -> Optional[md.element.Element]:
         """
-        Guess the element from an atom name.
+        Guess the MDTraj element from an atom name.
 
         Parameters
         ----------
-        atom_name :
+        atom_name : atom name
 
         Returns
         -------

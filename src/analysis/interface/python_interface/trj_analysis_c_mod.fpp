@@ -1,8 +1,7 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
-! 
-!> Program  ta_main
-!! @brief   analysis trajectory files
-!! @authors Takaharu Mori (TM), Yuji Sugita (YS)
+!
+!> C language interface for trj_analysis
+!! @brief   C language interface of trj_analysis
 !
 !  (c) Copyright 2014 RIKEN. All rights reserved.
 !
@@ -31,6 +30,29 @@ module trj_analysis_c_mod
   implicit none
 
 contains
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    trj_analysis_c
+  !> @brief        C language interface for trj_analysis
+  !! @param[in] molecule : structure of molecule information
+  !! @param[in] s_trajes_c : structure of trajectories information
+  !! @param[in] ana_period : interval for sampling frames
+  !! @param[in] ctrl_path : path to the control file
+  !! @param[out] result_distance : array storing calculated distances
+  !! @param[out] num_distance : number of distance results stored in result_distance
+  !! @param[out] result_angle : array storing calculated angles
+  !! @param[out] num_angle : number of angle results stored in result_angle
+  !! @param[out] result_torsion : array storing calculated torsion angles
+  !! @param[out] num_torsion : number of torsion angle results stored in result_torsion
+  !! @param[out] result_cdis : array storing calculated contact distances
+  !! @param[out] num_cdis : number of contact distance results stored in result_cdis
+  !! @param[out] result_cang : array storing calculated contact angles
+  !! @param[out] num_cang : number of contact angle results stored in result_cang
+  !! @param[out] result_ctor : array storing calculated contact torsion angles
+  !! @param[out] num_ctor : number of contact torsion angle results stored in result_ctor
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
   subroutine trj_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
                             result_distance, num_distance, &
                             result_angle, num_angle, &
