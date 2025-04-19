@@ -48,7 +48,8 @@ def test_kmeans_clustering():
                     trjout_type     = "COOR",
                     iseed           = 3141592,
                     )
-            # print(ret.mol_from_pdb)
+            for mol in ret.mols_from_pdb:
+                print("num_atoms = ", mol.num_atoms)
             print(ret.cluster_idxs)
 
 

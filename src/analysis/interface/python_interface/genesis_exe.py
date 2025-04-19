@@ -906,7 +906,7 @@ def mbar_analysis(
 
 
 class KmeansClusteringResult(NamedTuple):
-    mol_from_pdb: SMolecule
+    mols_from_pdb: SMolecule
     cluster_idxs: npt.NDArray[np.int64]
 
 
@@ -989,16 +989,19 @@ def kmeans_clustering(
             if pdb_c:
                 pdb_str = c2py_util.conv_string(pdb_c)
                 LibGenesis().lib.deallocate_c_string(ctypes.byref(pdb_c))
-                with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=True) as pdb_file:
-                    pdb_file.write(pdb_str.encode())
-                    pdb_file.seek(0)
-                    pdb_mol = SMolecule.from_file(pdb=pdb_file.name)
+                pdb_mols = []
+                for pdb_block in extract_model_blocks(pdb_str):
+                    with tempfile.NamedTemporaryFile(
+                            dir=os.getcwd(), delete=True) as pdb_file:
+                        pdb_file.write(pdb_block.encode())
+                        pdb_file.seek(0)
+                        pdb_mols.append(SMolecule.from_file(pdb=pdb_file.name))
             else:
-                pdb_mol = None
+                pdb_mols = None
             cluster_idxs = (c2py_util.conv_int_ndarray(
                     cluster_idxs_c, cluster_size.value)
                             if cluster_idxs_c else None)
-            return KmeansClusteringResult(pdb_mol, cluster_idxs)
+            return KmeansClusteringResult(pdb_mols, cluster_idxs)
     finally:
         if cluster_idxs_c:
             LibGenesis().lib.deallocate_int(
@@ -1008,3 +1011,41 @@ def kmeans_clustering(
         if mol_c:
             LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
     return None
+
+
+def extract_model_blocks(pdb_string):
+    """
+    与えられたPDB形式の文字列から、MODEL行からENDMDL行の間のスライスを順に返す。
+    文字列のコピーは行わない。
+
+    Parameters:
+        pdb_string (str): PDB形式の文字列。
+
+    Yields:
+        str: 各MODELブロック（元の文字列のスライス）。
+    """
+    start = None  # MODEL行の開始位置
+    end = None    # ENDMDL行の終了位置
+
+    i = 0
+    while i < len(pdb_string):
+        # MODEL行の開始位置を探す
+        if pdb_string.startswith("MODEL", i):
+            start = i
+            # MODEL行の終わりまで進める
+            while i < len(pdb_string) and pdb_string[i] != '\n':
+                i += 1
+            i += 1  # 改行をスキップ
+
+        # ENDMDL行の終了位置を探す
+        elif pdb_string.startswith("ENDMDL", i):
+            end = i
+            while i < len(pdb_string) and pdb_string[i] != '\n':
+                i += 1
+            i += 1  # 改行をスキップ
+            yield pdb_string[start:i]  # MODEL行からENDMDL行までのスライスを返す
+            start = None
+            end = None
+
+        else:
+            i += 1  # 次の文字へ進む

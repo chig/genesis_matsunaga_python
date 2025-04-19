@@ -57,7 +57,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine analyze(molecule, input, trajes_c, ana_period, &
-                     fitting, option, output, out_pdb, cluster_index)
+                     fitting, option, output, out_pdb_str, cluster_index)
     use s_trajectories_c_mod
     use internal_file_type_mod
 
@@ -69,7 +69,7 @@ contains
     type(s_fitting),         intent(inout) :: fitting
     type(s_option),          intent(inout) :: option
     type(s_output),          intent(inout) :: output
-    character(len=:), allocatable, intent(out) :: out_pdb
+    character(len=:), allocatable, intent(out) :: out_pdb_str
     integer, allocatable,     intent(out) :: cluster_index(:)
 
     ! local variables
@@ -101,6 +101,7 @@ contains
     integer,          allocatable :: ndata_old(:)
     logical,          allocatable :: init_cluster(:)
     ! type(s_trj_file), allocatable :: trj_out(:)
+    character(len=80) :: line_buf
 
     if (option%check_only) &
       return
@@ -468,6 +469,9 @@ contains
       write(MsgOut,'(A)') 'Analyze> output PDB files of the cluster centers'
       write(MsgOut,'(A)') ''
 
+
+      allocate(character(len=1024) :: out_pdb_str)
+      out_pdb_str = ' '
       istru = 0
 
       do istep = 1, trajes_c%nframe
@@ -497,7 +501,7 @@ contains
                 call export_molecules(molecule, option%trjout_atom, pdb_out)
                 write(MsgOut,'(A,I10,A)') '   structure = ',istru, '  >  ' // &
                                            trim(get_replicate_name1(output%pdbfile,iclst))
-                call write_pdb_to_string(out_pdb, pdb_out)
+                call append_pdb_to_string(out_pdb_str, pdb_out)
                 call dealloc_pdb_all(pdb_out)
               end if
             end if
@@ -593,8 +597,8 @@ contains
     integer                  :: i
 
 
-    write(MsgOut,'(a)'),      'WARNING: atom mass is not assigned.'
-    write(MsgOut,'(a)'),      '   uses default mass.'
+    write(MsgOut,'(a)')       'WARNING: atom mass is not assigned.'
+    write(MsgOut,'(a)')       '   uses default mass.'
     write(MsgOut,'(a,f9.6)')  '      1) H   : ', MassH
     write(MsgOut,'(a,f9.6)')  '      2) C   : ', MassC
     write(MsgOut,'(a,f9.6)')  '      3) N   : ', MassN

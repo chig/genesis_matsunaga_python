@@ -1,14 +1,23 @@
 module internal_file_type_mod
+  use fileio_pdb_mod
+  use messages_mod
+  use dynamic_string_mod
   implicit none
 
 contains
   subroutine write_pdb_to_string(dst_str, pdb)
-    use fileio_pdb_mod
-    use messages_mod
-    use dynamic_string_mod
-
-    ! formal arguments
+    implicit none
     character(len=:), allocatable, intent(out) :: dst_str
+    type(s_pdb),             intent(in)    :: pdb
+    allocate(character(len=1024) :: dst_str)
+    dst_str = ' '
+    call append_pdb_to_string(dst_str, pdb)
+  end subroutine write_pdb_to_string
+
+  subroutine append_pdb_to_string(dst_str, pdb)
+    implicit none
+    ! formal arguments
+    character(len=:), allocatable, intent(inout) :: dst_str
     type(s_pdb),             intent(in)    :: pdb
 
     ! local variables
@@ -21,9 +30,6 @@ contains
     logical                  :: use_cid
 
     character(len=80) :: line_buf
-
-    allocate(character(len=1024) :: dst_str)
-    dst_str = ' '
 
     if (.not.allocated(pdb%hetatm)) &
       call error_msg('Out_Pdb> not allocated: pdb%hetatm')
@@ -253,5 +259,5 @@ contains
 
     return
 
-  end subroutine write_pdb_to_string
+  end subroutine append_pdb_to_string
 end module internal_file_type_mod

@@ -278,8 +278,8 @@ contains
     integer                  :: i
 
 
-    write(MsgOut,'(a)'),      'WARNING: atom mass is not assigned.'
-    write(MsgOut,'(a)'),      '   uses default mass.'
+    write(MsgOut,'(a)')       'WARNING: atom mass is not assigned.'
+    write(MsgOut,'(a)')       '   uses default mass.'
     write(MsgOut,'(a,f9.6)')  '      1) H   : ', MassH
     write(MsgOut,'(a,f9.6)')  '      2) C   : ', MassC
     write(MsgOut,'(a,f9.6)')  '      3) N   : ', MassN
