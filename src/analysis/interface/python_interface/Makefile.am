@@ -54,6 +54,9 @@ EXTRA_DIST = Makefile.depends
 
 SUFFIXES = .fpp
 DEPENDS = Makefile.depends
+MAINTAINERCLEANFILES = Makefile.in
+
+CLEANFILES = *.f90 *~ *.mod
 
 # Ensure Position-Independent Code is generated
 # AM_FCFLAGS = -fPIC
