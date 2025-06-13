@@ -44,10 +44,10 @@ contains
   subroutine c2f_string(c_string, f_string)
     implicit none
     character(kind=c_char), intent(in) :: c_string(*)
-    character(*), intent(out) :: f_string
+    character(kind=c_char),dimension(*), intent(out) :: f_string
     integer :: i
 
-    f_string = ' '  ! Use a space instead of an empty string
+    f_string(1) = ' '  ! Use a space instead of an empty string
     do i = 1, len(f_string)
       if (c_string(i) == c_null_char) exit
       f_string(i:i) = c_string(i)
@@ -58,11 +58,11 @@ contains
     implicit none
 
     type(c_ptr), intent(in) :: src
-    character(*), intent(out) :: f_string
+    character(kind=c_char),dimension(*), intent(out) :: f_string
     character(kind=c_char), pointer :: c_array(:)
 
     if (.not. c_associated(src)) then
-        f_string = ' '
+        f_string(1) = ' '
         return
     end if
     call c_f_pointer(src, c_array, [huge(0)])
