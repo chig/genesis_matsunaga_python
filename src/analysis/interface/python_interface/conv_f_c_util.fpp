@@ -44,7 +44,8 @@ contains
   subroutine c2f_string(c_string, f_string)
     implicit none
     character(kind=c_char), intent(in) :: c_string(*)
-    character(*), intent(out) :: f_string
+    !character(kind=c_char),dimension(*), intent(out) :: f_string
+    character(len=*), intent(out) :: f_string
     integer :: i
 
     f_string = ' '  ! Use a space instead of an empty string
@@ -54,31 +55,41 @@ contains
     end do
   end subroutine c2f_string
 
-  subroutine cptr_to_fstring(src, f_string) bind(C, name="cptr_to_fstring")
+  !subroutine cptr_to_fstring(src, f_string) bind(C, name="cptr_to_fstring")
+  subroutine cptr_to_fstring(src, f_string) 
+    use iso_c_binding
     implicit none
 
     type(c_ptr), intent(in) :: src
-    character(*), intent(out) :: f_string
+    !character(kind=c_char),dimension(*), intent(out) :: f_string
+    character(len=*), intent(out) :: f_string
     character(kind=c_char), pointer :: c_array(:)
+    integer :: i
 
     if (.not. c_associated(src)) then
         f_string = ' '
         return
     end if
-    call c_f_pointer(src, c_array, [huge(0)])
-    call c2f_string(c_array, f_string)
+    !call c_f_pointer(src, c_array, [huge(0)])
+    call c_f_pointer(src, c_array, [len(f_string)])
+    f_string = ' '
+    do i = 1, len(f_string)
+      if (c_array(i) == c_null_char) exit
+      f_string(i:i) = c_array(i)
+    end do
   end subroutine cptr_to_fstring
 
   subroutine c2f_string_allocate(c_string, f_string, limit_len)
     implicit none
     character(kind=c_char), intent(in) :: c_string(*)
-    character(:), intent(inout), allocatable :: f_string
+    !character(:), intent(inout), allocatable :: f_string
+    character(len=:), intent(inout),allocatable :: f_string
     integer, intent(in), optional :: limit_len
     integer :: i
     integer :: len_str
     integer :: limit
 
-    if (.not. present(limit_len)) then
+    if (present(limit_len)) then
       limit = limit_len
     else
       limit = 10000000
@@ -117,7 +128,7 @@ contains
     integer :: limit
     integer :: i
 
-    if (.not. present(limit_len)) then
+    if (present(limit_len)) then
       limit = limit_len
     else
       limit = 10000000

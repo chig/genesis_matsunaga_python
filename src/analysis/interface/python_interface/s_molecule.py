@@ -6,6 +6,7 @@ import numpy as np
 import numpy.typing as npt
 import c2py_util
 import py2c_util
+import traceback
 from libgenesis import LibGenesis
 from s_molecule_c import SMoleculeC
 
@@ -404,18 +405,19 @@ class SMolecule:
         return dst
 
     @staticmethod
-    def from_file(pdb: Union[str, bytes, os.PathLike] = '',
-                  top: Union[str, bytes, os.PathLike] = '',
-                  gpr: Union[str, bytes, os.PathLike] = '',
-                  psf: Union[str, bytes, os.PathLike] = '',
-                  ref: Union[str, bytes, os.PathLike] = '',
-                  fit: Union[str, bytes, os.PathLike] = '',
-                  prmtop: Union[str, bytes, os.PathLike] = '',
-                  ambcrd: Union[str, bytes, os.PathLike] = '',
-                  ambref: Union[str, bytes, os.PathLike] = '',
-                  grotop: Union[str, bytes, os.PathLike] = '',
-                  grocrd: Union[str, bytes, os.PathLike] = '',
-                  groref: Union[str, bytes, os.PathLike] = '',
+
+    def from_file(pdb= None,
+                  top= None,
+                  gpr= None,
+                  psf= None,
+                  ref= None,
+                  fit= None,
+                  prmtop= None,
+                  ambcrd= None,
+                  ambref= None,
+                  grotop= None,
+                  grocrd= None,
+                  groref= None,
                   ) -> Self:
         """
         Load molecular structure from the specified files.
@@ -450,24 +452,24 @@ class SMolecule:
         --------
         >>> obj = SMolecule.from_file(pdb="example.pdb", top="example.top")
         """
-        mol_c = None
+        paths = [pdb, top, gpr, psf, ref, fit, prmtop, ambcrd, ambref, grotop, grocrd, groref]
+        labels = ['pdb', 'top', 'gpr', 'psf', 'ref', 'fit', 'prmtop', 'ambcrd', 'ambref', 'grotop', 'grocrd', 'groref']
+        args = [py2c_util.pathlike_to_c_char_p(p) for p in paths]
+
+        for i, (label, val) in enumerate(zip(labels, args)):
+            print(f"arg[{i}] {label}: {val}, type = {type(val)}")
+
+        mol_c = SMoleculeC()
+
         try:
-            mol_c = SMoleculeC()
-            LibGenesis().lib.define_molecule_from_file(
-                py2c_util.pathlike_to_byte(pdb),
-                py2c_util.pathlike_to_byte(top),
-                py2c_util.pathlike_to_byte(gpr),
-                py2c_util.pathlike_to_byte(psf),
-                py2c_util.pathlike_to_byte(ref),
-                py2c_util.pathlike_to_byte(fit),
-                py2c_util.pathlike_to_byte(prmtop),
-                py2c_util.pathlike_to_byte(ambcrd),
-                py2c_util.pathlike_to_byte(ambref),
-                py2c_util.pathlike_to_byte(grotop),
-                py2c_util.pathlike_to_byte(grocrd),
-                py2c_util.pathlike_to_byte(groref),
-                ctypes.byref(mol_c)
+            ret = LibGenesis().lib.define_molecule_from_file(
+                 *args,
+                 ctypes.byref(mol_c)  # 13番目の引数
             )
+            print(f"define_molecule_from_file retturned: {ret}")
+            if ret != 0:
+                raise RuntimeError("define_molecule_from_file failed")
+
             mol_py = SMolecule.from_SMoleculeC(mol_c)
             return mol_py
         finally:

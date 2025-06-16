@@ -1,5 +1,6 @@
 module define_molecule
-  use, intrinsic :: iso_c_binding
+  use iso_c_binding
+  use conv_f_c_util
   use input_mod
   use molecules_mod
   use fileio_pdb_mod
@@ -29,7 +30,7 @@ contains
           grotop_filename, &
           grocrd_filename, &
           groref_filename, &
-          out_mol) &
+          out_mol_ptr) &
       bind(C, name="define_molecule_from_file")
     use fileio_top_mod
     use fileio_par_mod
@@ -42,23 +43,30 @@ contains
     use fileio_grotop_mod
     use fileio_grocrd_mod
     use fileio_mode_mod
+    use iso_c_binding
     use conv_f_c_util
     implicit none
     ! Input parameters
-    character(kind=c_char), intent(in) :: pdb_filename(*)
-    character(kind=c_char), intent(in) :: top_filename(*)
-    character(kind=c_char), intent(in) :: gpr_filename(*)
-    character(kind=c_char), intent(in) :: psf_filename(*)
-    character(kind=c_char), intent(in) :: ref_filename(*)
-    character(kind=c_char), intent(in) :: fit_filename(*)
-    character(kind=c_char), intent(in) :: prmtop_filename(*)
-    character(kind=c_char), intent(in) :: ambcrd_filename(*)
-    character(kind=c_char), intent(in) :: ambref_filename(*)
-    character(kind=c_char), intent(in) :: grotop_filename(*)
-    character(kind=c_char), intent(in) :: grocrd_filename(*)
-    character(kind=c_char), intent(in) :: groref_filename(*)
-    ! Output parameters
-    type(s_molecule_c), intent(out) :: out_mol
+    type(c_ptr), value :: pdb_filename, top_filename, gpr_filename
+    type(c_ptr), value :: psf_filename, ref_filename, fit_filename
+    type(c_ptr), value :: prmtop_filename, ambcrd_filename, ambref_filename
+    type(c_ptr), value :: grotop_filename, grocrd_filename, groref_filename
+    character(kind=c_char), pointer :: pdb_ptr(:)
+    character(kind=c_char), pointer :: top_ptr(:)
+    character(kind=c_char), pointer :: gpr_ptr(:)
+    character(kind=c_char), pointer :: psf_ptr(:)
+    character(kind=c_char), pointer :: ref_ptr(:)
+    character(kind=c_char), pointer :: fit_ptr(:)
+    character(kind=c_char), pointer :: prmtop_ptr(:)
+    character(kind=c_char), pointer :: ambcrd_ptr(:)
+    character(kind=c_char), pointer :: ambref_ptr(:)
+    character(kind=c_char), pointer :: grotop_ptr(:)
+    character(kind=c_char), pointer :: grocrd_ptr(:)
+    character(kind=c_char), pointer :: groref_ptr(:)
+
+    type(c_ptr), value :: out_mol_ptr
+    type(s_molecule_c), pointer :: out_mol
+
     ! Local variables
     type(s_inp_info) :: inp_info
     type(s_pdb) :: pdb
@@ -74,72 +82,114 @@ contains
     type(s_grocrd) :: grocrd
     type(s_grocrd) :: groref
     type(s_molecule) :: molecule
-    character(MaxFilename) :: filename
+    character(len=MaxFilename) :: filename
+    logical :: ok
 
-    if (pdb_filename(1) /= c_null_char) then
-      call c2f_string(pdb_filename, filename)
-      inp_info%pdbfile = trim(filename)
-      call input_files(inp_info, pdb=pdb)
+
+    if (c_associated(pdb_filename)) then
+      call c_f_pointer(pdb_filename, pdb_ptr, [MaxFilename])
+      call c2f_string(pdb_ptr, filename)
+
+      if (filename(1:1) /= ' ') then
+        inp_info%pdbfile = trim(filename)
+        call input_files(inp_info, pdb=pdb)
+      end if
+    endif
+
+    if (c_associated(top_filename)) then
+      call c_f_pointer(top_filename, top_ptr, [MaxFilename])
+      call c2f_string(top_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%topfile = trim(filename)
+        call input_files(inp_info, top=top)
+      end if
+    endif
+    if (c_associated(gpr_filename)) then
+      call c_f_pointer(gpr_filename, gpr_ptr, [MaxFilename])
+      call c2f_string(gpr_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%gprfile = trim(filename)
+        call input_files(inp_info, gpr=gpr)
+      end if
+    endif
+
+    if (c_associated(psf_filename)) then
+      call c_f_pointer(psf_filename, psf_ptr, [MaxFilename])
+      call c2f_string(psf_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%psffile = trim(filename)
+        call input_files(inp_info, psf=psf)
+      end if
+    endif
+    if (c_associated(ref_filename)) then
+      call c_f_pointer(ref_filename, ref_ptr, [MaxFilename])
+      call c2f_string(ref_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%reffile = trim(filename)
+        call input_files(inp_info, ref=ref)
+      end if
+    endif
+    if (c_associated(fit_filename)) then
+      call c_f_pointer(fit_filename, fit_ptr, [MaxFilename])
+      call c2f_string(fit_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%fitfile = trim(filename)
+        call input_files(inp_info, fit=fit)
+      end if
     end if
-    if (top_filename(1) /= c_null_char) then
-      call c2f_string(top_filename, filename)
-      inp_info%topfile = trim(filename)
-      call input_files(inp_info, top=top)
+    if (c_associated(prmtop_filename)) then
+      call c_f_pointer(prmtop_filename, prmtop_ptr, [MaxFilename])
+      call c2f_string(prmtop_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%prmtopfile = trim(filename)
+        call input_files(inp_info, prmtop=prmtop)
+      end if
     end if
-    if (gpr_filename(1) /= c_null_char) then
-      call c2f_string(gpr_filename, filename)
-      inp_info%gprfile = trim(filename)
-      call input_files(inp_info, gpr=gpr)
+    if (c_associated(ambcrd_filename)) then
+      call c_f_pointer(ambcrd_filename, ambcrd_ptr, [MaxFilename])
+      call c2f_string(ambcrd_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%ambcrdfile = trim(filename)
+        call input_files(inp_info, ambcrd=ambcrd)
+      end if
     end if
-    if (psf_filename(1) /= c_null_char) then
-      call c2f_string(psf_filename, filename)
-      inp_info%psffile = trim(filename)
-      call input_files(inp_info, psf=psf)
+    if (c_associated(ambref_filename)) then
+      call c_f_pointer(ambref_filename, ambref_ptr, [MaxFilename])
+      call c2f_string(ambref_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%ambreffile = trim(filename)
+        call input_files(inp_info, ambref=ambref)
+      end if
     end if
-    if (ref_filename(1) /= c_null_char) then
-      call c2f_string(ref_filename, filename)
-      inp_info%reffile = trim(filename)
-      call input_files(inp_info, ref=ref)
+    if (c_associated(grotop_filename)) then
+      call c_f_pointer(grotop_filename, grotop_ptr, [MaxFilename])
+      call c2f_string(grotop_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%grotopfile = trim(filename)
+        call input_files(inp_info, grotop=grotop)
+      end if
     end if
-    if (fit_filename(1) /= c_null_char) then
-      call c2f_string(fit_filename, filename)
-      inp_info%fitfile = trim(filename)
-      call input_files(inp_info, fit=fit)
+    if (c_associated(grocrd_filename)) then
+      call c_f_pointer(grocrd_filename, grocrd_ptr, [MaxFilename])
+      call c2f_string(grocrd_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%grocrdfile = trim(filename)
+        call input_files(inp_info, grocrd=grocrd)
+      end if
     end if
-    if (prmtop_filename(1) /= c_null_char) then
-      call c2f_string(prmtop_filename, filename)
-      inp_info%prmtopfile = trim(filename)
-      call input_files(inp_info, prmtop=prmtop)
-    end if
-    if (ambcrd_filename(1) /= c_null_char) then
-      call c2f_string(ambcrd_filename, filename)
-      inp_info%ambcrdfile = trim(filename)
-      call input_files(inp_info, ambcrd=ambcrd)
-    end if
-    if (ambref_filename(1) /= c_null_char) then
-      call c2f_string(ambref_filename, filename)
-      inp_info%ambreffile = trim(filename)
-      call input_files(inp_info, ambref=ambref)
-    end if
-    if (grotop_filename(1) /= c_null_char) then
-      call c2f_string(grotop_filename, filename)
-      inp_info%grotopfile = trim(filename)
-      call input_files(inp_info, grotop=grotop)
-    end if
-    if (grocrd_filename(1) /= c_null_char) then
-      call c2f_string(grocrd_filename, filename)
-      inp_info%grocrdfile = trim(filename)
-      call input_files(inp_info, grocrd=grocrd)
-    end if
-    if (groref_filename(1) /= c_null_char) then
-      call c2f_string(groref_filename, filename)
-      inp_info%groreffile = trim(filename)
-      call input_files(inp_info, groref=groref)
+    if (c_associated(groref_filename)) then
+      call c_f_pointer(groref_filename, groref_ptr, [MaxFilename])
+      call c2f_string(groref_ptr, filename)
+      if (filename(1:1) /= ' ') then
+        inp_info%groreffile = trim(filename)
+        call input_files(inp_info, groref=groref)
+      end if
     end if
     call define_molecules(molecule, &
         pdb=pdb, top=top, gpr=gpr, psf=psf, ref=ref, fit=fit, &
         prmtop=prmtop, ambcrd=ambcrd, ambref=ambref, &
         grotop=grotop, grocrd=grocrd, groref=groref)
+    call c_f_pointer(out_mol_ptr, out_mol)
     call f2c_s_molecule(molecule, out_mol)
 
   end subroutine define_molecule_from_file

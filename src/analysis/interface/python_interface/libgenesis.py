@@ -42,7 +42,7 @@ class LibGenesis:
                 ctypes.c_char_p,
                 ctypes.POINTER(SMoleculeC),
                 ]
-        self.lib.define_molecule_from_file.restype = None
+        self.lib.define_molecule_from_file.restype = ctypes.c_int
 
         self.lib.deallocate_s_molecule_c.argtypes = [
                 ctypes.POINTER(SMoleculeC)]
