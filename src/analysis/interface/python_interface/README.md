@@ -61,6 +61,14 @@ $ export PYTHONPATH=$(pwd):$PYTHONPATH
 $ cd ../../..
 ```
 
+# Chignolin data のダウンロード
+
+```
+$ brew install wget
+$ wget --no-check-certificate 'https://drive.google.com/uc?export=download&id=1-aThTB9Qtka8exHQTIDnZGf-IZXx75XE' -O chignolin.pdb
+$ wget --no-check-certificate 'https://drive.google.com/uc?export=download&id=1spt4dX3OWDZdG84i7RNSpShuh-dvCE3c' -O chignolin.dcd
+```
+
 # Jupyter Notebook 実行
 
 ```
