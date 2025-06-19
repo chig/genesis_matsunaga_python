@@ -56,7 +56,7 @@ $ aclocal
 $ autoconf
 $ libtoolize #In case of Mac, use `glibtoolize` instead of `libtoolize`
 $ automake -a
-$ ./configure LAPACK_LIBS="-L/usr/local/lib -llapack -lblas"
+$ CC=gcc ./configure LAPACK_LIBS="-L/usr/local/lib -llapack -lblas"
 $ make
 $ make install
 
