@@ -83,7 +83,7 @@ $ export LD_LIBRARY_PATH=$(pwd):$LD_LIBRARY_PATH
 $ cd ../src/analysis/interface/python_interface/
 $ export PYTHONPATH=$(pwd):$PYTHONPATH
 $ cd /path/to/genesis/
-$ export PATH=/path/to/genesis/.venv:$PATH
+$ export PATH=/path/to/genesis/.venv/bin:$PATH
 ```
 
 # Chignolin Data Download
@@ -99,7 +99,7 @@ $ wget --no-check-certificate 'https://drive.google.com/uc?export=download&id=1s
 
 ```
 $ cd /path/to/genesis/demo/
-$ jupyterlab
+$ jupyter-lab
 # Open demo.ipynb in JupyterLab
 ```
 
