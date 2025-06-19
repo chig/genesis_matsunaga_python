@@ -34,6 +34,7 @@ $ git checkout develop
 Constrct a virtual environment for python by using `uv`. In the following, please use the following virtual environment.
 
 ```
+$ cd /path/to/genesis/
 $ brew install uv
 $ uv venv --python=python3.11
 $ source .venv/bin/activate
