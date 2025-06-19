@@ -59,6 +59,7 @@ $ automake -a
 $ ./configure LAPACK_LIBS="-L/usr/local/lib -llapack -lblas"
 $ make
 $ make install
+
 # Environment variables
 $ cd lib/
 $ export LD_LIBRARY_PATH=$(pwd):$LD_LIBRARY_PATH
