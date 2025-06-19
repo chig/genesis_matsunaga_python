@@ -20,7 +20,7 @@ gfortran 10 (GCC 10) or later is supported
 * Download GENESIS from github and switch to the working branch develop
 
 ```
-$ git https://github.com/matsunagalab/genesis.git
+$ git clone https://github.com/matsunagalab/genesis.git
 $ cd genesis/
 $ git checkout develop
 ```
