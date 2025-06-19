@@ -9,9 +9,12 @@
 
 SUBDIRS := ../../lib .
 
-noinst_LIBRARIES = libana.a
+lib_LTLIBRARIES = libana.la
 
-libana_a_SOURCES = \
+install-libLTLIBRARIES:
+	@# Not install libana.la
+
+libana_la_SOURCES = \
 	input_str.fpp \
 	output_str.fpp \
 	trajectory_str.fpp \
@@ -27,32 +30,35 @@ libana_a_SOURCES = \
 	analysis_timers.fpp
 
 EXTRA_DIST = \
-	Makefile.depends 
+	Makefile.depends
 
-libana_ADDLIB = ../../lib/lib.a
+libana_ADDLIB = ../../lib/lib.la
 
 SUFFIXES = .fpp
 DEPENDS = Makefile.depends
 
-.fpp.o:
+generated_f90 = $(foreach src,$(libana_la_SOURCES),$(if $(filter %.fpp,$(src)),$(src:.fpp=.f90)))
+
+CLEANFILES = $(generated_f90) *~ *.mod
+
+.fpp.f90:
 if USEKCOMP
 	cp $*.fpp $*.f90
 	$(FPP) $(PPFLAGS) $(DEFS) $*.f90
-	mv $*.cpp.f90 $*.f90
-	$(FC)  $(DEFAULT_INCLUDES) $(INCLUDES) -I../../lib $(FCFLAGS) -c $*.f90
 else
 	$(FPP) $(PPFLAGS) $(DEFS) $*.fpp $*.f90
-	$(FC)  $(DEFAULT_INCLUDES) $(INCLUDES) -I../../lib $(FCFLAGS) -c $*.f90
 endif
 
-libana.a : $(libana_a_OBJECTS)
-	$(AR) $(ARFLAGS) cr $(noinst_LIBRARIES) $(libana_a_OBJECTS)
-
-clean:
-	rm -f $(noinst_LIBRARIES) $(libana_a_OBJECTS) *.f90 *~ *.mod
+.f90.lo:
+if USEKCOMP
+	mv $*.cpp.f90 $*.f90
+	$(LIBTOOL) --mode=compile $(FC)  $(DEFAULT_INCLUDES) $(INCLUDES) -I../../lib $(FCFLAGS) -c $*.f90
+else
+	$(LIBTOOL) --mode=compile $(FC)  $(DEFAULT_INCLUDES) $(INCLUDES) -I../../lib $(FCFLAGS) -c $*.f90
+endif
 
 depend: clean_depend
-	python ../../../fortdep.py *.fpp > $(DEPENDS)
+	python $(top_srcdir)/fortdep.py --objext lo *.fpp > $(DEPENDS)
 
 clean_depend:
 	rm -f $(DEPENDS)

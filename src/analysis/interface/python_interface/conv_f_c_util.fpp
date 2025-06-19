@@ -48,7 +48,7 @@ contains
     character(len=*), intent(out) :: f_string
     integer :: i
 
-    f_string = ' '  ! Use a space instead of an empty string
+    f_string(1:1) = ' '  ! Use a space instead of an empty string
     do i = 1, len(f_string)
       if (c_string(i) == c_null_char) exit
       f_string(i:i) = c_string(i)
@@ -56,7 +56,7 @@ contains
   end subroutine c2f_string
 
   !subroutine cptr_to_fstring(src, f_string) bind(C, name="cptr_to_fstring")
-  subroutine cptr_to_fstring(src, f_string) 
+  subroutine cptr_to_fstring(src, f_string)
     use iso_c_binding
     implicit none
 
@@ -67,7 +67,7 @@ contains
     integer :: i
 
     if (.not. c_associated(src)) then
-        f_string = ' '
+        f_string(1:1) = ' '
         return
     end if
     !call c_f_pointer(src, c_array, [huge(0)])
