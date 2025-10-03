@@ -1,9 +1,8 @@
 import ctypes
 import os
 import threading
-from s_molecule_c import SMoleculeC
-from s_trajectories_c import STrajectoriesC
-
+from .s_molecule_c import SMoleculeC
+from .s_trajectories_c import STrajectoriesC
 
 class LibGenesis:
     """singleton
@@ -12,6 +11,12 @@ class LibGenesis:
     _instance = None
     _lock = threading.Lock()
 
+    @staticmethod
+    def _lib_path(lib_name: str) -> str:
+        here = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
+        return os.path.join(root, "lib", lib_name)
+
     def __new__(cls):
         with cls._lock:
             if cls._instance is None:
@@ -19,13 +24,18 @@ class LibGenesis:
         return cls._instance
 
     def __init__(self):
-        lib_name = 'libpython_interface.so'
-        lib_dir = os.path.join(os.path.dirname(__file__), '.libs')
-        lib_path = os.path.join(lib_dir, lib_name)
+        if getattr(self, "_initialized", False):
+            return
+        lib_name = "libpython_interface.so"
+        lib_path = self._lib_path(lib_name)
         if not os.path.exists(lib_path):
             raise FileNotFoundError(
-                    f"Library file {lib_name} not found in {lib_dir}")
+                    f"Library file {lib_name} not found in {lib_path}")
         self.lib = ctypes.CDLL(lib_path)
+        self._initialized = True
+        #lib_dir = os.path.join(os.path.dirname(__file__), '.libs')
+        #lib_path = os.path.join(lib_dir, lib_name)
+        #self.lib = ctypes.CDLL(lib_path)
 
         self.lib.define_molecule_from_file.argtypes = [
                 ctypes.c_char_p,
