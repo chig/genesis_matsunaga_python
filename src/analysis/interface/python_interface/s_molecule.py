@@ -477,6 +477,277 @@ class SMolecule:
             if mol_c:
                 LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
+    def subset_atoms(self, atom_indices: npt.NDArray[np.int64]) -> Self:
+        """
+        Create a subset molecule based on the given list of atom indices.
+
+        Parameters
+        ----------
+        atom_indices : npt.NDArray[np.int64]
+            List of atom indices to extract (0-based).
+
+        Returns
+        -------
+        Self
+            A new SMolecule object containing only the specified atoms.
+
+        Notes
+        -----
+        - atom_indices must be 0-based indices.
+        - Only bonds, angles, dihedrals, etc. between the specified atoms are retained.
+        - Counts such as number of molecules and residues are updated appropriately.
+        """
+        if len(atom_indices) == 0:
+            return SMolecule()
+        
+        # Sort and deduplicate indices
+        atom_indices = np.unique(atom_indices)
+        
+        # Check index range
+        if np.any(atom_indices < 0) or np.any(atom_indices >= self.num_atoms):
+            raise ValueError("atom_indices contains invalid indices")
+        
+        # Create a new SMolecule object
+        new_mol = SMolecule()
+        
+        # Set number of atoms and other basic information
+        new_mol.num_atoms = len(atom_indices)
+        new_mol.shift_origin = self.shift_origin
+        new_mol.special_hydrogen = self.special_hydrogen
+        
+        # Extract atom information
+        new_mol.atom_no = self.atom_no[atom_indices].copy()
+        new_mol.segment_name = self.segment_name[atom_indices].copy()
+        new_mol.segment_no = self.segment_no[atom_indices].copy()
+        new_mol.residue_no = self.residue_no[atom_indices].copy()
+        new_mol.residue_c_no = self.residue_c_no[atom_indices].copy()
+        new_mol.residue_name = self.residue_name[atom_indices].copy()
+        new_mol.atom_name = self.atom_name[atom_indices].copy()
+        new_mol.atom_cls_name = self.atom_cls_name[atom_indices].copy()
+        new_mol.atom_cls_no = self.atom_cls_no[atom_indices].copy()
+        new_mol.charge = self.charge[atom_indices].copy()
+        new_mol.mass = self.mass[atom_indices].copy()
+        new_mol.inv_mass = self.inv_mass[atom_indices].copy()
+        new_mol.imove = self.imove[atom_indices].copy()
+        new_mol.stokes_radius = self.stokes_radius[atom_indices].copy()
+        new_mol.inv_stokes_radius = self.inv_stokes_radius[atom_indices].copy()
+        new_mol.chain_id = self.chain_id[atom_indices].copy()
+        new_mol.atom_coord = self.atom_coord[atom_indices].copy()
+        new_mol.atom_occupancy = self.atom_occupancy[atom_indices].copy()
+        new_mol.atom_temp_factor = self.atom_temp_factor[atom_indices].copy()
+        new_mol.atom_velocity = self.atom_velocity[atom_indices].copy()
+        new_mol.light_atom_name = self.light_atom_name[atom_indices].copy()
+        new_mol.light_atom_mass = self.light_atom_mass[atom_indices].copy()
+        new_mol.molecule_no = self.molecule_no[atom_indices].copy()
+        
+        # Update reference and fit coordinates if present
+        if self.atom_refcoord.size > 0:
+            new_mol.atom_refcoord = self.atom_refcoord[atom_indices].copy()
+        if self.atom_fitcoord.size > 0:
+            new_mol.atom_fitcoord = self.atom_fitcoord[atom_indices].copy()
+        
+        # Create mapping from old index to new index (original index -> new index)
+        old_to_new = {old_idx: new_idx for new_idx, old_idx in enumerate(atom_indices)}
+        
+        # Update bond information
+        if self.num_bonds > 0 and self.bond_list.size > 0:
+            valid_bonds = []
+            for i in range(self.num_bonds):
+                atom1, atom2 = self.bond_list[i, 0] - 1, self.bond_list[i, 1] - 1  # 1-based to 0-based
+                if atom1 in old_to_new and atom2 in old_to_new:
+                    valid_bonds.append([old_to_new[atom1] + 1, old_to_new[atom2] + 1])  # 0-based to 1-based
+            
+            if valid_bonds:
+                new_mol.num_bonds = len(valid_bonds)
+                new_mol.bond_list = np.array(valid_bonds, dtype=np.int64)
+            else:
+                new_mol.num_bonds = 0
+                new_mol.bond_list = np.array([], dtype=np.int64).reshape(0, 2)
+        
+        # Update ENM bond information
+        if self.num_enm_bonds > 0 and self.enm_list.size > 0:
+            valid_enm_bonds = []
+            for i in range(self.num_enm_bonds):
+                atom1, atom2 = self.enm_list[i, 0] - 1, self.enm_list[i, 1] - 1  # 1-based to 0-based
+                if atom1 in old_to_new and atom2 in old_to_new:
+                    valid_enm_bonds.append([old_to_new[atom1] + 1, old_to_new[atom2] + 1])  # 0-based to 1-based
+            
+            if valid_enm_bonds:
+                new_mol.num_enm_bonds = len(valid_enm_bonds)
+                new_mol.enm_list = np.array(valid_enm_bonds, dtype=np.int64)
+            else:
+                new_mol.num_enm_bonds = 0
+                new_mol.enm_list = np.array([], dtype=np.int64).reshape(0, 2)
+        
+        # Update angle information
+        if self.num_angles > 0 and self.angl_list.size > 0:
+            valid_angles = []
+            for i in range(self.num_angles):
+                atom1, atom2, atom3 = self.angl_list[i, 0] - 1, self.angl_list[i, 1] - 1, self.angl_list[i, 2] - 1
+                if atom1 in old_to_new and atom2 in old_to_new and atom3 in old_to_new:
+                    valid_angles.append([old_to_new[atom1] + 1, old_to_new[atom2] + 1, old_to_new[atom3] + 1])
+            
+            if valid_angles:
+                new_mol.num_angles = len(valid_angles)
+                new_mol.angl_list = np.array(valid_angles, dtype=np.int64)
+            else:
+                new_mol.num_angles = 0
+                new_mol.angl_list = np.array([], dtype=np.int64).reshape(0, 3)
+        
+        # Update dihedral information
+        if self.num_dihedrals > 0 and self.dihe_list.size > 0:
+            valid_dihedrals = []
+            for i in range(self.num_dihedrals):
+                atom1, atom2, atom3, atom4 = (self.dihe_list[i, 0] - 1, self.dihe_list[i, 1] - 1, 
+                                              self.dihe_list[i, 2] - 1, self.dihe_list[i, 3] - 1)
+                if (atom1 in old_to_new and atom2 in old_to_new and 
+                    atom3 in old_to_new and atom4 in old_to_new):
+                    valid_dihedrals.append([old_to_new[atom1] + 1, old_to_new[atom2] + 1, 
+                                            old_to_new[atom3] + 1, old_to_new[atom4] + 1])
+            
+            if valid_dihedrals:
+                new_mol.num_dihedrals = len(valid_dihedrals)
+                new_mol.dihe_list = np.array(valid_dihedrals, dtype=np.int64)
+            else:
+                new_mol.num_dihedrals = 0
+                new_mol.dihe_list = np.array([], dtype=np.int64).reshape(0, 4)
+        
+        # Update improper dihedral information
+        if self.num_impropers > 0 and self.impr_list.size > 0:
+            valid_impropers = []
+            for i in range(self.num_impropers):
+                atom1, atom2, atom3, atom4 = (self.impr_list[i, 0] - 1, self.impr_list[i, 1] - 1, 
+                                              self.impr_list[i, 2] - 1, self.impr_list[i, 3] - 1)
+                if (atom1 in old_to_new and atom2 in old_to_new and 
+                    atom3 in old_to_new and atom4 in old_to_new):
+                    valid_impropers.append([old_to_new[atom1] + 1, old_to_new[atom2] + 1, 
+                                            old_to_new[atom3] + 1, old_to_new[atom4] + 1])
+            
+            if valid_impropers:
+                new_mol.num_impropers = len(valid_impropers)
+                new_mol.impr_list = np.array(valid_impropers, dtype=np.int64)
+            else:
+                new_mol.num_impropers = 0
+                new_mol.impr_list = np.array([], dtype=np.int64).reshape(0, 4)
+        
+        # Update CMAP information
+        if self.num_cmaps > 0 and self.cmap_list.size > 0:
+            valid_cmaps = []
+            for i in range(self.num_cmaps):
+                atoms = [self.cmap_list[i, j] - 1 for j in range(8)]  # 1-based to 0-based
+                if all(atom in old_to_new for atom in atoms):
+                    valid_cmaps.append([old_to_new[atom] + 1 for atom in atoms])  # 0-based to 1-based
+            
+            if valid_cmaps:
+                new_mol.num_cmaps = len(valid_cmaps)
+                new_mol.cmap_list = np.array(valid_cmaps, dtype=np.int64)
+            else:
+                new_mol.num_cmaps = 0
+                new_mol.cmap_list = np.array([], dtype=np.int64).reshape(0, 8)
+        
+        # Update residue and segment information
+        unique_residues = np.unique(new_mol.residue_no)
+        new_mol.num_residues = len(unique_residues)
+        
+        unique_segments = np.unique(new_mol.segment_name)
+        new_mol.num_segments = len(unique_segments)
+        
+        # Update molecule information
+        unique_molecules = np.unique(new_mol.molecule_no)
+        new_mol.num_molecules = len(unique_molecules)
+        
+        # Update detailed molecule information
+        if self.num_molecules > 0 and self.molecule_atom_no.size > 0:
+            new_mol.molecule_atom_no = np.array([new_mol.num_atoms], dtype=np.int64)
+            new_mol.molecule_mass = np.array([np.sum(new_mol.mass)], dtype=np.float64)
+            new_mol.molecule_name = np.array(['SUBSET'], dtype=np.object_)
+        
+        # Update total charge
+        new_mol.total_charge = np.sum(new_mol.charge)
+        
+        # Update degrees of freedom
+        new_mol.num_deg_freedom = new_mol.num_atoms * 3
+        
+        # Update PC mode information (if applicable)
+        new_mol.num_pc_modes = self.num_pc_modes
+        if self.pc_mode.size > 0:
+            new_mol.pc_mode = self.pc_mode.copy()
+        
+        # Update FEP information
+        new_mol.fep_topology = self.fep_topology
+        new_mol.num_hbonds_singleA = self.num_hbonds_singleA
+        new_mol.num_hbonds_singleB = self.num_hbonds_singleB
+        
+        # Update FEP-related arrays
+        if hasattr(self.num_atoms_fep, 'copy'):
+            new_mol.num_atoms_fep = self.num_atoms_fep.copy()
+        else:
+            new_mol.num_atoms_fep = self.num_atoms_fep
+        
+        if hasattr(self.num_bonds_fep, 'copy'):
+            new_mol.num_bonds_fep = self.num_bonds_fep.copy()
+        else:
+            new_mol.num_bonds_fep = self.num_bonds_fep
+            
+        if hasattr(self.num_angles_fep, 'copy'):
+            new_mol.num_angles_fep = self.num_angles_fep.copy()
+        else:
+            new_mol.num_angles_fep = self.num_angles_fep
+            
+        if hasattr(self.num_dihedrals_fep, 'copy'):
+            new_mol.num_dihedrals_fep = self.num_dihedrals_fep.copy()
+        else:
+            new_mol.num_dihedrals_fep = self.num_dihedrals_fep
+            
+        if hasattr(self.num_impropers_fep, 'copy'):
+            new_mol.num_impropers_fep = self.num_impropers_fep.copy()
+        else:
+            new_mol.num_impropers_fep = self.num_impropers_fep
+            
+        if hasattr(self.num_cmaps_fep, 'copy'):
+            new_mol.num_cmaps_fep = self.num_cmaps_fep.copy()
+        else:
+            new_mol.num_cmaps_fep = self.num_cmaps_fep
+        
+        # FEP bond/angle/dihedral/improper/cmap arrays are complex, so initialize as empty arrays for now
+        if self.bond_list_fep.size > 0:
+            new_mol.bond_list_fep = np.array([], dtype=np.int64).reshape(0, 0, 2)
+        if self.angl_list_fep.size > 0:
+            new_mol.angl_list_fep = np.array([], dtype=np.int64).reshape(0, 0, 3)
+        if self.dihe_list_fep.size > 0:
+            new_mol.dihe_list_fep = np.array([], dtype=np.int64).reshape(0, 0, 4)
+        if self.impr_list_fep.size > 0:
+            new_mol.impr_list_fep = np.array([], dtype=np.int64).reshape(0, 0, 4)
+        if self.cmap_list_fep.size > 0:
+            new_mol.cmap_list_fep = np.array([], dtype=np.int64).reshape(0, 0, 8)
+        
+        # Other FEP-related arrays
+        new_mol.id_singleA = np.array([], dtype=np.int64)
+        new_mol.id_singleB = np.array([], dtype=np.int64)
+        new_mol.fepgrp = np.array([], dtype=np.int64)
+        
+        if hasattr(self.fepgrp_bond, 'copy'):
+            new_mol.fepgrp_bond = self.fepgrp_bond.copy()
+        else:
+            new_mol.fepgrp_bond = self.fepgrp_bond
+            
+        if hasattr(self.fepgrp_angl, 'copy'):
+            new_mol.fepgrp_angl = self.fepgrp_angl.copy()
+        else:
+            new_mol.fepgrp_angl = self.fepgrp_angl
+            
+        if hasattr(self.fepgrp_dihe, 'copy'):
+            new_mol.fepgrp_dihe = self.fepgrp_dihe.copy()
+        else:
+            new_mol.fepgrp_dihe = self.fepgrp_dihe
+            
+        if hasattr(self.fepgrp_cmap, 'copy'):
+            new_mol.fepgrp_cmap = self.fepgrp_cmap.copy()
+        else:
+            new_mol.fepgrp_cmap = self.fepgrp_cmap
+        
+        return new_mol
+
     @staticmethod
     def guess_atom_element(atom_name: str) -> Optional[str]:
         """
