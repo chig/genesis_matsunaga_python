@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.71])
+AC_PREREQ([2.69])
 AC_INIT([genesis],[2.1.4],[genesis@riken.jp])
 AC_CONFIG_SRCDIR([src/spdyn/spdyn.fpp])
 AC_CONFIG_HEADERS([src/config.h])
@@ -1367,6 +1367,9 @@ fi
 
 CFLAGS+=" ${OPT_OPENMP}"
 CFLAGS+=" ${OPT_GPROF}"
+
+## Python interface
+AM_PATH_PYTHON([3.11])
 
 # LDFLAGS
 if test -z "${LDFLAGS}"; then
