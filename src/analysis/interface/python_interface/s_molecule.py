@@ -748,6 +748,153 @@ class SMolecule:
         
         return new_mol
 
+    def save_psf(self, file_name: str) -> None:
+        """
+        Save PSF file.
+        
+        Parameters
+        ----------
+        file_name : str
+            Path to the PSF file to save
+        """
+        with open(file_name, 'w') as f:
+            # PSF header
+            f.write("PSF ")
+            if self.num_cmaps > 0:
+                f.write("CMAP")
+            f.write("\n\n")
+            
+            # Title section
+            f.write(f"{1:8d} !NTITLE\n")
+            f.write("CREATED by GENESIS Python interface\n")
+            f.write("\n")
+            
+            # Atom section
+            f.write(f"{self.num_atoms:8d} !NATOM\n")
+            for i in range(self.num_atoms):
+                # Atom ID
+                f.write(f"{self.atom_no[i]:8d}")
+                
+                # Segment name (used as chain name)
+                if self.segment_name.size > 0 and i < len(self.segment_name):
+                    segment_name = str(self.segment_name[i])[:4].ljust(4)
+                else:
+                    segment_name = "NONE"
+                f.write(f" {segment_name}")
+                
+                # Residue number
+                if self.residue_no.size > 0 and i < len(self.residue_no):
+                    f.write(f" {self.residue_no[i]:-4d}")
+                else:
+                    f.write(" 0")
+                
+                # Residue name
+                if self.residue_name.size > 0 and i < len(self.residue_name):
+                    residue_name = str(self.residue_name[i])[:4].ljust(4)
+                else:
+                    residue_name = "NONE"
+                f.write(f" {residue_name}")
+                
+                # Atom name
+                if self.atom_name.size > 0 and i < len(self.atom_name):
+                    atom_name = str(self.atom_name[i])[:4].ljust(4)
+                else:
+                    atom_name = "NONE"
+                f.write(f" {atom_name}")
+                
+                # Atom type (using atom class name)
+                if self.atom_cls_name.size > 0 and i < len(self.atom_cls_name):
+                    atom_type = str(self.atom_cls_name[i])[:4].ljust(4)
+                else:
+                    atom_type = "NONE"
+                f.write(f" {atom_type}")
+                
+                # Charge
+                if self.charge.size > 0 and i < len(self.charge):
+                    f.write(f"{self.charge[i]:14.9f}")
+                else:
+                    f.write("     0.000000000")
+                
+                # Mass
+                if self.mass.size > 0 and i < len(self.mass):
+                    f.write(f"{self.mass[i]:14.7f}")
+                else:
+                    f.write("     0.0000000")
+                
+                # Reserved field
+                f.write("        0")
+                f.write("\n")
+            
+            f.write("\n")
+            
+            # Bond section
+            if self.num_bonds > 0 and self.bond_list.size > 0:
+                f.write(f"{self.num_bonds:8d} !NBOND\n")
+                for i in range(self.num_bonds):
+                    for j in range(2):
+                        f.write(f"{self.bond_list[i, j]:8d}")
+                    if ((i + 1) % 4 == 0) or (i == self.num_bonds - 1):
+                        f.write("\n")
+                f.write("\n")
+            else:
+                f.write("       0 !NBOND\n\n")
+            
+            # Angle section
+            if self.num_angles > 0 and self.angl_list.size > 0:
+                f.write(f"{self.num_angles:8d} !NTHETA\n")
+                for i in range(self.num_angles):
+                    for j in range(3):
+                        f.write(f"{self.angl_list[i, j]:8d}")
+                    if ((i + 1) % 3 == 0) or (i == self.num_angles - 1):
+                        f.write("\n")
+                f.write("\n")
+            else:
+                f.write("       0 !NTHETA\n\n")
+            
+            # Dihedral section
+            if self.num_dihedrals > 0 and self.dihe_list.size > 0:
+                f.write(f"{self.num_dihedrals:8d} !NPHI\n")
+                for i in range(self.num_dihedrals):
+                    for j in range(4):
+                        f.write(f"{self.dihe_list[i, j]:8d}")
+                    if ((i + 1) % 2 == 0) or (i == self.num_dihedrals - 1):
+                        f.write("\n")
+                f.write("\n")
+            else:
+                f.write("       0 !NPHI\n\n")
+            
+            # Improper dihedral section
+            if self.num_impropers > 0 and self.impr_list.size > 0:
+                f.write(f"{self.num_impropers:8d} !NIMPHI\n")
+                for i in range(self.num_impropers):
+                    for j in range(4):
+                        f.write(f"{self.impr_list[i, j]:8d}")
+                    if ((i + 1) % 2 == 0) or (i == self.num_impropers - 1):
+                        f.write("\n")
+                f.write("\n")
+            else:
+                f.write("       0 !NIMPHI\n\n")
+            
+            # Donor section (empty)
+            f.write("       0 !NDON: donors\n\n")
+            
+            # Acceptor section (empty)
+            f.write("       0 !NACC\n\n")
+            
+            # NNB section (empty)
+            f.write("       0 !NNB\n\n")
+            
+            # CMAP section
+            if self.num_cmaps > 0 and self.cmap_list.size > 0:
+                f.write(f"{self.num_cmaps:8d} !NCRTERM\n")
+                for i in range(self.num_cmaps):
+                    for j in range(8):
+                        f.write(f"{self.cmap_list[i, j]:8d}")
+                    f.write("\n")
+                f.write("\n")
+            else:
+                f.write("       0 !NCRTERM\n\n")
+
     @staticmethod
     def guess_atom_element(atom_name: str) -> Optional[str]:
         """
