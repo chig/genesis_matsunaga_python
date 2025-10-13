@@ -24,6 +24,7 @@ module hb_analysis_c_mod
   use output_str_mod
   use molecules_str_mod
   use fileio_control_mod
+  use error_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
@@ -32,7 +33,7 @@ module hb_analysis_c_mod
 
 contains
   subroutine hb_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                           out_text_ptr) &
+                           out_text_ptr, status, msg, msglen) &
         bind(C, name="hb_analysis_c")
     use conv_f_c_util
     implicit none
@@ -41,29 +42,44 @@ contains
     integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
     type(c_ptr), intent(out) :: out_text_ptr
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
     character(len=:), allocatable :: out_text_f
     character(kind=c_char), pointer :: out_text_c(:)
 
+    type(s_error) :: err
+
+    call error_init(err)
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call hb_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, out_text_f)
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, out_text_f, err)
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
     call dealloc_molecules_all(f_molecule)
     call f2c_string(out_text_f, out_text_c)
     out_text_ptr = c_loc(out_text_c(1))
   end subroutine hb_analysis_c
 
   subroutine hb_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename, out_text)
+          molecule, s_trajes_c, ana_period, ctrl_filename, out_text, err)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
     character(len=:), allocatable, intent(out) :: out_text
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -106,7 +122,9 @@ contains
                  ana_period, &
                  option,     &
                  output,     &
-                 out_text)
+                 out_text,   &
+                 err)
+    if (error_has(err)) return
 
     ! [Step4] Deallocate memory
     !

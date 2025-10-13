@@ -971,7 +971,7 @@ else
       fi
 
     elif test x"${FC_ACT}" = x"gfortran"; then
-      FCFLAGS="-O3 -ffast-math -march=native -ffree-line-length-none -fPIC"
+      FCFLAGS="-O3 -ffast-math -march=native -ffree-line-length-none"
       echo ${FC_GNU_VER}
       if test ${FC_GNU_VER} -gt 100000; then
         if test x"${with_msmpi}" = x"no"; then
@@ -1168,6 +1168,7 @@ fi
 FCFLAGS+=" ${OPT_OPENMP}"
 FCFLAGS+=" ${OPT_FC_CUDA}"
 FCFLAGS+=" ${OPT_GPROF}"
+FCFLAGS+=" -fPIC"
 TMP="${FARCFLAGS} ${FCFLAGS}"
 FCFLAGS_NOOPT="${FARCFLAGS_NOOPT} ${FCFLAGS}"
 FCFLAGS_DISABLEFARC=" ${FCFLAGS}"
@@ -1367,6 +1368,7 @@ fi
 
 CFLAGS+=" ${OPT_OPENMP}"
 CFLAGS+=" ${OPT_GPROF}"
+CFLAGS+=" -fPIC"
 
 ## Python interface
 AM_PATH_PYTHON([3.11])

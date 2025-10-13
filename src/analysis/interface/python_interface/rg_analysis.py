@@ -10,7 +10,7 @@ def test_rg_analysis():
     psf_path = pathlib.Path("BPTI_ionize.psf")
 
     mol = SMolecule.from_file(pdb=pdb_path, psf=psf_path)
-    with genesis_exe.crd_convert(
+    trajs, subset_mol =  genesis_exe.crd_convert(
             mol,
             traj_params = [
                 TrajectoryParameters(
@@ -29,7 +29,11 @@ def test_rg_analysis():
             fitting_atom = 1,
             check_only = False,
             pbc_correct = "NO",
-            ) as trajs:
+    )
+    _ = subset_mol
+
+    try: 
+
         for t in trajs:
             d = genesis_exe.rg_analysis(
                     mol, t,
@@ -38,6 +42,9 @@ def test_rg_analysis():
                     mass_weighted  = True,
                     )
             print(d.rg)
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
 
 
 def main():

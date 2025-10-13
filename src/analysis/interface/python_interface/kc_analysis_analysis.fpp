@@ -27,6 +27,7 @@ module kc_analysis_analyze_c_mod
   use fileio_mod
   use messages_mod
   use constants_mod
+  use error_mod
   use string_mod
   ! use random_mod
   use select_atoms_mod
@@ -57,7 +58,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine analyze(molecule, input, trajes_c, ana_period, &
-                     fitting, option, output, out_pdb_str, cluster_index)
+                     fitting, option, output, out_pdb_str, cluster_index, err)
     use s_trajectories_c_mod
     use internal_file_type_mod
 
@@ -71,6 +72,7 @@ contains
     type(s_output),          intent(inout) :: output
     character(len=:), allocatable, intent(out) :: out_pdb_str
     integer, allocatable,     intent(out) :: cluster_index(:)
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_trajectory) :: trajectory
@@ -105,6 +107,7 @@ contains
 
     if (option%check_only) &
       return
+    if (error_has(err)) return
 
     natom   = molecule%num_atoms
     nclst   = option%num_clusters
@@ -128,8 +131,11 @@ contains
              diff1(nclst),              &
              diff2(nclst),              &
              ndata(nclst), stat=alloc_stat)
-    if (alloc_stat /= 0) &
-      call error_msg_alloc
+    if (alloc_stat /= 0) then
+        call error_set(err, ERROR_CODE, & 
+          'Analyze> allocate error')
+        return
+    end if
 
     ! setup mass
     !
@@ -209,10 +215,11 @@ contains
     !   allocate(trj_out(nclst))
     !   do iclst = 1, nclst
     !     call open_trj(trj_out(iclst),                             &
-    !                   get_replicate_name1(output%trjfile, iclst), &
+    !                   get_replicate_name1(output%trjfile, iclst, err), &
     !                   option%trjout_format, &
     !                   option%trjout_type,   &
     !                   IOFileOutputNew)
+    !   if (error_has(err)) return
     !   end do
     ! end if
 
@@ -500,8 +507,11 @@ contains
 
                 call export_molecules(molecule, option%trjout_atom, pdb_out)
                 write(MsgOut,'(A,I10,A)') '   structure = ',istru, '  >  ' // &
-                                           trim(get_replicate_name1(output%pdbfile,iclst))
-                call append_pdb_to_string(out_pdb_str, pdb_out)
+                                           trim(get_replicate_name1(output%pdbfile,iclst, err))
+
+                if (error_has(err)) return
+                call append_pdb_to_string(out_pdb_str, pdb_out, err)
+                if (error_has(err)) return
                 call dealloc_pdb_all(pdb_out)
               end if
             end if
@@ -642,7 +652,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  function get_replicate_name1(filename, no)
+  function get_replicate_name1(filename, no, err)
 
     ! return
     character(Maxfilename)   :: get_replicate_name1
@@ -650,6 +660,7 @@ contains
     ! formal arguments
     character(*),            intent(in)    :: filename
     integer,                 intent(in)    :: no
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: bl, br
@@ -658,8 +669,11 @@ contains
     bl = index(filename, '{', back=.true.)
     br = index(filename, '}', back=.true.)
 
-    if (bl == 0 .or. br == 0 .or. bl > br) &
-      call error_msg('Get_Replicate_Name1> Syntax error.')
+    if (bl == 0 .or. br == 0 .or. bl > br) then
+      call error_set(err, ERROR_CODE, & 
+        'Get_Replicate_Name1> Syntax error.')
+      return
+    endif
 
     write(get_replicate_name1, '(a,i0,a)') &
          filename(:bl-1),no,filename(br+1:)

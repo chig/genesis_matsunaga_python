@@ -22,6 +22,7 @@ module diffusion_analysis_c_mod
   use da_option_str_mod
   use input_str_mod
   use output_str_mod
+  use error_mod
   use string_mod
   use messages_mod
 
@@ -30,7 +31,7 @@ module diffusion_analysis_c_mod
 contains
 
   subroutine diffusion_analysis_c(c_msd, msd_dim1, msd_dim2, ctrl_path, &
-          out_data) &
+          out_data, status, msg, msglen) &
         bind(C, name="diffusion_analysis_c")
     use conv_f_c_util
     implicit none
@@ -39,23 +40,38 @@ contains
     integer(c_int), intent(in) :: msd_dim2
     character(kind=c_char), intent(in) :: ctrl_path(*)
     type(c_ptr), intent(out) :: out_data
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
+
     character(len=:), allocatable :: fort_ctrl_path
     real(wp), pointer :: f_msd(:,:)
     real(wp), pointer :: f_out_data(:,:)
 
+    type(s_error) :: err
+
+    call error_init(err)
     call C_F_POINTER(c_msd, f_msd, [msd_dim2, msd_dim1])
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     allocate(f_out_data( &
         (size(f_msd, dim=1) - 1) * 2 + 1, &
         size(f_msd, dim=2)))
-    call diffusion_analysis_main(f_msd, fort_ctrl_path, f_out_data)
+    call diffusion_analysis_main(f_msd, fort_ctrl_path, f_out_data, err)
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
     out_data = f2c_double_array(f_out_data)
   end subroutine diffusion_analysis_c
 
-  subroutine diffusion_analysis_main(msd_data, ctrl_filename, out_data)
+  subroutine diffusion_analysis_main(msd_data, ctrl_filename, out_data, err)
     character(*), intent(in) :: ctrl_filename
     real(wp), intent(in) :: msd_data(:,:)
     real(wp), intent(out) :: out_data(:,:)
+    type(s_error), intent(inout) :: err
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
     type(s_input)          :: input
@@ -82,7 +98,7 @@ contains
     ! [Step3] Analysis of mean square dispacement
     !
     write(MsgOut,'(A)') '[STEP3] Analysis of mean square dispacement'
-    call analyze(msd_data, input, option, out_data)
+    call analyze(msd_data, input, option, out_data, err)
 
 
     ! [Step4] Deallocate memory

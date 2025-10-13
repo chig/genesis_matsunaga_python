@@ -167,7 +167,7 @@ class CustomTestCase(unittest.TestCase):
                 pdb=pdb, top=top, gpr=gpr, psf=psf, ref=ref, fit=fit,
                 prmtop=prmtop, ambcrd=ambcrd, ambref=ambref,
                 grotop=grotop, grocrd=grocrd, groref=groref)
-        trajs = genesis_exe.crd_convert(
+        trajs, subset_mol = genesis_exe.crd_convert(
                 mol,
                 traj_params=[
                     TrajectoryParameters(
@@ -187,4 +187,5 @@ class CustomTestCase(unittest.TestCase):
                 check_only=False,
                 pbc_correct="NO",
                 )
+        _ = subset_mol
         return (trajs, mol)

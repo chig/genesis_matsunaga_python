@@ -10,7 +10,7 @@ def test_kmeans_clustering():
     psf_path = pathlib.Path("BPTI_ionize.psf")
 
     mol = SMolecule.from_file(pdb=pdb_path, psf=psf_path)
-    with genesis_exe.crd_convert(
+    trajs, subset_mol =  genesis_exe.crd_convert(
             mol,
             traj_params = [
                 TrajectoryParameters(
@@ -29,7 +29,11 @@ def test_kmeans_clustering():
             fitting_atom = 1,
             check_only = False,
             pbc_correct = "NO",
-            ) as trajs:
+    )
+
+    _ = subset_mol
+
+    try: 
         for t in trajs:
             ret = genesis_exe.kmeans_clustering(
                     mol, t,
@@ -51,7 +55,10 @@ def test_kmeans_clustering():
             for mol in ret.mols_from_pdb:
                 print("num_atoms = ", mol.num_atoms)
             print(ret.cluster_idxs)
-
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
+    
 
 def main():
     if os.path.exists("dummy.trj"):

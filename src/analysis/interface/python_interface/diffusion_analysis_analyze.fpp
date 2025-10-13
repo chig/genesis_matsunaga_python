@@ -19,6 +19,7 @@ module diffusion_analysis_analyze_c_mod
   use input_str_mod
   use output_str_mod
   use fileio_mod
+  use error_mod
   use messages_mod
   use constants_mod
 
@@ -52,13 +53,14 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine analyze(msd_data, input, option, out_data)
+  subroutine analyze(msd_data, input, option, out_data, err)
 
     ! formal arguments
     real(wp),                intent(in) :: msd_data(:,:)
     type(s_input),           intent(in)    :: input
     type(s_option),          intent(in)    :: option
     real(wp),                intent(out) :: out_data(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                                :: ndata, ncols
@@ -86,7 +88,8 @@ contains
     else if (size(option%ndofs) == size(ndofs)) then
       ndofs(:) = option%ndofs
     else
-      call error_msg('Analyze> Number of degrees of freedom in "ndofs"'//&
+      call error_set(err, ERROR_CODE, & 
+        'Analyze> Number of degrees of freedom in "ndofs"'//&
         ' does not match the number of MSD sets found in data file')
     end if
     allocate(fittings(ncols-1))

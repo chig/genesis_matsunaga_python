@@ -24,6 +24,7 @@ module dr_analysis_c_mod
   use output_str_mod
   use molecules_str_mod
   use fileio_control_mod
+  use error_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
@@ -32,7 +33,7 @@ module dr_analysis_c_mod
 
 contains
   subroutine dr_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                           result_dr) &
+                           result_dr, status, msg, msglen) &
         bind(C, name="dr_analysis_c")
     use conv_f_c_util
     implicit none
@@ -41,26 +42,40 @@ contains
     integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
     type(c_ptr), intent(out) :: result_dr
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
     real(wp), pointer :: dr(:)
 
+    type(s_error) :: err
+
+    call error_init(err)
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call dr_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, dr)
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, dr, err)
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
     result_dr = c_loc(dr)
   end subroutine dr_analysis_c
 
   subroutine dr_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename, dr)
+          molecule, s_trajes_c, ana_period, ctrl_filename, dr, err)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
     real(wp), pointer, intent(out) :: dr(:)
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -87,7 +102,8 @@ contains
     write(MsgOut,'(A)') '[STEP2] Set Relevant Variables and Structures'
     write(MsgOut,'(A)') ' '
 
-    call setup(molecule, ctrl_data, output, option)
+    call setup(molecule, ctrl_data, output, option, err)
+    if (error_has(err)) return
 
 
     ! [Step3] Analyze trajectory
@@ -96,7 +112,8 @@ contains
     write(MsgOut,'(A)') ' '
 
     call analyze(molecule, s_trajes_c, ana_period, output, option, &
-                 dr)
+                 dr, err)
+    if (error_has(err)) return
 
 
     ! [Step4] Deallocate memory
@@ -119,7 +136,7 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup(molecule, ctrl_data, output, option)
+  subroutine setup(molecule, ctrl_data, output, option, err)
     use dr_control_mod
     use dr_option_mod
     use dr_option_str_mod
@@ -146,6 +163,7 @@ contains
     type(s_molecule),        intent(inout) :: molecule
     type(s_output),          intent(inout) :: output
     type(s_option),          intent(inout) :: option
+    type(s_error),           intent(inout) :: err
 
 
     ! setup output
@@ -164,10 +182,10 @@ contains
     ! setup contact list
     !
     if (option%two_states) then
-      call setup_contact_list_two_states(molecule, option)
+      call setup_contact_list_two_states(molecule, option, err)
     else
-      call setup_contact_list(molecule, option)
-    endif
+      call setup_contact_list(molecule, option, err)
+    end if
 
     return
 
@@ -183,11 +201,12 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup_contact_list(molecule, option)
+  subroutine setup_contact_list(molecule, option, err)
 
     ! formal arguments
     type(s_molecule), intent(in)    :: molecule
     type(s_option),   intent(inout) :: option
+    type(s_error),    intent(inout) :: err
 
     logical                         :: duplicate
     integer                         :: i, j, k
@@ -227,7 +246,7 @@ contains
     else
       igrp1 = 1
       igrp2 = 2
-    endif
+    end if
     dealloc_stat = 0
     alloc_stat = 0
 
@@ -268,8 +287,8 @@ contains
               temp_contact_dist(ncount)   = dr
               temp_contact_list(1,ncount) = min(iatm,jatm)
               temp_contact_list(2,ncount) = max(iatm,jatm)
-            endif
-          endif
+            end if
+          end if
         end do
       end do
 
@@ -279,12 +298,18 @@ contains
                    temp_contact_list(1:2, 1:ncount), &
                    temp_conv(1:ncount),              &
                    stat = alloc_stat)
-          if (alloc_stat /= 0)   call error_msg_alloc
+          if (alloc_stat /= 0) then
+              call error_set(err, ERROR_CODE, & 
+                'Setup_Contact_List> allocate error')
+              return
+          end if
           call alloc_option(option, DA_Contact, ncount)
         else
-          call error_msg('Setup_Contact_List> ERROR : no contact is defined.')
-        endif
-      endif
+          call error_set(err, ERROR_CODE, & 
+              'Setup_Contact_List> ERROR : no contact is defined.')
+          return
+        end if
+      end if
     end do
 
     if (option%avoid_bonding ) then
@@ -297,13 +322,15 @@ contains
           option%contact_dist(i) = temp_contact_dist(itmp)
         end do
       else
-        call error_msg('Setup_Contact_List> ERROR : bond/angle/dihedral information is required in avoid_bonding option')
-      endif
+        call error_set(err, ERROR_CODE, & 
+             'Setup_Contact_List> ERROR : bond/angle/dihedral information is required in avoid_bonding option')
+        return
+      end if
     else
       option%num_contact = ncount
       option%contact_list(1:2,1:ncount) = temp_contact_list(1:2,1:ncount)
       option%contact_dist(1:ncount)     = temp_contact_dist(1:ncount)
-    endif
+    end if
 
     write(MsgOut,'(A)') 'Setup_Contact_List> Contact List'
     write(MsgOut,'(A20,I10)') '  # of contacts   = ', option%num_contact
@@ -321,11 +348,11 @@ contains
           write(atom_id,'(A,A,I0,A,A)') trim(molecule%residue_name(iatm)),':', &
                                             molecule%residue_no(iatm),':', &
                                             trim(molecule%atom_name(iatm))
-        endif
+        end if
         write(MsgOut,'(I0,A3,A,A3,$)') option%contact_list(k,i), ' ( ',trim(atom_id),' ) '
         if (k == 1) then
           write(MsgOut,'(A3,$)') ' - '
-        endif
+        end if
 
       end do
       write(MsgOut,'(F10.2)') option%contact_dist(i)
@@ -336,7 +363,11 @@ contains
                 temp_contact_list, &
                 temp_conv,         &
               stat = dealloc_stat)
-    if (dealloc_stat /= 0) call error_msg_dealloc
+    if (dealloc_stat /= 0) then
+        call error_set(err, ERROR_CODE, & 
+            'Setup_Contact_List> deallocation error')
+        return
+    end if
 
     return
 
@@ -352,11 +383,12 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup_contact_list_two_states(molecule, option)
+  subroutine setup_contact_list_two_states(molecule, option, err)
 
     ! formal arguments
     type(s_molecule), intent(in)    :: molecule
     type(s_option),   intent(inout) :: option
+    type(s_error),    intent(inout) :: err
 
     logical                         :: duplicate
     integer                         :: i, j, k
@@ -405,7 +437,7 @@ contains
     else
       igrp1 = 1
       igrp2 = 2
-    endif
+    end if
 
     do icount = 1, 2
       ncount = 0
@@ -455,8 +487,8 @@ contains
               temp_contact_dist_other(ncount) = er
               temp_contact_list(1,ncount)     = min(iatm,jatm)
               temp_contact_list(2,ncount)     = max(iatm,jatm)
-            endif
-          endif
+            end if
+          end if
         end do
       end do
 
@@ -467,12 +499,18 @@ contains
                    temp_contact_list(1:2, 1:ncount),  &
                    temp_conv(1:ncount),               &
                    stat = alloc_stat)
-          if (alloc_stat /= 0)   call error_msg_alloc
+          if (alloc_stat /= 0) then
+            call error_set(err, ERROR_CODE, & 
+                 'Setup_Contact_List> allocation error')
+            return
+          end if
           call alloc_option(option, DA_Contact, ncount)
         else
-          call error_msg('Setup_Contact_List> ERROR : no contact is defined.')
-        endif
-      endif
+          call error_set(err, ERROR_CODE, & 
+                 'Setup_Contact_List> ERROR : no contact is defined.')
+          return
+        end if
+      end if
     end do
 
     if (option%avoid_bonding ) then
@@ -486,14 +524,16 @@ contains
           option%contact_cur_dist(i) = temp_contact_dist_other(itmp)
         end do
       else
-        call error_msg('Setup_Contact_List> ERROR : bond/angle/dihedral information is required in avoid_bonding option')
-      endif
+          call error_set(err, ERROR_CODE, & 
+             'Setup_Contact_List> ERROR : bond/angle/dihedral information is required in avoid_bonding option')
+          return
+      end if
     else
       option%num_contact = ncount
       option%contact_list(1:2,1:ncount) = temp_contact_list(1:2,1:ncount)
       option%contact_dist(1:ncount)     = temp_contact_dist(1:ncount)
       option%contact_cur_dist(1:ncount) = temp_contact_dist_other(1:ncount)
-    endif
+    end if
 
     write(MsgOut,'(A)') 'Setup_Contact_List> Contact List'
     write(MsgOut,'(A20,I10)') '  # of contacts   = ', option%num_contact
@@ -511,11 +551,11 @@ contains
           write(atom_id,'(A,A,I0,A,A)') trim(molecule%residue_name(iatm)),':', &
                                             molecule%residue_no(iatm),':', &
                                             trim(molecule%atom_name(iatm))
-        endif
+        end if
         write(MsgOut,'(I0,A3,A,A3,$)') option%contact_list(k,i), ' ( ',trim(atom_id),' ) '
         if (k == 1) then
           write(MsgOut,'(A3,$)') ' - '
-        endif
+        end if
 
       end do
       write(MsgOut,'(2F10.2)') option%contact_dist(i), option%contact_cur_dist(i)
@@ -527,7 +567,11 @@ contains
                 temp_contact_dist_other, &
                 temp_conv,               &
               stat = dealloc_stat)
-    if (dealloc_stat /= 0) call error_msg_dealloc
+     if (dealloc_stat /= 0) then
+       call error_set(err, ERROR_CODE, & 
+            'Setup_Contact_List_Two_states> deallocation error')
+       return
+     end if
 
     return
 
@@ -576,7 +620,7 @@ contains
         if (imax == jmax .and. imin == jmin) then
           duplicate = .true.
           exit
-        endif
+        end if
       end do
       if (.not. duplicate) then
         do j = 1, molecule%num_angles
@@ -585,9 +629,9 @@ contains
           if (imax == jmax .and. imin == jmin) then
             duplicate = .true.
             exit
-          endif
+          end if
         end do
-      endif
+      end if
       if (.not. duplicate) then
         do j = 1, molecule%num_dihedrals
           jmax = max(molecule%dihe_list(1,j), molecule%dihe_list(4,j))
@@ -595,9 +639,9 @@ contains
           if (imax == jmax .and. imin == jmin) then
             duplicate = .true.
             exit
-          endif
+          end if
         end do
-      endif
+      end if
       if (.not. duplicate) then
         do j = 1, molecule%num_impropers
           jmax = max(molecule%impr_list(1,j), molecule%impr_list(4,j))
@@ -605,13 +649,13 @@ contains
           if (imax == jmax .and. imin == jmin) then
             duplicate = .true.
             exit
-          endif
+          end if
         end do
-      endif
+      end if
       if (.not. duplicate) then
         ncount_d = ncount_d + 1
         temp_conv(ncount_d) = i
-      endif
+      end if
     end do
 
     return

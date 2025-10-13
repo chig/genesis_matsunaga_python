@@ -25,6 +25,7 @@ module crd_convert_c_mod
   use trajectory_str_mod
   use output_str_mod
   use molecules_str_mod
+  use error_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
@@ -33,7 +34,7 @@ module crd_convert_c_mod
 contains
   subroutine crd_convert_c( &
           molecule, ctrl_path, s_trajes_c_array, num_trajs, &
-          selected_atom_indices, num_selected_atoms) &
+          selected_atom_indices, num_selected_atoms, status, msg, msglen) &
           bind(C, name="crd_convert_c")
     implicit none
     type(s_molecule_c), intent(inout) :: molecule
@@ -42,18 +43,31 @@ contains
     integer(c_int), intent(out) :: num_trajs
     type(c_ptr), intent(out) :: selected_atom_indices
     integer(c_int), intent(out) :: num_selected_atoms
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
+
     character(len=:), allocatable :: fort_ctrl_path
     type(s_molecule) :: f_molecule
 
+    type(s_error) :: err
+
+    call error_init(err)
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
 
     call crd_convert_main(f_molecule, fort_ctrl_path, s_trajes_c_array, num_trajs, &
-                         selected_atom_indices, num_selected_atoms)
+                         selected_atom_indices, num_selected_atoms, err)
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
   end subroutine crd_convert_c
 
   subroutine crd_convert_main(molecule, ctrl_filename, s_trajes_c_array, num_trajs, &
-                              selected_atom_indices, num_selected_atoms)
+                              selected_atom_indices, num_selected_atoms, err)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     character(*), intent(in) :: ctrl_filename
@@ -61,6 +75,7 @@ contains
     integer(c_int), intent(out) :: num_trajs
     type(c_ptr), intent(out) :: selected_atom_indices
     integer(c_int), intent(out) :: num_selected_atoms
+    type(s_error),                   intent(inout) :: err
     type(s_ctrl_data)      :: ctrl_data
     type(s_trj_list)       :: trj_list
     type(s_trajectory)     :: trajectory
@@ -108,7 +123,9 @@ contains
                  option,     &
                  output,     &
                  s_trajes_c_array, &
-                 num_trajs)
+                 num_trajs,  &
+                 err)
+    if (error_has(err)) return
 
     ! Extract selected atom indices from option%trjout_atom
     write(MsgOut,'(A)') 'About to extract selected atom indices...'

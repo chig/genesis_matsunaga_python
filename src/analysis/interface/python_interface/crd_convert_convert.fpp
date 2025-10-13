@@ -29,6 +29,7 @@ module crd_convert_convert
   use fileio_trj_mod
   use fileio_mod
   use messages_mod
+  use error_mod
   use string_mod
   use fileio_pdb_mod
   use s_trajectories_c_mod
@@ -69,7 +70,8 @@ contains
                     option,     &
                     output,     &
                     s_trajs_c_array, &
-                    num_trajs)
+                    num_trajs,  &
+                    err)
     use, intrinsic :: iso_c_binding
 
     ! formal arguments
@@ -81,6 +83,7 @@ contains
     type(s_output),     intent(inout) :: output
     type(c_ptr), intent(inout) :: s_trajs_c_array
     integer(c_int), intent(out) :: num_trajs
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_trj_file)         :: trj_in, trj_out
@@ -189,7 +192,7 @@ contains
 
           if (output%trjfile /= '') then
             if (option%split_trjpdb) then
-              call output_split_trjpdb(nstru, molecule, trajectory, option, output)
+              call output_split_trjpdb(nstru, molecule, trajectory, option, output, err)
             else
               ! call write_trj(trj_out, trajectory, option%trjout_atom_trj,molecule)
             end if
@@ -268,7 +271,7 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine output_split_trjpdb(nstru, molecule, trajectory, option, output)
+  subroutine output_split_trjpdb(nstru, molecule, trajectory, option, output, err)
 
     ! formal arguments
     integer,                 intent(inout) :: nstru
@@ -276,6 +279,7 @@ contains
     type(s_trajectory),      intent(inout) :: trajectory
     type(s_option),          intent(inout) :: option
     type(s_output),          intent(inout) :: output
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     type(s_pdb)              :: tmp_pdb
@@ -301,7 +305,7 @@ contains
 
     tmp_pdb%model_rec = .false.
 
-    call output_pdb(get_filename(output%trjfile,nstru), tmp_pdb)
+    call output_pdb(get_filename(output%trjfile,nstru, err), tmp_pdb)
 
     molecule%atom_coord(:,:) = tmp_coord(:,:)
 
@@ -320,7 +324,7 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  function get_filename(filename, no)
+  function get_filename(filename, no, err)
 
     ! return
     character(Maxfilename)   :: get_filename
@@ -328,6 +332,7 @@ contains
     ! formal arguments
     character(*),            intent(in)    :: filename
     integer,                 intent(in)    :: no
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: bl, br
@@ -337,8 +342,11 @@ contains
     bl = index(filename, '{', back=.true.)
     br = index(filename, '}', back=.true.)
 
-    if (bl == 0 .or. br == 0 .or. bl > br) &
-      call error_msg('Get_Filename> {} is not found in the output trjfile name')
+    if (bl == 0 .or. br == 0 .or. bl > br) then
+      call error_set(err, ERROR_CODE, & 
+                    'Get_Filename> {} is not found in the output trjfile name')
+      return
+    endif
 
     write(fid,'(i0)') no
     get_filename = filename(:bl-1) // trim(fid) // filename(br+1:)

@@ -23,6 +23,7 @@ lib_LTLIBRARIES = libpython_interface.la
 
 libpython_interface_la_SOURCES = \
         conv_f_c_util.fpp \
+        error_mod.fpp \
         s_molecule_c_mod.fpp \
         ctrl_c_mod.fpp \
         define_molecule.fpp \

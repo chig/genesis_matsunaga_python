@@ -26,6 +26,7 @@ module dr_analysis_analyze_c_mod
   use messages_mod
   use constants_mod
   use atom_libs_mod
+  use error_mod
  
   implicit none
   private
@@ -58,7 +59,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine analyze(molecule, trajes_c, ana_period, output, option, &
-                     dr1)
+                     dr1, err)
     use s_trajectories_c_mod
 
     ! formal arguments
@@ -68,6 +69,7 @@ contains
     type(s_output),          intent(in)    :: output
     type(s_option),          intent(inout) :: option
     real(wp), pointer,       intent(out)   :: dr1(:)
+    type(s_error),           intent(inout) :: err
 
 
     ! local variables
@@ -106,12 +108,14 @@ contains
 
         if (option%two_states) then
           call compute_drms_two_states(option, trajectory%coord,  &
-                                       trajectory%pbc_box, drms, drms_cur)
+                                       trajectory%pbc_box, drms, drms_cur, err)
+          if (error_has(err)) return
 
           !if (output%rmsfile /= '') &
           !  write(rms_out, '(i10,1x,2f8.3)') nstru, drms, drms_cur
         else
-          call compute_drms(option, trajectory%coord, trajectory%pbc_box, drms)
+          call compute_drms(option, trajectory%coord, trajectory%pbc_box, drms, err)
+          if (error_has(err)) return
 
           !if (output%rmsfile /= '') &
           !  write(rms_out, '(i10,1x,f8.3)') nstru, drms
@@ -154,13 +158,14 @@ contains
   ! 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine compute_drms(option, coord, pbc_box, drms)
+  subroutine compute_drms(option, coord, pbc_box, drms, err)
 
     ! formal arguments
     type(s_option), target, intent(in)    :: option
     real(wp),       intent(in)    :: coord(:,:)
     real(wp),       intent(in)    :: pbc_box(3,3)
     real(wp),       intent(out)   :: drms
+    type(s_error),  intent(inout) :: err
 
     ! local variables
     integer                       :: i, i1, i2,  num_contact
@@ -183,7 +188,9 @@ contains
       if (box(1) <= 0.0_wp .or.  &
         box(2) <= 0.0_wp .or.    &
         box(3) <= 0.0_wp  ) then
-        call error_msg('Compute_Drms> Box is required for pbc_correct')
+        call error_set(err, ERROR_CODE, & 
+                       'Compute_Drms> Box is required for pbc_correct')
+        return
       endif
     endif
 
@@ -229,7 +236,7 @@ contains
   ! 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine compute_drms_two_states(option, coord, pbc_box, drms, drms_cur)
+  subroutine compute_drms_two_states(option, coord, pbc_box, drms, drms_cur, err)
 
     ! formal arguments
     type(s_option), target, intent(in)    :: option
@@ -237,6 +244,7 @@ contains
     real(wp),       intent(in)    :: pbc_box(3,3)
     real(wp),       intent(out)   :: drms
     real(wp),       intent(out)   :: drms_cur
+    type(s_error),  intent(inout) :: err
 
     ! local variables
     integer                       :: i, i1, i2,  num_contact
@@ -261,7 +269,9 @@ contains
       if (box(1) <= 0.0_wp .or.  &
         box(2) <= 0.0_wp .or.    &
         box(3) <= 0.0_wp  ) then
-        call error_msg('Compute_Drms> Box is required for pbc_correct')
+        call error_set(err, ERROR_CODE, & 
+                       'Compute_Drms_Two_States> Box is required for pbc_correct')
+        return
       endif
     endif
 

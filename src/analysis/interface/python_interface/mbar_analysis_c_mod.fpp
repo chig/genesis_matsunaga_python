@@ -24,6 +24,7 @@
   use input_str_mod
   use molecules_str_mod
   use fileio_control_mod
+  use error_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
@@ -33,7 +34,7 @@
  contains
   ! subroutine mbar_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path) &
   subroutine mbar_analysis_c(ctrl_path, result_fene, &
-                             n_replica, n_blocks) &
+                             n_replica, n_blocks, status, msg, msglen  ) &
         bind(C, name="mbar_analysis_c")
     use conv_f_c_util
     implicit none
@@ -44,25 +45,40 @@
     type(c_ptr), intent(out) :: result_fene
     integer(c_int), intent(out) :: n_replica
     integer(c_int), intent(out) :: n_blocks
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
 
 
     ! type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
     real(wp), pointer :: fene_f(:,:) => null()
 
+    type(s_error) :: err
+
+    call error_init(err)
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     ! call c2f_s_molecule(molecule, f_molecule)
     ! call wa_analysis_main( &
     !     f_molecule, s_trajes_c, ana_period, fort_ctrl_path)
     call mbar_analysis_main( &
-        fort_ctrl_path, fene_f, n_replica, n_blocks)
+        fort_ctrl_path, fene_f, n_replica, n_blocks, err)
+
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
     result_fene = c_loc(fene_f)
   end subroutine mbar_analysis_c
 
   ! subroutine mbar_analysis_main( &
   !         molecule, s_trajes_c, ana_period, ctrl_filename)
   subroutine mbar_analysis_main( &
-          ctrl_filename, result_fene, n_replica, n_blocks)
+          ctrl_filename, result_fene, n_replica, n_blocks, err)
     implicit none
     ! type(s_molecule), intent(inout) :: molecule
     ! type(s_trajectories_c), intent(in) :: s_trajes_c
@@ -71,6 +87,7 @@
     real(wp), pointer, intent(out) :: result_fene(:,:)
     integer,           intent(out) :: n_replica
     integer,           intent(out) :: n_blocks
+    type(s_error),     intent(inout) :: err
 
 
     ! local variables
@@ -109,7 +126,8 @@
 
     ! call analyze(molecule, s_trajes_c, ana_period, input, output, option)
     call analyze(molecule, input, output, option, &
-                 result_fene, n_replica, n_blocks)
+                 result_fene, n_replica, n_blocks, err)
+    if (error_has(err)) return
 
 
     ! [Step4] Deallocate memory

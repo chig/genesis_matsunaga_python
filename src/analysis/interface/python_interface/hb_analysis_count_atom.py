@@ -10,7 +10,7 @@ def test_hb_analysis_Count_atom():
     psf_path = pathlib.Path("RALP_DPPC.psf")
 
     mol = SMolecule.from_file(pdb=pdb_path, psf=psf_path)
-    with genesis_exe.crd_convert(
+    trajs, subset_mol =  genesis_exe.crd_convert(
             mol,
             traj_params = [
                 TrajectoryParameters(
@@ -33,7 +33,12 @@ def test_hb_analysis_Count_atom():
             center_coord   = (0.0,0.0,0.0),
             pbc_correct = "NO",
             rename_res = ["HSE HIS","HSD HIS",],
-            ) as trajs:
+    ) 
+
+    _ = subset_mol
+
+    try: 
+
         for t in trajs:
             d = genesis_exe.hb_analysis(
                     mol, t,
@@ -48,8 +53,11 @@ def test_hb_analysis_Count_atom():
                     hb_distance   = 3.4,
                     dha_angle     = 120.0,
                     hda_angle     = 30.0,
-                    )
+                )
             print(d, flush=True)
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
 
 
 def main():

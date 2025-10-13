@@ -24,6 +24,7 @@ module ra_analysis_analyze_c_mod
   use molecules_str_mod
   use select_atoms_mod
   use fileio_mod
+  use error_mod
   use messages_mod
   use constants_mod
  
@@ -48,7 +49,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine analyze(molecule, trajes_c, ana_period, output, option, &
-                     fitting, ra1)
+                     fitting, ra1, err)
     use s_trajectories_c_mod
 
     ! formal arguments
@@ -59,6 +60,7 @@ contains
     type(s_option),          intent(inout) :: option
     type(s_fitting),         intent(inout) :: fitting
     real(wp), pointer,       intent(out)   :: ra1(:)
+    type(s_error),                   intent(inout) :: err
 
 
     ! local variables
@@ -72,6 +74,8 @@ contains
 
     if (option%check_only) &
       return
+
+    if (error_has(err)) return
 
 !    if (fitting%mass_weight) &
 !      call error_msg('Analyze> mass weighted is not allowed')
@@ -87,7 +91,9 @@ contains
 
     if (fitting%mass_weight) then
       if (abs(molecule%mass(1)) < 1.0e-05_wp) then
-         call error_msg('Analyze> mass is not defined')
+         call error_set(err, ERROR_CODE, & 
+                        'Analyze> mass is not defined')
+         return
       else
          mass_fitting(:) = molecule%mass(:)
       endif

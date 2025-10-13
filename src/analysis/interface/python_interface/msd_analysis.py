@@ -10,7 +10,7 @@ def test_msd_analysis():
     psf_path = pathlib.Path("BPTI_ionize.psf")
 
     mol = SMolecule.from_file(pdb=pdb_path, psf=psf_path)
-    with genesis_exe.crd_convert(
+    trajs, subset_mol =  genesis_exe.crd_convert(
             mol,
             traj_params = [
                 TrajectoryParameters(
@@ -28,7 +28,11 @@ def test_msd_analysis():
             fitting_atom = 1,
             check_only = False,
             pbc_correct = "NO",
-            ) as trajs:
+    ) 
+    _ = subset_mol
+
+    try: 
+
         for t in trajs:
             d = genesis_exe.msd_analysis(
                     mol, t,
@@ -39,6 +43,9 @@ def test_msd_analysis():
                     delta = 9,
                     )
             print(d.msd, flush=True)
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
 
 
 def main():

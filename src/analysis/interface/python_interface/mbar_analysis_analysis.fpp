@@ -25,6 +25,7 @@ module mbar_analysis_analyze_c_mod
   use molecules_str_mod
   use fileio_mod
   use fileio_pdb_mod
+  use error_mod
   use string_mod
   use messages_mod
   use constants_mod
@@ -131,7 +132,7 @@ contains
 
   ! subroutine analyze(molecule, trajes_c, ana_period, input, output, option)
   subroutine analyze(molecule, input, output, option, &
-                     fene, n_replica, n_blocks)
+                     fene, n_replica, n_blocks, err)
     use s_trajectories_c_mod
 
     ! formal arguments
@@ -144,6 +145,7 @@ contains
     real(wp), pointer,       intent(out)   :: fene(:,:)
     integer,                 intent(out)   :: n_replica
     integer,                 intent(out)   :: n_blocks
+    type(s_error),           intent(inout) :: err
 
 
     ! local variables
@@ -166,6 +168,8 @@ contains
     if (option%check_only) &
       return
 
+    if (error_has(err)) return
+
     if (option%dimension == 1) then
       n_replica = option%num_replicas
       n_blocks = option%nblocks
@@ -182,15 +186,20 @@ contains
       if (input%pathfile /= '') then
         call readref_path(input%pathfile, option)
       else
-        call error_msg('Analyze> Please set pathfile in [INPUT]')
-      endif
+         call error_set(err, ERROR_CODE, & 
+              'Analyze> pathfile is not set')
+         return
+      end if
     else if (option%read_ref_pdb) then
       if (input%reffile /= '') then
-        call readref_pdb(input%pdbfile, molecule, option)
+        call readref_pdb(input%pdbfile, molecule, option, err)
+        if (error_has(err)) return
       else
-        call error_msg('Analyze> Please set reffile in [INPUT]')
-      endif
-    endif
+        call error_set(err, ERROR_CODE, & 
+             'Analyze> reffile is not set')
+         return
+      end if
+    end if
 
     ! build data_k
     !
@@ -198,25 +207,30 @@ contains
 
       if (input%cvfile /= '') then
 
-        call build_data_k_from_cv(input%cvfile, option, data_k, time_k)
+        call build_data_k_from_cv(input%cvfile, option, data_k, time_k, err)
+        if (error_has(err)) return
     
       else if (input%dcdfile /= '') then
     
         if (option%read_ref_path .or. option%read_ref_pdb) then
           call build_data_k_from_dcd_posi_readref(input%dcdfile, molecule, option, data_k, &
-                                           time_k)
+                                           time_k, err)
+          if (error_has(err)) return
         else
-          call build_data_k_from_dcd(input%dcdfile, molecule, option, data_k, time_k)
-        endif
+          call build_data_k_from_dcd(input%dcdfile, molecule, option, data_k, time_k, err)
+          if (error_has(err)) return
+        end if
     
       end if
 
         if (input%refenefile /= '') &
-         call build_data_k_from_refene(input%refenefile, option, data_k, time_k)
+          call build_data_k_from_refene(input%refenefile, option, data_k, time_k, err)
+        if (error_has(err)) return
 
     else
 
-      call build_data_k_from_ene(input%cvfile, option, data_k, time_k)
+      call build_data_k_from_ene(input%cvfile, option, data_k, time_k, err)
+      if (error_has(err)) return
       
     end if
 
@@ -233,7 +247,8 @@ contains
     end do
 
     if (input%targetfile /= '') then    
-      call add_data_k_from_target(input%targetfile, option, data_k)
+      call add_data_k_from_target(input%targetfile, option, data_k, err)
+      if (error_has(err)) return
     else
       do i = 1, option%num_replicas
         nstep = size(data_k(i)%vtarget(:))
@@ -271,16 +286,19 @@ contains
       else
 
         if (input%refenefile /= '') then
-          call build_u_kl_from_cv_ene(option, data_k, u_kl)        
+          call build_u_kl_from_cv_ene(option, data_k, u_kl, err) 
+          if (error_has(err)) return
         else
-          call build_u_kl_from_cv(option, data_k, u_kl)        
+          call build_u_kl_from_cv(option, data_k, u_kl, err)
+          if (error_has(err)) return
         end if
 
       end if
 
     else
 
-        call build_u_kl_from_ene(option, data_k, u_kl)
+        call build_u_kl_from_ene(option, data_k, u_kl, err)
+        if (error_has(err)) return
 
     end if
 
@@ -307,7 +325,8 @@ contains
       end do
       !f_sum = 0.0_wp
       do i = 1, option%num_replicas-1
-        call solve_mbar(option, u_kl(i:i+1, i:i+1), f_k_tmp)
+        call solve_mbar(option, u_kl(i:i+1, i:i+1), f_k_tmp, err)
+        if (error_has(err)) return
         !f_sum = f_sum + f_k(1)%v(2)
         do iblock = 1, option%nblocks
           f_k(iblock)%v(i+1) = f_k(iblock)%v(i) + f_k_tmp(iblock)%v(2)
@@ -318,7 +337,8 @@ contains
       end do
     else
 !      time_start = omp_get_wtime()
-      call solve_mbar(option, u_kl, f_k)
+      call solve_mbar(option, u_kl, f_k, err)
+      if (error_has(err)) return
 !      time_end = omp_get_wtime()
       ! write(*,*) 'Elapsed time in sec = ', time_end - time_start
     end if
@@ -327,27 +347,31 @@ contains
     ! solve mbar weight
     !
     if (option%input_type /= InputTypeEnePair .and. option%input_type /= InputTypeFEP) then
-      call compute_weight(option, u_kl, u_k, bin_k, f_k, weight_k)
+      call compute_weight(option, u_kl, u_k, bin_k, f_k, weight_k, err)
+      if (error_has(err)) return
     end if
 
 
     ! assign bin
     !
     if (option%input_type == InputTypeCV .or. option%input_type == InputTypeUS) then
-      call assign_bin(option, data_k, bin_k)
+      call assign_bin(option, data_k, bin_k, err)
+      if (error_has(err)) return
     end if
 
 
     ! solve mbar pmf
     !
     if (option%input_type == InputTypeCV .or. option%input_type == InputTypeUS) then
-      call compute_pmf(option, u_kl, u_k, bin_k, f_k, pmf)
+      call compute_pmf(option, u_kl, u_k, bin_k, f_k, pmf, err)
+      if (error_has(err)) return
     end if
 
 
     ! output f_k and pmf
     !
-    call output_mbar(option, output, bin_k(1), f_k, pmf, weight_k, time_k, fene)
+    call output_mbar(option, output, bin_k(1), f_k, pmf, weight_k, time_k, fene, err)
+    if (error_has(err)) return
 
 
     return
@@ -397,11 +421,12 @@ contains
   end subroutine readref_path
 
   !======1=========2=========3=========4=========5=========6=========7=========8
-  subroutine readref_pdb(pdbfile, molecule, option)
+  subroutine readref_pdb(pdbfile, molecule, option, err)
     ! formal arguments
     character(*),            intent(in)    :: pdbfile
     type(s_molecule),        intent(in)    :: molecule
     type(s_option),          intent(inout) :: option
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_pdb)                            :: pdb
@@ -428,12 +453,17 @@ contains
 
     do i = 1, nbrella
 
-      filename = get_replicate_name1(pdbfile, i)
+      filename = get_replicate_name1(pdbfile, i, err)
+      if (error_has(err)) return
+
       write(MsgOut,'(a,a)') '  read pdbfile: ',trim(filename)
 
       call input_pdb(filename, pdb)
-      if (molecule%num_atoms /= pdb%num_atoms) &
-        call error_msg('Readref_PDB> # of atoms is mismatch ref/system')
+      if (molecule%num_atoms /= pdb%num_atoms) then
+        call error_set(err, ERROR_CODE, & 
+           'Readref_PDB> # of atoms is mismatch ref/system')
+        return
+      end if
 
       jj = 0
       do j = 1, natoms
@@ -455,13 +485,14 @@ contains
   end subroutine readref_pdb
 
   !======1=========2=========3=========4=========5=========6=========7=========8
-  subroutine build_data_k_from_cv(cvfile, option, data_k, time_k)
+  subroutine build_data_k_from_cv(cvfile, option, data_k, time_k, err)
 
     ! formal arguments
     character(*),            intent(in)    :: cvfile
     type(s_option),          intent(in)    :: option
     type(s_data_k),          allocatable   :: data_k(:)
     real(wp),                allocatable   :: time_k(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: file, tim, i, j, k, istep
@@ -482,13 +513,16 @@ contains
         nbrella = nbrella * option%rest_nreplica(option%rest_func_no(i, 1))
       end do
     else
-      call error_msg('Build_Data_K_From_Cv> dimension > 2 not supported')
+      call error_set(err, ERROR_CODE, & 
+           'Build_Data_K_From_Cv> dimension > 2 not supported')
+      return
     end if
 
     
     ! check nstep
     !
-    call check_cvfile(cvfile, nstep)
+    call check_cvfile(cvfile, nstep, err)
+    if (error_has(err)) return
 
 
     ! allocate data_k and time_k
@@ -510,7 +544,8 @@ contains
         ibrella = ibrella + 1
         allocate(data_k(ibrella)%v(nstep,nfunc))
 
-        filename = get_replicate_name1(cvfile, ibrella)
+        filename = get_replicate_name1(cvfile, ibrella, err)
+        if (error_has(err)) return
         write(MsgOut,'(a,a)') '  read cv file: ',trim(filename)
 
         call open_file(file, &
@@ -545,7 +580,8 @@ contains
           ibrella = ibrella + 1
           allocate(data_k(ibrella)%v(nstep,nfunc))
 
-          filename = get_replicate_name1(cvfile, ibrella)
+          filename = get_replicate_name1(cvfile, ibrella, err)
+          if (error_has(err)) return
           write(MsgOut,'(a,a)') '  read cv file: ',trim(filename)
 
           call open_file(file, &
@@ -569,13 +605,14 @@ contains
   end subroutine build_data_k_from_cv
 
   !======1=========2=========3=========4=========5=========6=========7=========8
-  subroutine build_data_k_from_ene(cvfile, option, data_k, time_k)
+  subroutine build_data_k_from_ene(cvfile, option, data_k, time_k, err)
 
     ! formal arguments
     character(*),            intent(in)    :: cvfile
     type(s_option),          intent(in)    :: option
     type(s_data_k),          allocatable   :: data_k(:)
     real(wp),                allocatable   :: time_k(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: file, tim, i, j, k, istep
@@ -589,7 +626,8 @@ contains
     
     ! check nstep
     !
-    call check_cvfile(cvfile, nstep)
+    call check_cvfile(cvfile, nstep, err)
+    if (error_has(err)) return
 
 
     ! read cv file and setup data_k
@@ -611,7 +649,9 @@ contains
              .or. option%input_type == InputTypeMBGO) then
       nfunc = nbrella
     else
-      call error_msg('Build_Data_K_From_Ene> unsupported input type')
+      call error_set(err, ERROR_CODE, & 
+           'Build_Data_K_From_Ene> unsupported input type')
+      return
     end if
 
 
@@ -621,7 +661,8 @@ contains
       ibrella = ibrella + 1
       allocate(data_k(ibrella)%v(nstep,nfunc))
 
-      filename = get_replicate_name1(cvfile, ibrella)
+      filename = get_replicate_name1(cvfile, ibrella, err)
+      if (error_has(err)) return
       write(MsgOut,'(a,a)') '  read cv file: ',trim(filename)
 
       call open_file(file, &
@@ -650,13 +691,14 @@ contains
   end subroutine build_data_k_from_ene
 
   !======1=========2=========3=========4=========5=========6=========7=========8
-  subroutine build_data_k_from_refene(refenefile, option, data_k, time_k)
+  subroutine build_data_k_from_refene(refenefile, option, data_k, time_k, err)
 
     ! formal arguments
     character(*),            intent(in)    :: refenefile
     type(s_option),          intent(in)    :: option
     type(s_data_k),          allocatable   :: data_k(:)
     real(wp),                allocatable   :: time_k(:,:)
+    type(s_error),           intent(inout) :: err
 
 
     ! local variables
@@ -671,7 +713,8 @@ contains
     
     ! check nstep
     !
-    call check_cvfile(refenefile, nstep)
+    call check_cvfile(refenefile, nstep, err)
+    if (error_has(err)) return
 
 
     ! read cv file and setup data_k
@@ -684,7 +727,8 @@ contains
       ibrella = ibrella + 1
       allocate(data_k(ibrella)%vrefene(nstep))
 
-      filename = get_replicate_name1(refenefile, ibrella)
+      filename = get_replicate_name1(refenefile, ibrella, err)
+      if (error_has(err)) return
       write(MsgOut,'(a,a)') '  read refene file: ',trim(filename)
 
       call open_file(file, &
@@ -713,12 +757,13 @@ contains
   end subroutine build_data_k_from_refene
 
   !======1=========2=========3=========4=========5=========6=========7=========8  
-  subroutine add_data_k_from_target(targetfile, option, data_k)
+  subroutine add_data_k_from_target(targetfile, option, data_k, err)
 
     ! formal arguments
     character(*),            intent(in)    :: targetfile
     type(s_option),          intent(in)    :: option
     type(s_data_k),          allocatable   :: data_k(:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: file, tim, i, j, k, istep
@@ -733,7 +778,8 @@ contains
     
     ! check nstep
     !
-    call check_cvfile(targetfile, nstep)
+    call check_cvfile(targetfile, nstep, err)
+    if (error_has(err)) return
 
 
     ! read cv file and setup data_k
@@ -748,7 +794,8 @@ contains
       ibrella = ibrella + 1
       !allocate(data_k(ibrella)%vtarget(nstep))
 
-      filename = get_replicate_name1(targetfile, ibrella)
+      filename = get_replicate_name1(targetfile, ibrella, err)
+      if (error_has(err)) return
       write(MsgOut,'(a,a)') '  read target energy file: ',trim(filename)
 
       call open_file(file, &
@@ -776,7 +823,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine build_data_k_from_dcd(dcdfile, molecule, option, data_k, time_k)
+  subroutine build_data_k_from_dcd(dcdfile, molecule, option, data_k, time_k, err)
 
     ! formal arguments
     character(*),            intent(in)    :: dcdfile
@@ -784,6 +831,7 @@ contains
     type(s_option),          intent(in)    :: option
     type(s_data_k),          allocatable   :: data_k(:)
     real(wp),                allocatable   :: time_k(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     type(s_trajectory)       :: trajectory
@@ -806,13 +854,15 @@ contains
         nbrella = nbrella * option%rest_nreplica(option%rest_func_no(i, 1))
       end do
     else
-      call error_msg('Build_Data_K_From_Cv> dimension > 2 not supported')
+      call error_set(err, ERROR_CODE, & 
+                   'Build_Data_K_From_Cv> dimension > 2 not supported')
+      return
     end if
 
 
     ! check nstep and allocate trajectory
     !
-    call check_dcdfile(dcdfile, nstep, natom)
+    call check_dcdfile(dcdfile, nstep, natom, err)
 
 
     ! allocate data_k
@@ -821,9 +871,11 @@ contains
     allocate(time_k(nstep, nbrella))
 
 
-    if (natom /= option%num_atoms) &
-      call error_msg( &
-      'Build_Data_K_From_Dcd> Dcd atom count is different from PSF/PRMTOP.')
+    if (natom /= option%num_atoms) then
+      call error_set(err, ERROR_CODE, & 
+         'Build_Data_K_From_Dcd> Dcd atom count is different from PSF/PRMTOP.')
+      return
+    end if
 
     call alloc_trajectory(trajectory, natom)
 
@@ -841,7 +893,8 @@ contains
         ibrella = ibrella + 1
         allocate(data_k(ibrella)%v(nstep,nfunc))
 
-        filename = get_replicate_name1(dcdfile, ibrella)
+        filename = get_replicate_name1(dcdfile, ibrella, err)
+        if (error_has(err)) return
         write(MsgOut,'(a,a)') '  read and analyze trajectory: ',trim(filename)
 
         call open_trj(file, &
@@ -862,7 +915,9 @@ contains
 
           do k = 1, nfunc
             data_k(ibrella)%v(istep,k) = &
-                 get_dcd_cv(molecule, option, trajectory, k)
+                 get_dcd_cv(molecule, option, trajectory, k, err)
+            if (error_has(err)) return
+
           end do
 
           time_k(istep, ibrella) = istep
@@ -885,7 +940,8 @@ contains
           ibrella = ibrella + 1
           allocate(data_k(ibrella)%v(nstep,nfunc))
 
-          filename = get_replicate_name1(dcdfile, ibrella)
+          filename = get_replicate_name1(dcdfile, ibrella, err)
+          if (error_has(err)) return
           write(MsgOut,'(a,a)') '  read and analyze trajectory: ',trim(filename)
 
           call open_trj(file, &
@@ -906,7 +962,9 @@ contains
 
             do k = 1, nfunc
               data_k(ibrella)%v(istep,k) = &
-                   get_dcd_cv(molecule, option, trajectory, k)
+                   get_dcd_cv(molecule, option, trajectory, k, err)
+               if (error_has(err)) return
+
             end do
 
             time_k(istep, ibrella) = istep
@@ -929,7 +987,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   subroutine build_data_k_from_dcd_posi_readref &
-                (dcdfile, molecule, option, data_k, time_k)
+                (dcdfile, molecule, option, data_k, time_k, err)
 
     ! formal arguments
     character(*),            intent(in)    :: dcdfile
@@ -937,6 +995,7 @@ contains
     type(s_option),          intent(in)    :: option
     type(s_data_k),          allocatable   :: data_k(:)
     real(wp),                allocatable   :: time_k(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     type(s_trajectory)       :: trajectory
@@ -958,16 +1017,18 @@ contains
 
     ! check nstep and allocate trajectory
     !
-    call check_dcdfile(dcdfile, nstep, natom)
+    call check_dcdfile(dcdfile, nstep, natom, err)
 
     ! allocate data_k
     !
     allocate(data_k(nbrella))
     allocate(time_k(nstep, nbrella))
 
-    if (natom /= option%num_atoms) &
-      call error_msg( &
-      'Build_Data_K_From_Dcd> Dcd atom count is different from PSF/PRMTOP.')
+    if (natom /= option%num_atoms) then
+      call error_set(err, ERROR_CODE, & 
+         'Build_Data_K_Readref> Dcd atom count is different from PSF/PRMTOP.')
+      return
+    end if
 
     call alloc_trajectory(trajectory, natom)
 
@@ -981,7 +1042,8 @@ contains
 
       allocate(data_k(i)%vcrd(1:nselatom*3, 1:nstep))
 
-      filename = get_replicate_name1(dcdfile, i)
+      filename = get_replicate_name1(dcdfile, i, err)
+      if (error_has(err)) return
       write(MsgOut,'(a,a)') '  read and analyze trajectory: ',trim(filename)
 
       call open_trj(file, &
@@ -1032,12 +1094,13 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine build_u_kl_from_cv(option, data_k, u_kl)
+  subroutine build_u_kl_from_cv(option, data_k, u_kl, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
     type(s_data_k),          intent(in)    :: data_k(:)
     type(s_u_kl),            allocatable   :: u_kl(:,:)
+    type(s_error),           intent(inout) :: err
  
     ! local variables
     real(wp),    allocatable :: umbrella_center(:,:), k_constant(:,:)
@@ -1061,7 +1124,9 @@ contains
         nbrella = nbrella * option%rest_nreplica(option%rest_func_no(i, 1))
       end do
     else
-      call error_msg('Build_U_Kl_From_CV> dimension > 2 not supported')
+      call error_set(err, ERROR_CODE, & 
+         'Build_U_Kl_From_CV> dimension > 2 not supported')
+      return
     end if
 
     allocate(u_kl(nbrella, nbrella))
@@ -1136,12 +1201,13 @@ contains
   end subroutine build_u_kl_from_cv
 
   !======1=========2=========3=========4=========5=========6=========7=========8
-  subroutine build_u_kl_from_cv_ene(option, data_k, u_kl)
+  subroutine build_u_kl_from_cv_ene(option, data_k, u_kl, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
     type(s_data_k),          intent(in)    :: data_k(:)
     type(s_u_kl),            allocatable   :: u_kl(:,:)
+    type(s_error),           intent(inout) :: err
  
     ! local variables
     real(wp),    allocatable :: umbrella_center(:,:), k_constant(:,:)
@@ -1164,7 +1230,9 @@ contains
         nbrella = nbrella * option%rest_nreplica(option%rest_func_no(i, 1))
       end do
     else
-      call error_msg('Build_U_Kl_From_CV> dimension > 2 not supported')
+      call error_set(err, ERROR_CODE, & 
+         'Build_U_Kl_From_CV> dimension > 2 not supported')
+      return
     end if
 
     allocate(u_kl(nbrella, nbrella))
@@ -1239,12 +1307,13 @@ contains
   end subroutine build_u_kl_from_cv_ene
 
   !======1=========2=========3=========4=========5=========6=========7=========8
-  subroutine build_u_kl_from_ene(option, data_k, u_kl)
+  subroutine build_u_kl_from_ene(option, data_k, u_kl, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
     type(s_data_k),          intent(in)    :: data_k(:)
     type(s_u_kl),            allocatable   :: u_kl(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: nbrella, ibrella, ndim, nfunc, ifunc, nstep, istep
@@ -1264,7 +1333,9 @@ contains
              .or. option%input_type == InputTypeMBGO) then
       nfunc = nbrella
     else
-      call error_msg('Build_U_KL_From_Ene> unsupported input type')
+      call error_set(err, ERROR_CODE, & 
+          'Build_U_KL_From_Ene> unsupported input type')
+      return
     end if
 
     nstep = size(data_k(1)%v(:,1))
@@ -1382,18 +1453,20 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine solve_mbar(option, u_kl, f_k)
+  subroutine solve_mbar(option, u_kl, f_k, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
     type(s_u_kl),            intent(in)    :: u_kl(:,:)
     type(s_f_k),             allocatable   :: f_k(:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     real(wp)                 :: rstep
     integer                  :: iblock, nblock, nstep, istep0, istep1
 
 
+    if (error_has(err)) return
     write(MsgOut,'(a)') 'Solve_Mbar> '
     write(MsgOut,'(a)') ''
 
@@ -1412,7 +1485,8 @@ contains
       istep1 = nint(rstep)
 
       call solve_mbar_block(option, u_kl, iblock, &
-                            istep0-1, istep1-istep0+1, f_k(iblock)%v)
+                            istep0-1, istep1-istep0+1, f_k(iblock)%v, err)
+      if (error_has(err)) return
 
       istep0 = istep1 + 1
 
@@ -1426,7 +1500,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine solve_mbar_block(option, u_kl, iblock, step0, nstep, f_k)
+  subroutine solve_mbar_block(option, u_kl, iblock, step0, nstep, f_k, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
@@ -1435,6 +1509,7 @@ contains
     integer,                 intent(in)    :: step0
     integer,                 intent(in)    :: nstep
     real(wp),                allocatable   :: f_k(:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     real(wp)                 :: check_convergence, N_max, f_kc
@@ -1471,8 +1546,11 @@ contains
     end do
 
     N_max = maxval(N_k(1:nbrella))
-    if (int(N_max) /= nstep) &
-      call error_msg('Solve_Mbar> must be N_max eq nstep')
+    if (int(N_max) /= nstep) then
+      call error_set(err, ERROR_CODE, & 
+            'Solve_Mbar_Block> must be N_max eq nstep')
+      return
+    end if
 
 
     ! solve the MBAR equation by self-consistent iteration
@@ -1494,7 +1572,8 @@ contains
       do ibrella = 1, nbrella
 
         call mbar_log_wi_jn(N_k, f_k, u_kln, u_kln(:,ibrella,:), &
-                            nbrella, nstep, log_wi_jn)
+                            nbrella, nstep, log_wi_jn, err)
+        if (error_has(err)) return
         f_k_new(ibrella) = - logsumexp2d(log_wi_jn)
 
       end do
@@ -1540,7 +1619,8 @@ contains
       do ibrella = 1, nbrella
 
         call mbar_log_wi_jn(N_k, f_k, u_kln, u_kln(:,ibrella,:), &
-                            nbrella, nstep, log_wi_jn)
+                            nbrella, nstep, log_wi_jn, err)
+        if (error_has(err)) return
         W_nk(:,ibrella) = reshape(exp(log_wi_jn+f_k(ibrella)),(/nstep*nbrella/))
 
       end do
@@ -1583,8 +1663,8 @@ contains
             option%newton_iteration + option%self_iteration) then
         if  (check_convergence > option%tolerance) then
           write(MsgOut,'(a)') 'WARNING: Not converged'
-        endif
-      endif
+        end if
+      end if
     end do
 
 
@@ -1593,7 +1673,8 @@ contains
     do ibrella = 1, nbrella
 
       call mbar_log_wi_jn(N_k, f_k, u_kln, u_kln(:,ibrella,:), &
-                          nbrella, nstep, log_wi_jn)
+                          nbrella, nstep, log_wi_jn, err)
+      if (error_has(err)) return
       f_k(ibrella) = - logsumexp2d(log_wi_jn)
 
     end do
@@ -1613,12 +1694,13 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine assign_bin(option, data_k, bin_k)
+  subroutine assign_bin(option, data_k, bin_k, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
     type(s_data_k),          intent(in)    :: data_k(:)  ! nbrella
     type(s_bin_k),           allocatable   :: bin_k(:)   ! nbrella
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: nbrella, nstep, i, j, nbin_y
@@ -1651,7 +1733,8 @@ contains
       if (option%dimension == 1) then
 
         call assign_bin_1d(option, 1, data_k(i)%v(:,1), &
-                           bin_k(i)%v, bin_k(i)%center_x)
+                           bin_k(i)%v, bin_k(i)%center_x, err)
+        if (error_has(err)) return
 
         if ((i == 1) .and. (allocated(bin_k(i)%center_x))) then
           write(MsgOut, '(a,i3)') 'Assign_Bin> centers of grids in dimension ',1
@@ -1665,10 +1748,10 @@ contains
       else
 
         call assign_bin_1d(option, 1, data_k(i)%v(:,1), &
-                           bin_x, bin_k(i)%center_x)
+                           bin_x, bin_k(i)%center_x, err)
 
         call assign_bin_1d(option, 2, data_k(i)%v(:,2), &
-                           bin_y, bin_k(i)%center_y)
+                           bin_y, bin_k(i)%center_y, err)
 
         if ((i == 1) .and. (allocated(bin_k(i)%center_x))) then
           write(MsgOut, '(a,i3)') 'Assign_Bin> centers of grids in dimension ',1
@@ -1710,7 +1793,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine compute_pmf(option, u_kl, u_k, bin_k, f_k, pmf_i)
+  subroutine compute_pmf(option, u_kl, u_k, bin_k, f_k, pmf_i, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
@@ -1719,6 +1802,7 @@ contains
     type(s_bin_k),           intent(in)    :: bin_k(:)
     type(s_f_k),             intent(in)    :: f_k(:)
     type(s_pmf),             allocatable   :: pmf_i(:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     real(wp)                 :: rstep, pmf_min
@@ -1728,6 +1812,7 @@ contains
     type(s_pmf), allocatable :: pmf0(:)
     real(wp),    allocatable :: v(:)
 
+    if (error_has(err)) return
     write(MsgOut,'(a)') 'Compute_Pmf>'
 
     if (option%num_grids(1) == 0) then
@@ -1758,7 +1843,8 @@ contains
 
       call compute_pmf_block(option, u_kl, u_k, bin_k, f_k(iblock)%v, &
                                iblock, istep0-1, istep1-istep0+1, &
-                               pmf0(iblock)%v)
+                               pmf0(iblock)%v, err)
+      if (error_has(err)) return
 
       istep0 = istep1 + 1
 
@@ -1823,7 +1909,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine compute_weight(option, u_kl, u_k, bin_k, f_k, weight_k)
+  subroutine compute_weight(option, u_kl, u_k, bin_k, f_k, weight_k, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
@@ -1832,6 +1918,7 @@ contains
     type(s_bin_k),           intent(in)    :: bin_k(:)
     type(s_f_k),             intent(in)    :: f_k(:)
     real(wp),                allocatable   :: weight_k(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     real(wp)                 :: rstep
@@ -1858,7 +1945,8 @@ contains
           deallocate(weight_k)
         call compute_weight_block(option, u_kl, u_k, bin_k, f_k(iblock)%v, &
                                  iblock, istep0-1, istep1-istep0+1, &
-                                 weight_k)
+                                 weight_k, err)
+        if (error_has(err)) return
       end if
 
       istep0 = istep1 + 1
@@ -1874,7 +1962,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine compute_pmf_block(option, u_kl, u_k, bin_k, f_k, &
-                                 iblock, step0, nstep, pmf_i)
+                                 iblock, step0, nstep, pmf_i, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
@@ -1886,6 +1974,7 @@ contains
     integer,                 intent(in)    :: step0
     integer,                 intent(in)    :: nstep
     real(wp),                allocatable   :: pmf_i(:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     real(wp)                 :: N_max, s
@@ -1934,8 +2023,11 @@ contains
     end do
 
     N_max = maxval(N_k(1:nbrella))
-    if (int(N_max) /= nstep) &
-      call error_msg('Solve_Mbar> must be N_max eq n-step')
+    if (int(N_max) /= nstep) then
+      call error_set(err, ERROR_CODE, & 
+            'Compute_Pmf_Block> must be N_max eq n-step')
+      return
+    end if
 
 
     ! !
@@ -1964,7 +2056,8 @@ contains
 
 
     call mbar_log_wi_jn(N_k, f_k, u_kln, u_kn, &
-                        nbrella, nstep, log_w_kn)
+                        nbrella, nstep, log_w_kn, err)
+    if (error_has(err)) return
 
     ! calc PMF
     !
@@ -2004,7 +2097,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine compute_weight_block(option, u_kl, u_k, bin_k, f_k, &
-                            iblock, step0, nstep, weight_k)
+                            iblock, step0, nstep, weight_k, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
@@ -2016,6 +2109,7 @@ contains
     integer,                 intent(in)    :: step0
     integer,                 intent(in)    :: nstep
     real(wp),                allocatable   :: weight_k(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     real(wp)                 :: N_max, s
@@ -2055,8 +2149,11 @@ contains
     end do
 
     N_max = maxval(N_k(1:nbrella))
-    if (int(N_max) /= nstep) &
-      call error_msg('Solve_Mbar> must be N_max eq n-step')
+    if (int(N_max) /= nstep) then
+      call error_set(err, ERROR_CODE, & 
+           'Compute_Weight_Block> must be N_max eq n-step')
+      return
+    end if
 
 
     ! !
@@ -2085,7 +2182,8 @@ contains
     end do
 
     call mbar_log_wi_jn(N_k, f_k, u_kln, u_kn, &
-                        nbrella, nstep, log_w_kn)
+                        nbrella, nstep, log_w_kn, err)
+    if (error_has(err)) return
 
     allocate(log_w_n(nstep*nbrella))
 
@@ -2124,7 +2222,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine output_mbar(option, output, bin_k, f_k, pmf, weight_k, time_k, &
-                         fene)
+                         fene, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
@@ -2135,6 +2233,7 @@ contains
     real(wp),                intent(in)    :: weight_k(:,:)
     real(wp),                intent(in)    :: time_k(:,:) 
     real(wp), pointer,       intent(inout) :: fene(:,:)
+    type(s_error),           intent(inout) :: err
 
 
     ! local variables
@@ -2179,8 +2278,11 @@ contains
 
       else
 
-        if (option%nblocks > 1) &
-          call error_msg('Output_MBar> n-block > 1 is not supported in 2D')
+        if (option%nblocks > 1) then
+          call error_set(err, ERROR_CODE, & 
+                 'Output_MBar> n-block > 1 is not supported in 2D')
+          return
+        end if
 
         nrep_x = option%rest_nreplica(option%rest_func_no(1, 1))
         nrep_y = option%rest_nreplica(option%rest_func_no(2, 1))
@@ -2229,8 +2331,11 @@ contains
 
       else
 
-        if (option%nblocks > 1) &
-          call error_msg('Output_MBar> n-block is not supported in 2D')
+        if (option%nblocks > 1) then
+          call error_set(err, ERROR_CODE, & 
+            'Output_MBar> n-block is not supported in 2D')
+          return
+        end if
 
         nbin_x = option%num_grids(1)-1
         nbin_y = option%num_grids(2)-1
@@ -2268,8 +2373,11 @@ contains
     !
     if (output%weightfile /= '') then
 
-      if (option%nblocks > 1) &
-     call error_msg('Output_MBar> # of block must be 1 when given weight file.')
+      if (option%nblocks > 1) then
+        call error_set(err, ERROR_CODE, & 
+               'Output_MBar> # of block must be 1 when given weight file.')
+        return
+      end if
 
       nstep = size(weight_k(:,1))
 
@@ -2284,7 +2392,8 @@ contains
         do irep_x = 1, nrep_x
 
           call open_file(file, &
-               get_replicate_name1(output%weightfile, irep_x), IOFileOutputNew)
+               get_replicate_name1(output%weightfile, irep_x, err), IOFileOutputNew)
+          if (error_has(err)) return
 
           do i = 1, nstep
             write(file,*) int(time_k(i,irep_x)), weight_k(i,irep_x)
@@ -2306,8 +2415,9 @@ contains
             j = j + 1
 
             call open_file(file, &
-               get_replicate_name1(output%weightfile, j), &
+               get_replicate_name1(output%weightfile, j, err), &
                IOFileOutputNew)
+            if (error_has(err)) return
 
             do i = 1, nstep
               write(file,*) &
@@ -2378,7 +2488,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  function get_dcd_cv(molecule, option, trajectory, func_idx)
+  function get_dcd_cv(molecule, option, trajectory, func_idx, err)
 
     ! function
     real(wp)                 :: get_dcd_cv
@@ -2388,6 +2498,7 @@ contains
     type(s_option),          intent(in)    :: option
     type(s_trajectory),      intent(in)    :: trajectory
     integer,                 intent(in)    :: func_idx
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: func_no, func, func_sel(4)
@@ -2400,8 +2511,11 @@ contains
     else
       func_no = option%rest_func_no(2, func_idx-option%rest_func_num(1))
     end if
-    if (func_no > size(option%rest_funcs(:))) &
-      call error_msg('Get_Dcd_Cv> bad restraint function No.')
+    if (func_no > size(option%rest_funcs(:))) then
+      call error_set(err, ERROR_CODE, & 
+            'Get_Dcd_Cv> bad restraint function No.')
+      return
+    end if
 
     func          = option%rest_funcs(func_no)
     func_sel(1:4) = option%rest_sel_index(1:4, func_no)
@@ -2412,15 +2526,17 @@ contains
     select case (func)
 
     case (RestraintsFuncPOSI)
-      call error_msg( &
-      'Get_Dcd_Cv> ERROR : RestraintsFuncPOSI : not supprted.')
+      call error_set(err, ERROR_CODE, & 
+        'Get_Dcd_Cv> ERROR : RestraintsFuncPOSI : not supprted.')
+      return
 
     case (RestraintsFuncDIST, RestraintsFuncDISTCOM)
       get_dcd_cv = get_com_dist(molecule, trajectory, option%selatoms, func_sel)
 
     case (RestraintsFuncRMSD, RestraintsFuncRMSDCOM)
-      call error_msg( &
-      'Get_Dcd_Cv> ERROR : RestraintsFuncRMSD/RMSDCOM : not supprted.')
+      call error_set(err, ERROR_CODE, & 
+        'Get_Dcd_Cv> ERROR : RestraintsFuncRMSD/RMSDCOM : not supprted.')
+      return
 
     case (RestraintsFuncANGLE, RestraintsFuncANGLECOM)
       get_dcd_cv = get_com_angl(molecule, trajectory, option%selatoms, func_sel)
@@ -2552,11 +2668,12 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine check_cvfile(cvfile, nsteps)
+  subroutine check_cvfile(cvfile, nsteps, err)
 
     ! formal arguments
     character(*),            intent(in)    :: cvfile
     integer,                 intent(inout) :: nsteps
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: file
@@ -2564,7 +2681,8 @@ contains
     character(MaxLineLong_CV) :: line
 
 
-    filename = get_replicate_name1(cvfile, 1)
+    filename = get_replicate_name1(cvfile, 1, err)
+    if (error_has(err)) return
 
     call open_file(file, filename, IOFileInput)
 
@@ -2587,12 +2705,13 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine check_dcdfile(dcdfile, nsteps, natom)
+  subroutine check_dcdfile(dcdfile, nsteps, natom, err)
 
     ! formal arguments
     character(*),            intent(in)    :: dcdfile
     integer,                 intent(inout) :: nsteps
     integer,                 intent(inout) :: natom
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     type(s_trj_file)         :: file
@@ -2606,7 +2725,8 @@ contains
     integer(8)               :: ftell
 
 
-    filename = get_replicate_name1(dcdfile, 1)
+    filename = get_replicate_name1(dcdfile, 1, err)
+    if (error_has(err)) return
 
 !    call open_trj(file, filename, TrjFormatDCD, TrjTypeCoorBox, IOFileInput)
     call open_trj(file, filename, TrjFormatDCD, TrjTypeCoor, IOFileInput)
@@ -2647,7 +2767,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  function get_replicate_name1(filename, no)
+  function get_replicate_name1(filename, no, err)
 
     ! return
     character(Maxfilename)   :: get_replicate_name1
@@ -2655,6 +2775,7 @@ contains
     ! formal arguments
     character(*),            intent(in)    :: filename
     integer,                 intent(in)    :: no
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: bl, br
@@ -2663,8 +2784,11 @@ contains
     bl = index(filename, '{', back=.true.)
     br = index(filename, '}', back=.true.)
 
-    if (bl == 0 .or. br == 0 .or. bl > br) &
-      call error_msg('Get_Replicate_Name1> Syntax error.')
+    if (bl == 0 .or. br == 0 .or. bl > br) then
+      call error_set(err, ERROR_CODE, & 
+        'Get_Replicate_Name1> Syntax error.')
+      return
+    end if
 
     write(get_replicate_name1, '(a,i0,a)') &
          filename(:bl-1),no,filename(br+1:len_trim(filename))
@@ -2675,7 +2799,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  function get_replicate_name2(filename, no1, no2)
+  function get_replicate_name2(filename, no1, no2, err)
 
     ! return
     character(Maxfilename)   :: get_replicate_name2
@@ -2684,6 +2808,7 @@ contains
     character(*),            intent(in)    :: filename
     integer,                 intent(in)    :: no1
     integer,                 intent(in)    :: no2
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: bl1, br1, bl2, br2
@@ -2694,8 +2819,11 @@ contains
     bl2 = index(filename, '{', back=.true.)
     br2 = index(filename, '}', back=.true.)
 
-    if (bl1 == 0 .or. br1 == 0 .or. bl1 == bl2 .or. br1 == br2 .or. bl1 > br1) &
-      call error_msg('Get_Replicate_Name2> Syntax error.')
+    if (bl1 == 0 .or. br1 == 0 .or. bl1 == bl2 .or. br1 == br2 .or. bl1 > br1) then
+      call error_set(err, ERROR_CODE, & 
+        'Get_Replicate_Name2> Syntax error.')
+      return
+    end if
 
     write(get_replicate_name2, '(a,i0,a,i0,a)') &
          filename(     :bl1-1),no1, &
@@ -2728,7 +2856,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine mbar_log_wi_jn(N_k, f_k, u_kln, u_kn, nrep, nstp, log_wi_jn)
+  subroutine mbar_log_wi_jn(N_k, f_k, u_kln, u_kn, nrep, nstp, log_wi_jn, err)
 
     ! formal arguments
     integer,                 intent(in)    :: N_k(:)
@@ -2738,6 +2866,7 @@ contains
     integer,                 intent(in)    :: nrep
     integer,                 intent(in)    :: nstp
     real(wp),                intent(inout) :: log_wi_jn(:,:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     integer                  :: irep, istp, irep2
@@ -2756,8 +2885,10 @@ contains
     ! for K = 1:K
     do irep = 1, nrep
 
-      if (nstp /= N_k(irep)) &
-        call error_msg('MBar_Log_Wi_Jn> ERROR ')
+      if (nstp /= N_k(irep)) then
+        call error_set(err, ERROR_CODE, & 
+        'MBar_Log_Wi_Jn> ERROR ')
+      end if
 
       do irep2 = 1, nrep
         do istp = 1, nstp
@@ -2774,6 +2905,7 @@ contains
     !$omp end do
     !
     !$omp end parallel
+    if (error_has(err)) return
 
 
 !    !$omp parallel private(irep, istp, irep2)
@@ -2996,7 +3128,7 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine assign_bin_1d(option, idim, data_k, bin_k, center)
+  subroutine assign_bin_1d(option, idim, data_k, bin_k, center, err)
 
     ! formal arguments
     type(s_option),          intent(in)    :: option
@@ -3004,6 +3136,7 @@ contains
     real(wp),                intent(in)    :: data_k(:)
     integer,                 allocatable   :: bin_k(:)
     real(wp),                allocatable   :: center(:)
+    type(s_error),           intent(inout) :: err
 
     ! local variables
     real(wp)                 :: grid_min, grid_max, grid_range, k
@@ -3019,8 +3152,11 @@ contains
     num_grid = option%num_grids(idim)
     grid_range = grid_max - grid_min + num_grid * EPS
 
-    if (num_grid <= 1) &
-      call error_msg('Assign_Bin> ERROR: # of grid must be > 1.')
+    if (num_grid <= 1) then
+      call error_set(err, ERROR_CODE, & 
+        'Assign_Bin> ERROR: # of grid must be > 1.')
+      return
+    end if
 
     allocate(grid(num_grid), center(num_bins))
 

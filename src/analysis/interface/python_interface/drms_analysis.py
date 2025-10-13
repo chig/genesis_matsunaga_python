@@ -11,7 +11,7 @@ def test_drms_analysis():
     ref_path = pathlib.Path("BPTI_ionize.pdb")
 
     mol = SMolecule.from_file(pdb=pdb_path, psf=psf_path, ref=ref_path)
-    with genesis_exe.crd_convert(
+    trajs, subset_mol =  genesis_exe.crd_convert(
             mol,
             traj_params = [
                 TrajectoryParameters(
@@ -30,7 +30,11 @@ def test_drms_analysis():
             fitting_atom = 1,
             check_only = False,
             pbc_correct = "NO",
-            ) as trajs:
+    ) 
+
+    _ = subset_mol
+
+    try: 
         for t in trajs:
             drms, = genesis_exe.drms_analysis(
                     mol, t,
@@ -47,6 +51,9 @@ def test_drms_analysis():
                     verbose          = True,
                     )
             print(drms)
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
 
 
 def main():

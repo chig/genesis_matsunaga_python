@@ -24,6 +24,7 @@ module wa_analysis_c_mod
   use input_str_mod
   use molecules_str_mod
   use fileio_control_mod
+  use error_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
@@ -32,7 +33,8 @@ module wa_analysis_c_mod
 
 contains
   ! subroutine wa_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path) &
-  subroutine wa_analysis_c(ctrl_path, result_pmf, n_bins, n_bin_x) &
+  subroutine wa_analysis_c(ctrl_path, result_pmf, n_bins, n_bin_x,    &
+                           status, msg, msglen) &
         bind(C, name="wa_analysis_c")
     use conv_f_c_util
     implicit none
@@ -43,26 +45,40 @@ contains
     type(c_ptr), intent(out)    :: result_pmf
     integer(c_int), intent(out) :: n_bins
     integer(c_int), intent(out) :: n_bin_x
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
 
 
     ! type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
     real(wp), pointer :: pmf_f(:,:) => null()
 
+    type(s_error) :: err
+
+    call error_init(err)
 
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     ! call c2f_s_molecule(molecule, f_molecule)
     ! call wa_analysis_main( &
     !     f_molecule, s_trajes_c, ana_period, fort_ctrl_path)
     call wa_analysis_main( &
-        fort_ctrl_path, pmf_f, n_bins, n_bin_x)
+        fort_ctrl_path, pmf_f, n_bins, n_bin_x, err)
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
     result_pmf = c_loc(pmf_f)
   end subroutine wa_analysis_c
 
   ! subroutine wa_analysis_main( &
   !         molecule, s_trajes_c, ana_period, ctrl_filename)
   subroutine wa_analysis_main( &
-          ctrl_filename, result_pmf, n_bins, n_bin_x)
+          ctrl_filename, result_pmf, n_bins, n_bin_x, err)
     implicit none
     ! type(s_molecule), intent(inout) :: molecule
     ! type(s_trajectories_c), intent(in) :: s_trajes_c
@@ -71,6 +87,7 @@ contains
     real(wp), pointer, intent(out) :: result_pmf(:,:)
     integer,           intent(out) :: n_bins
     integer,           intent(out) :: n_bin_x
+    type(s_error),                   intent(inout) :: err
 
 
     ! local variables
@@ -108,7 +125,8 @@ contains
     write(MsgOut,'(A)') ' '
 
     ! call analyze(molecule, s_trajes_c, ana_period, input, output, option)
-    call analyze(molecule, input, output, option, result_pmf, n_bins, n_bin_x)
+    call analyze(molecule, input, output, option, result_pmf, n_bins, n_bin_x, err)
+    if (error_has(err)) return
 
 
     ! [Step4] Deallocate memory

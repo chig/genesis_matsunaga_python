@@ -25,6 +25,7 @@ module ra_analysis_c_mod
   use output_str_mod
   use molecules_str_mod
   use fileio_control_mod
+  use error_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
@@ -33,7 +34,7 @@ module ra_analysis_c_mod
 
 contains
   subroutine ra_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                           result_ra) &
+                           result_ra, status, msg, msglen) &
         bind(C, name="ra_analysis_c")
     use conv_f_c_util
     implicit none
@@ -42,26 +43,42 @@ contains
     integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
     type(c_ptr), intent(out) :: result_ra
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
     real(wp), pointer :: ra(:)
 
+    type(s_error) :: err
+
+    call error_init(err)
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call ra_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, ra)
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, ra, err)
+
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
     result_ra = c_loc(ra)
   end subroutine ra_analysis_c
 
   subroutine ra_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename, ra)
+          molecule, s_trajes_c, ana_period, ctrl_filename, ra, err)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
     real(wp), pointer, intent(out) :: ra(:)
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -98,7 +115,8 @@ contains
     write(MsgOut,'(A)') ' '
 
     call analyze(molecule, s_trajes_c, ana_period, output, option, &
-                 fitting, ra)
+                 fitting, ra, err)
+    if (error_has(err)) return
 
 
     ! [Step4] Deallocate memory

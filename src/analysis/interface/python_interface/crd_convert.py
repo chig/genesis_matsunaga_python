@@ -10,7 +10,7 @@ def test_crd():
     pdb_path = pathlib.Path("BPTI_ionize.pdb")
     psf_path = pathlib.Path("BPTI_ionize.psf")
     mol = SMolecule.from_file(pdb=pdb_path, psf=psf_path)
-    with genesis_exe.crd_convert(
+    trajs, subset_mol =  genesis_exe.crd_convert(
             mol,
             traj_params = [
                 TrajectoryParameters(
@@ -20,7 +20,7 @@ def test_crd():
                     ana_period = 1,
                     repeat = 1,
                     ),
-                ],
+            ],
             trj_format = "DCD",
             trj_type = "COOR+BOX",
             trj_natom = 0,
@@ -33,9 +33,17 @@ def test_crd():
             center_coord = (0.0, 0.0, 0.0),
             pbc_correct = "molecule",
             rename_res = ["HSE HIS", "HSE HIS"],
-            ) as trajs:
+        )
+
+    _ = subset_mol
+
+    try:
         for t in trajs:
-            pass
+           pass
+
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
 
 
 def main():

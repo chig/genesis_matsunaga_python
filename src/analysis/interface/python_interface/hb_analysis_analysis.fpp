@@ -22,6 +22,7 @@ module hb_analysis_analyze_c_mod
   use select_atoms_mod
   use select_atoms_str_mod
   use fileio_mod
+  use error_mod
   use messages_mod
   use constants_mod
   use atom_libs_mod
@@ -71,7 +72,8 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine analyze(molecule, trajes_c, ana_period, option, output, out_text)
+  subroutine analyze(molecule, trajes_c, ana_period, option, output, out_text, &
+                     err)
     use s_trajectories_c_mod
     use dynamic_string_mod
 
@@ -82,6 +84,7 @@ contains
     type(s_option),           intent(in)    :: option
     type(s_output),           intent(in)    :: output
     character(len=:), allocatable, intent(out) :: out_text
+    type(s_error),            intent(inout) :: err
 
     ! local variables
     type(s_trajectory) :: trajectory
@@ -124,12 +127,13 @@ contains
     numr => molecule%residue_no
     seg  => molecule%segment_name
 
+    if (error_has(err)) return
 
     ! check option
     !
     !if (option%boundary_type == BoundaryTypePBC) then
     !  if (trj_list%trj_type /= TrjTypeCoorBox) then
-    !    call error_msg('hb_analysis> when boundary_type = PBC, TrjType must be COOR+BOX.')
+    !     call error_msg('hb_analysis> when boundary_type = PBC, TrjType must be COOR+BOX.')
     !  end if
     !end if
 
@@ -145,7 +149,8 @@ contains
     ! for target_atom
     call get_polar_atom(molecule, option%target_atom, target_group)
     call setup_hb_partner_list(molecule, option, target_group,  &
-                               partner_list, partner_atom)
+                               partner_list, partner_atom, err)
+    if (error_has(err)) return
 
 #ifdef DEBUG
     write(MsgOut,'(A)') 'HB_Analyze> polar atoms are extracted from the target_atom group.'
@@ -481,7 +486,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine setup_hb_partner_list(molecule, option, polar_atom, &
-                                   partner_idx, partner_atom)
+                                   partner_idx, partner_atom, err)
 
     ! formal arguments
     type(s_molecule),                intent(in)    :: molecule
@@ -489,6 +494,7 @@ contains
     type(s_polar_atom),              intent(in)    :: polar_atom(:)
     integer,            allocatable, intent(out)   :: partner_idx(:)
     type(s_partner),    allocatable, intent(out)   :: partner_atom(:)
+    type(s_error),                   intent(inout) :: err
 
     ! local variable
     integer                      :: n_solvent, i_solvent
@@ -504,6 +510,15 @@ contains
     integer                      :: n_partner
     type(s_partner), allocatable :: idx_to_atom(:)
     real(wp)                     :: mass
+
+
+    if (error_has(err)) return
+
+    if (.not. allocated(option%solvent_list)) then
+      call error_set(err, ERROR_CODE, & 
+        "Setup_HB_partner_List> option%solvent_list is not allocated")
+      return
+    end if
 
 
     n_solvent = size(option%solvent_list)
@@ -562,8 +577,11 @@ contains
       residue_name = molecule%residue_name(atom_no)
       mass         = molecule%mass(atom_no)
 
-      if (.not. is_polar_atom(mass, atomcls))  &
-        call error_msg('Setup_HB_partner_List> ERROR: non-polar atom is included')
+      if (.not. is_polar_atom(mass, atomcls))  then
+         call error_set(err, ERROR_CODE,  &
+         "Setup_HB_partner_List> ERROR: non-polar atom is included")
+         return
+      endif
 
       if (molecule%residue_no(atom_no) /= pre_resno) then
         i_polar = 0

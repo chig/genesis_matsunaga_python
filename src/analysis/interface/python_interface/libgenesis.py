@@ -81,6 +81,9 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.POINTER(ctypes.c_void_p),
                 ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.c_int,
                 ]
         self.lib.crd_convert_c.restype = None
 
@@ -113,6 +116,9 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
                 ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.c_int,
                 ]
         self.lib.ra_analysis_c.restype = None
 
@@ -122,6 +128,9 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
                 ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.c_int,
                 ]
         self.lib.dr_analysis_c.restype = None
 
@@ -133,6 +142,9 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_void_p),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.c_int,
                 ]
         self.lib.ma_analysis_c.restype = None
 
@@ -151,6 +163,9 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
                 ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.c_int,
                 ]
         self.lib.hb_analysis_c.restype = None
 
@@ -160,6 +175,9 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
                 ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.c_int,
                 ]
         self.lib.aa_analysis_c.restype = None
 
@@ -187,12 +205,18 @@ class LibGenesis:
                 ctypes.c_void_p,
                 ctypes.c_void_p,
                 ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.c_int,
                 ]
         self.lib.kc_analysis_c.restype = None
 
         self.lib.export_pdb_to_string_c.argtyes = [
                 ctypes.POINTER(SMoleculeC),
                 ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_char_p,
+                ctypes.c_int,
                 ]
         self.lib.export_pdb_to_string_c.restype = None
 

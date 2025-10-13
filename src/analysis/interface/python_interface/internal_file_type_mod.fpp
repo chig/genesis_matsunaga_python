@@ -2,23 +2,26 @@ module internal_file_type_mod
   use fileio_pdb_mod
   use messages_mod
   use dynamic_string_mod
+  use error_mod
   implicit none
 
 contains
-  subroutine write_pdb_to_string(dst_str, pdb)
+  subroutine write_pdb_to_string(dst_str, pdb, err)
     implicit none
     character(len=:), allocatable, intent(out) :: dst_str
     type(s_pdb),             intent(in)    :: pdb
+    type(s_error),            intent(inout) :: err
     allocate(character(len=1024) :: dst_str)
     dst_str = ' '
-    call append_pdb_to_string(dst_str, pdb)
+    call append_pdb_to_string(dst_str, pdb, err)
   end subroutine write_pdb_to_string
 
-  subroutine append_pdb_to_string(dst_str, pdb)
+  subroutine append_pdb_to_string(dst_str, pdb, err)
     implicit none
     ! formal arguments
     character(len=:), allocatable, intent(inout) :: dst_str
     type(s_pdb),             intent(in)    :: pdb
+    type(s_error),            intent(inout) :: err
 
     ! local variables
     integer                  :: i, j, len
@@ -31,26 +34,57 @@ contains
 
     character(len=80) :: line_buf
 
-    if (.not.allocated(pdb%hetatm)) &
-      call error_msg('Out_Pdb> not allocated: pdb%hetatm')
-    if (.not.allocated(pdb%atom_name)) &
-      call error_msg('Out_Pdb> not allocated: pdb%atom_name')
-    if (.not.allocated(pdb%residue_name)) &
-      call error_msg('Out_Pdb> not allocated: pdb%residue_name')
-    if (.not.allocated(pdb%segment_name)) &
-      call error_msg('Out_Pdb> not allocated: pdb%segment_name')
-    if (.not.allocated(pdb%chain_id)) &
-      call error_msg('Out_Pdb> not allocated: pdb%chain_id')
-    if (.not.allocated(pdb%atom_no)) &
-      call error_msg('Out_Pdb> not allocated: pdb%atom_no')
-    if (.not.allocated(pdb%residue_no)) &
-      call error_msg('Out_Pdb> not allocated: pdb%residue_no')
-    if (.not.allocated(pdb%atom_coord)) &
-      call error_msg('Out_Pdb> not allocated: pdb%atom_coord')
-    if (.not.allocated(pdb%atom_occupancy)) &
-      call error_msg('Out_Pdb> not allocated: pdb%atom_occupancy')
-    if (.not.allocated(pdb%atom_temp_factor)) &
-      call error_msg('Out_Pdb> not allocated: pdb%atom_temp_factor')
+    if (.not.allocated(pdb%hetatm)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%hetatm')
+      return
+    end if
+
+    if (.not.allocated(pdb%atom_name)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%atom_name')
+      return
+    end if
+    if (.not.allocated(pdb%residue_name)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%residue_name')
+      return
+    end if
+    if (.not.allocated(pdb%segment_name)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%segment_name')
+      return
+    end if
+    if (.not.allocated(pdb%chain_id)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%chain_id')
+      return
+    end if
+    if (.not.allocated(pdb%atom_no)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%atom_no')
+      return
+    end if
+    if (.not.allocated(pdb%residue_no)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%residue_no')
+      return
+    end if
+    if (.not.allocated(pdb%atom_coord)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%atom_coord')
+      return
+    end if
+    if (.not.allocated(pdb%atom_occupancy)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%atom_occupancy')
+      return
+    end if
+    if (.not.allocated(pdb%atom_temp_factor)) then
+      call error_set(err, ERROR_CODE, & 
+      'Out_Pdb> not allocated: pdb%atom_temp_factor')
+      return
+    end if
 
     num_atoms = size(pdb%hetatm)
     num_ters  = size(pdb%ter_line_no)

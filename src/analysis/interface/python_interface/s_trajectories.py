@@ -37,7 +37,10 @@ class STrajectories:
         self._mem_owner = mem_owner
 
     def __del__(self) -> None:
-        self.free()
+        try:
+            self.free()
+        except Exception:
+            pass
 
     def __enter__(self) -> Self:
         return self
@@ -53,10 +56,64 @@ class STrajectories:
 
     def free(self):
         """deallocate resources"""
-        if self._mem_owner and self.c_obj:
-            LibGenesis().lib.deallocate_s_trajectories_c(
-                    ctypes.byref(self.c_obj))
-            self.c_obj = None
+        mem_owner = bool(getattr(self, "_mem_owner", False))
+        cobj = getattr(self, "c_obj", None)
+
+        if (not mem_owner) or (cobj is None):
+            return
+        if hasattr(cobj, "value") and not cobj.value:
+            return
+
+        try:
+          lib = LibGenesis().lib
+        except Exception:
+            self._mem_owner = False
+
+            if hasattr(self, "src_c_obj"):
+                self.src_c_obj = ctypes.c_void_p()
+            else:
+                try: 
+                    self.c_obj = None
+                except Exception:
+                    pass
+        try:
+            STrajectoriesC
+        except NameError:
+            pass
+
+        try:
+            if isinstance(cobj, STrajectoriesC):
+                lib.deallocate_s_trajectories_c.argtypes = [ctypes.POINTER(STrajectoriesC)]
+                lib.deallocate_s_trajectories_c.restype = None
+                lib.deallocate_s_trajectories_c(ctypes.byref(cobj))
+            elif isinstance(cobj, ctypes.POINTER(STrajectoriesC)):
+                lib.deallocate_s_trajectories_c.argtypes = [ctypes.POINTER(STrajectoriesC)]
+                lib.deallocate_s_trajectories_c.restype = None
+                lib.deallocate_s_trajectories_c(cobj)
+            elif isinstance(cobj, ctypes.c_void_p):
+                lib.deallocate_s_trajectories_c.argtypes = [ctypes.c_void_p]
+                lib.deallocate_s_trajectories_c.restype = None
+                lib.deallocate_s_trajectories_c(cobj)
+            else:
+                elty = getattr(cobj, "_type_", None)
+                if isinstance(cobj, ctypes._Pointer) and isinstance(elty,  type) and issubclass(elty, ctypes.Structure):
+                    lib.deallocate_s_trajectories_c.argtypes = [ctypes.POINTER(elty)]
+                    lib.deallocate_s_trajectories_c.restype = None
+                    lib.deallocate_s_trajectories_c(cobj)
+                else:
+                    raise TypeError(f"Unsupported handle type for free(): {type(cobj)}")
+
+
+        finally:
+            self._mem_owner = False
+            try:
+                if hasattr(self, "src_c_obj"):
+                    self.src_c_obj = ctypes.c_void_p()
+                else:
+                    self.c_obj = None
+            except Exception:
+                pass
+
 
     def get_c_obj(self) -> STrajectoriesC:
         return self.c_obj
@@ -144,7 +201,10 @@ class STrajectoriesArray:
                         self.src_c_obj[i], mem_owner=False))
 
     def __del__(self) -> None:
-        self.free()
+        try:
+            self.free()
+        except Exception:
+            pass
 
     def __enter__(self) -> Self:
         return self
@@ -160,14 +220,46 @@ class STrajectoriesArray:
 
     def free(self) -> None:
         """deallocate resources"""
-        if self.src_c_obj:
-            len_array = ctypes.c_int(len(self.traj_array))
-            LibGenesis().lib.deallocate_s_trajectories_c_array(
-                    ctypes.byref(self.src_c_obj),
+        try:
+            cobj = getattr(self, "c_obj", None)
+            arr = getattr(self, "traj_array", None)
+
+            if not cobj is None or not bool(cobj):
+                return
+
+            n = len(arr) if isinstance(arr, (list, tuple)) else 0
+            len_array = types.c_int(n)
+
+            try:
+                lib = LibGenesis().lib
+            except Exception:
+                self.src_c_obj = None
+                if hasattr(self, "traj_array") and arr is not None:
+                    try: arr.clear()
+                    except Exception: pass
+                return
+
+            try:
+                lib.deallocate_s_trajectories_c_array(
+                    ctypes.byref(cobj),
                     ctypes.byref(len_array))
-            self.src_c_obj = ctypes.POINTER(STrajectoriesC)()
-            self.traj_array.clear()
-            self.src_c_obj = None
+            finally:
+                self.src_c_obj = None
+                if hasattr(self, "traj_array") and arr is not None:
+                    try: arr.clear()
+                    except Exception: pass
+        except Exception:
+            try:
+                self.src_c_obj = None
+            except Exception:
+                pass
+
+    def get_c_obj(self):
+        return self.c_obj
+
+    @property
+    def c_obj(self):
+        return self.src_c_obj
 
     def __iter__(self):
         return STrajectoriesArrayIterator(self)

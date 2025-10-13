@@ -25,6 +25,7 @@ module aa_analysis_c_mod
   use output_str_mod
   use molecules_str_mod
   use fileio_control_mod
+  use error_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
@@ -33,7 +34,7 @@ module aa_analysis_c_mod
 
 contains
   subroutine aa_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                           out_pdb_ave_ptr) &
+                           out_pdb_ave_ptr, status, msg, msglen) &
         bind(C, name="aa_analysis_c")
     use conv_f_c_util
     implicit none
@@ -42,16 +43,29 @@ contains
     integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
     type(c_ptr), intent(out) :: out_pdb_ave_ptr
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
     character(len=:), allocatable :: out_pdb_ave_f
     character(kind=c_char), pointer :: out_pdb_ave_c(:)
 
+    type(s_error) :: err
+
+    call error_init(err)
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call aa_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, out_pdb_ave_f)
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, out_pdb_ave_f, err)
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
     call dealloc_molecules_all(f_molecule)
     if (allocated(out_pdb_ave_f)) then
       call f2c_string(out_pdb_ave_f, out_pdb_ave_c)
@@ -62,13 +76,14 @@ contains
   end subroutine aa_analysis_c
 
   subroutine aa_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename, out_pdb_ave)
+          molecule, s_trajes_c, ana_period, ctrl_filename, out_pdb_ave, err)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
     character(len=:), allocatable, intent(out) :: out_pdb_ave
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -114,7 +129,9 @@ contains
                  fitting,    &
                  option,     &
                  output,     &
-                 out_pdb_ave)
+                 out_pdb_ave,&
+                 err)
+    if (error_has(err)) return
 
 
     ! [Step4] Deallocate memory

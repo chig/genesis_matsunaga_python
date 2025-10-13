@@ -26,6 +26,7 @@ module kc_analysis_c_mod
   use output_str_mod
   use molecules_str_mod
   use fileio_control_mod
+  use error_mod
   use string_mod
   use messages_mod
   use mpi_parallel_mod
@@ -34,7 +35,7 @@ module kc_analysis_c_mod
 
 contains
   subroutine kc_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-          out_pdb_ptr, cluster_index, size_cluster_index) &
+          out_pdb_ptr, cluster_index, size_cluster_index, status, msg, msglen)  &
         bind(C, name="kc_analysis_c")
     use conv_f_c_util
     implicit none
@@ -45,6 +46,9 @@ contains
     type(c_ptr), intent(out) :: out_pdb_ptr
     type(c_ptr), intent(out) :: cluster_index
     integer(c_int), intent(out) :: size_cluster_index
+    integer(c_int),          intent(out) :: status
+    character(kind=c_char),  intent(out) :: msg(*)
+    integer(c_int),          value       :: msglen
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
@@ -52,11 +56,24 @@ contains
     character(kind=c_char), pointer :: out_pdb_c(:)
     integer, allocatable :: cluster_index_f(:)
 
+    type(s_error) :: err
+
+    call error_init(err)
+
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
     call kc_analysis_main( &
         f_molecule, s_trajes_c, ana_period, fort_ctrl_path, &
-        out_pdb_f, cluster_index_f)
+        out_pdb_f, cluster_index_f, err)
+
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      return
+    end if
+
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
     if (allocated(out_pdb_f)) then
       call f2c_string(out_pdb_f, out_pdb_c)
       out_pdb_ptr = c_loc(out_pdb_c(1))
@@ -74,7 +91,7 @@ contains
 
   subroutine kc_analysis_main( &
           molecule, s_trajes_c, ana_period, ctrl_filename, &
-          out_pdb, cluster_index)
+          out_pdb, cluster_index, err)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
@@ -82,6 +99,7 @@ contains
     character(*), intent(in) :: ctrl_filename
     character(len=:), allocatable, intent(out) :: out_pdb
     integer, allocatable,     intent(out) :: cluster_index(:)
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
@@ -131,7 +149,9 @@ contains
                  option,     &
                  output,     &
                  out_pdb,    &
-                 cluster_index)
+                 cluster_index, &
+                 err)
+    if (error_has(err)) return
 
 
     ! [Step4] Deallocate memory

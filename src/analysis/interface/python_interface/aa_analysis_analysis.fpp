@@ -24,6 +24,7 @@ module aa_analysis_analyze_c_mod
   use molecules_str_mod
   use fileio_pdb_mod
   use fileio_mod
+  use error_mod
   use messages_mod
   use constants_mod
 
@@ -51,7 +52,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine analyze(molecule, trajes_c, ana_period, fitting, option, output, &
-                     out_pdb_ave)
+                     out_pdb_ave, err)
     use s_trajectories_c_mod
     use internal_file_type_mod
 
@@ -63,6 +64,7 @@ contains
     type(s_option),          intent(inout) :: option
     type(s_output),          intent(inout) :: output
     character(len=:), allocatable, intent(out) :: out_pdb_ave
+    type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_trajectory) :: trajectory
@@ -93,8 +95,10 @@ contains
              av0_coord(3,natom), &
              ave_coord(3,natom), &
              trj_coord(3,natom), stat=alloc_stat)
-    if (alloc_stat /= 0) &
-      call error_msg_alloc
+    if (alloc_stat /= 0) then
+      call error_set(err, ERROR_CODE, "AA_Analysis> allocation is failed")
+      return
+    endif
 
 
     ! prepare data
@@ -214,7 +218,8 @@ contains
 
     if (output%pdb_avefile /= '') then
       call export_molecules(molecule, option%analysis_atom, pdb_out)
-      call write_pdb_to_string(out_pdb_ave, pdb_out)
+      call write_pdb_to_string(out_pdb_ave, pdb_out, err)
+      if (error_has(err)) return
       call dealloc_pdb_all(pdb_out)
     end if
 
