@@ -1,5 +1,11 @@
 import ctypes
-from typing import Self
+import sys
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
 import numpy as np
 import numpy.typing as npt
 from .s_trajectories_c import STrajectoriesC
