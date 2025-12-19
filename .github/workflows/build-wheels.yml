@@ -32,12 +32,14 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gfortran liblapack-dev libblas-dev autoconf automake libtool
+          sudo apt-get install -y gfortran liblapack-dev libblas-dev autoconf automake libtool python3
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install gcc lapack autoconf automake libtool
+          # Create symlink for gfortran (Homebrew installs as gfortran-14)
+          sudo ln -sf $(brew --prefix)/bin/gfortran-14 /usr/local/bin/gfortran || true
 
       - name: Generate configure script
         run: |
