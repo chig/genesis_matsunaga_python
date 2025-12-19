@@ -205,7 +205,20 @@ jobs:
             sed -i 's/linux_x86_64/manylinux_2_35_x86_64/g' $WHEEL_DIR/*.dist-info/WHEEL &&
             python -m wheel pack $WHEEL_DIR -d {dest_dir} &&
             rm -rf $WHEEL_DIR
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: "cp {wheel} {dest_dir}/"
+          # macOS: fix platform tags for broader compatibility
+          # - arm64: use macosx_11_0 (minimum for Apple Silicon)
+          # - x86_64: use macosx_10_14 (Mojave, broad compatibility)
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+            pip install wheel &&
+            WHEEL_DIR=$(mktemp -d) &&
+            unzip -q {wheel} -d $WHEEL_DIR &&
+            if [[ "{wheel}" == *"arm64"* ]]; then
+              sed -i '' 's/macosx_[0-9]*_[0-9]*_arm64/macosx_11_0_arm64/g' $WHEEL_DIR/*.dist-info/WHEEL;
+            else
+              sed -i '' 's/macosx_[0-9]*_[0-9]*_x86_64/macosx_10_14_x86_64/g' $WHEEL_DIR/*.dist-info/WHEEL;
+            fi &&
+            python -m wheel pack $WHEEL_DIR -d {dest_dir} &&
+            rm -rf $WHEEL_DIR
           # Skip tests on Linux - our binaries require glibc 2.35 (ubuntu-22.04) but
           # cibuildwheel test environment uses manylinux2014 (glibc 2.17)
           # macOS tests work normally
