@@ -66,6 +66,7 @@ DEPENDS = Makefile.depends
 AM_FCFLAGS = -fPIC
 
 libpython_interface_la_LDFLAGS = -module -avoid-version -export-dynamic -shared -no-undefined
+libpython_interface_la_LDFLAGS += $(MPI_FORTRAN_LDFLAG) 
 libpython_interface_la_LDFLAGS += $(PYTHON_INTERFACE_LDFLAG) -Wl,-rpath,$(libdir)
 libpython_interface_la_LIBADD = \
 		../../converter/crd_convert/libcrd_convert.a \
