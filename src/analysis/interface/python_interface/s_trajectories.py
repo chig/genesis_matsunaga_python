@@ -224,7 +224,8 @@ class STrajectoriesArray:
             cobj = getattr(self, "c_obj", None)
             arr = getattr(self, "traj_array", None)
 
-            if not cobj is None or not bool(cobj):
+            # Return early if there's nothing to deallocate
+            if cobj is None or not bool(cobj):
                 return
 
             n = len(arr) if isinstance(arr, (list, tuple)) else 0

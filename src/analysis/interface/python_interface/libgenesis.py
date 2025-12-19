@@ -74,7 +74,7 @@ class LibGenesis:
                 ]
         self.lib.crd_convert_c.restype = None
 
-        self.lib.trj_analysis_c.argtyes = [
+        self.lib.trj_analysis_c.argtypes = [
                 ctypes.POINTER(SMoleculeC),
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
@@ -88,7 +88,7 @@ class LibGenesis:
                 ]
         self.lib.trj_analysis_c.restype = None
 
-        self.lib.rg_analysis_c.argtyes = [
+        self.lib.rg_analysis_c.argtypes = [
                 ctypes.POINTER(SMoleculeC),
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
@@ -97,7 +97,7 @@ class LibGenesis:
                 ]
         self.lib.rg_analysis_c.restype = None
 
-        self.lib.ra_analysis_c.argtyes = [
+        self.lib.ra_analysis_c.argtypes = [
                 ctypes.POINTER(SMoleculeC),
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
@@ -109,7 +109,7 @@ class LibGenesis:
                 ]
         self.lib.ra_analysis_c.restype = None
 
-        self.lib.dr_analysis_c.argtyes = [
+        self.lib.dr_analysis_c.argtypes = [
                 ctypes.POINTER(SMoleculeC),
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
@@ -121,7 +121,7 @@ class LibGenesis:
                 ]
         self.lib.dr_analysis_c.restype = None
 
-        self.lib.ma_analysis_c.argtyes = [
+        self.lib.ma_analysis_c.argtypes = [
                 ctypes.POINTER(SMoleculeC),
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
@@ -129,13 +129,10 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_void_p),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.POINTER(ctypes.c_int),
-                ctypes.POINTER(ctypes.c_int),
-                ctypes.c_char_p,
-                ctypes.c_int,
                 ]
         self.lib.ma_analysis_c.restype = None
 
-        self.lib.diffusion_analysis_c.argtyes = [
+        self.lib.diffusion_analysis_c.argtypes = [
                 ctypes.POINTER(ctypes.c_void_p),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.POINTER(ctypes.c_int),
@@ -149,7 +146,7 @@ class LibGenesis:
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
-                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_void_p),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
                 ctypes.c_int,
@@ -161,36 +158,42 @@ class LibGenesis:
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
-                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_void_p),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
                 ctypes.c_int,
                 ]
         self.lib.aa_analysis_c.restype = None
 
-        self.lib.wa_analysis_c.argtyes = [
+        self.lib.wa_analysis_c.argtypes = [
+                ctypes.c_char_p,
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_int),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
-                ctypes.POINTER(ctypes.c_int),
-                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_int,
                 ]
         self.lib.wa_analysis_c.restype = None
 
-        self.lib.mbar_analysis_c.argtyes = [
+        self.lib.mbar_analysis_c.argtypes = [
+                ctypes.c_char_p,
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_int),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
-                ctypes.POINTER(ctypes.c_int),
-                ctypes.POINTER(ctypes.c_int),
+                ctypes.c_int,
                 ]
         self.lib.mbar_analysis_c.restype = None
 
-        self.lib.kc_analysis_c.argtyes = [
+        self.lib.kc_analysis_c.argtypes = [
                 ctypes.POINTER(SMoleculeC),
                 ctypes.POINTER(STrajectoriesC),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
-                ctypes.c_void_p,
-                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_void_p),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.POINTER(ctypes.c_int),
                 ctypes.c_char_p,
@@ -198,7 +201,7 @@ class LibGenesis:
                 ]
         self.lib.kc_analysis_c.restype = None
 
-        self.lib.export_pdb_to_string_c.argtyes = [
+        self.lib.export_pdb_to_string_c.argtypes = [
                 ctypes.POINTER(SMoleculeC),
                 ctypes.c_void_p,
                 ctypes.POINTER(ctypes.c_int),
