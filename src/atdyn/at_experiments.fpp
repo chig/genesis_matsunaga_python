@@ -634,7 +634,9 @@ contains
           int(ig(1,n),8)-n_grid_cut_x, int(ig(1,n),8)+n_grid_cut_x, int(ig(2,n),8)-n_grid_cut_y,   &
           int(ig(2,n),8)+n_grid_cut_y, int(ig(3,n),8)-n_grid_cut_z, int(ig(3,n),8)+n_grid_cut_z
 
-        call error_msg('Compute_Energy_Experimental_Restraint_Emfit> Gaussian kernel is extending outside the map box (see "Chapter: Trouble shooting" in the user manual)')
+        call error_msg('Compute_Energy_Experimental_Restraint_Emfit> '//&
+                       'Gaussian kernel is extending outside the map box '//&
+                       '(see "Chapter: Trouble shooting" in the user manual)')
 
       end if
 

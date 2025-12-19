@@ -75,7 +75,7 @@ contains
                             table, molecule, restraints, enefunc)
 
     ! formal arguments
-    type(s_ene_info),        intent(in)    :: ene_info 
+    type(s_ene_info),        intent(in)    :: ene_info
     type(s_boundary),        intent(in)    :: boundary
     type(s_par),             intent(in)    :: par
     type(s_gpr),             intent(in)    :: gpr
@@ -92,7 +92,7 @@ contains
 
     enefunc%forcefield       = ene_info%forcefield
     enefunc%output_style     = ene_info%output_style
-                             
+
     enefunc%switchdist       = ene_info%switchdist
     enefunc%cutoffdist       = ene_info%cutoffdist
     enefunc%pairlistdist     = ene_info%pairlistdist
@@ -110,7 +110,9 @@ contains
       if (ene_info%forcefield /= ForcefieldCHARMM .and.       &
           ene_info%forcefield /= ForcefieldCHARMM19 .and.     &
           ene_info%forcefield /= ForcefieldKBGO) &
-        call error_msg('Define_Enefunc> ERROR: Bad combination between the input files and force field type (see Chapter "INPUT SECTION" in the user manual).')
+        call error_msg('Define_Enefunc> ERROR: Bad combination between '//&
+                       'the input files and force field type '//&
+                       '(see Chapter "INPUT SECTION" in the user manual).')
 
       call define_enefunc_charmm &
                          (ene_info, boundary, par, eef1, table, molecule, &
@@ -120,14 +122,18 @@ contains
       if (ene_info%forcefield /= ForcefieldAAGO .and.         &
           ene_info%forcefield /= ForcefieldCAGO .and.         &
           ene_info%forcefield /= ForcefieldKBGO) &
-        call error_msg('Define_Enefunc> ERROR: Bad combination between the input files and force field type (see Chapter "INPUT SECTION" in the user manual).')
+        call error_msg('Define_Enefunc> ERROR: Bad combination between '//&
+                       'the input files and force field type '//&
+                       '(see Chapter "INPUT SECTION" in the user manual).')
 
       call define_enefunc_go &
                          (ene_info, gpr, molecule, restraints, enefunc)
 
     else if (prmtop%num_atoms > 0) then
       if (ene_info%forcefield /= ForcefieldAMBER) &
-        call error_msg('Define_Enefunc> ERROR: Bad combination between the input files and force field type (see Chapter "INPUT SECTION" in the user manual).')
+        call error_msg('Define_Enefunc> ERROR: Bad combination between '//&
+                       'the input files and force field type '//&
+                       '(see Chapter "INPUT SECTION" in the user manual).')
 
       call define_enefunc_amber &
                           (ene_info, boundary, prmtop, table, molecule, &
@@ -141,7 +147,9 @@ contains
           ene_info%forcefield /= ForcefieldCAGO .and.          &
           ene_info%forcefield /= ForcefieldSOFT .and.          &
           ene_info%forcefield /= ForcefieldRESIDCG) &
-        call error_msg('Define_Enefunc> ERROR: Bad combination between the input files and force field type (see Chapter "INPUT SECTION" in the user manual).')
+        call error_msg('Define_Enefunc> ERROR: Bad combination between '//&
+                       'the input files and force field type '//&
+                       '(see Chapter "INPUT SECTION" in the user manual).')
 
       call define_enefunc_gromacs &
                           (ene_info, boundary, grotop, table, molecule, &
@@ -219,7 +227,7 @@ contains
         end if
         if (fit_check .and. fit_info%force_no_fitting) then
           write(MsgOut,'(A)') "Setup_Fitting_Atdyn> RMSD restraint without FITTING"
-          write(MsgOut,*) 
+          write(MsgOut,*)
         end if
       end if
       do i = 1,enefunc%num_restraintfuncs

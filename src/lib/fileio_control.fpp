@@ -777,6 +777,9 @@ contains
       deallocate(sec)
     end do
 
+    ! Nullify section_head to mark the control slot as free
+    control%section_head => null()
+
     return
 
   end subroutine free_ctrlfile

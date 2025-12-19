@@ -597,7 +597,9 @@ contains
         do j = 2, remd%total_nreplicas
           icomp = recvbuf(i,j)
           if (iref /= icomp) &
-            call error_msg("Setup_Remd> REMD restart information differs between replicas. Perhaps some restart files were not output correctly in the previous run due to a computer accident.")
+            call error_msg("Setup_Remd> REMD restart information differs between replicas. "//&
+                           "Perhaps some restart files were not output correctly "//&
+                           "in the previous run due to a computer accident.")
         end do
       end do
 
@@ -611,7 +613,9 @@ contains
             do j = 2, remd%total_nreplicas
               icomp = recvbuf(i,j)
               if (iref /= icomp) &
-                call error_msg("Setup_Remd> REMD restart information differs between replicas. Perhaps some restart files were not output correctly in the previous run due to a computer accident.")
+                call error_msg("Setup_Remd> REMD restart information differs between replicas. "//&
+                               "Perhaps some restart files were not output correctly "//&
+                               "in the previous run due to a computer accident.")
             end do
           end do
 
@@ -623,7 +627,9 @@ contains
             do j = 2, remd%total_nreplicas
               icomp = recvbuf(i,j)
               if (iref /= icomp) &
-                call error_msg("Setup_Remd> REMD restart information differs between replicas. Perhaps some restart files were not output correctly in the previous run due to a computer accident.")
+                call error_msg("Setup_Remd> REMD restart information differs between replicas. "//&
+                               "Perhaps some restart files were not output correctly "//&
+                               "in the previous run due to a computer accident.")
             end do
           end do
 

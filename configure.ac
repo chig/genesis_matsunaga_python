@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.71])
+AC_PREREQ([2.69])
 AC_INIT([genesis],[2.1.4],[genesis@riken.jp])
 AC_CONFIG_SRCDIR([src/spdyn/spdyn.fpp])
 AC_CONFIG_HEADERS([src/config.h])
@@ -297,6 +297,37 @@ elif test x"${FC_ACT}" = x"pgf90"; then
 fi
 AC_MSG_RESULT([${mpitype} MPI])
 
+if test x"${enable_mpi}" = x"yes"; then
+
+  AC_ARG_VAR([MPIFORT],[MPI Fortran wrapper (mpifort/mpif90/mpiifort/mpifrt/ftn/...)])
+  AC_PATH_PROGS([MPIFORT], [$genesis_default_fc], [no])
+
+  AS_IF([test "x$MPIFORT" = xno], [
+    AC_MSG_ERROR([No MPI Fortran wrapper found. Set MPIFORT=... or genesis_default_fc="..."])
+  ])
+  
+  AC_MSG_CHECKING([MPI Fortran link flags from $MPIFORT])
+  MPI_FORTRAN_LINK=`$MPIFORT -showme:link 2>/dev/null || $MPIFORT -show 2>/dev/null || true`
+  AC_MSG_RESULT([$MPI_FORTRAN_LINK])
+  
+  MPI_FORTRAN_LIBS=""
+  MPI_FORTRAN_LDFLAGS=""
+  for tok in $MPI_FORTRAN_LINK; do
+    case $tok in
+      -l*|*.a|*.la) MPI_FORTRAN_LIBS="$MPI_FORTRAN_LIBS $tok" ;;
+      -L*|-Wl,*|-pthread) MPI_FORTRAN_LDFLAGS="$MPI_FORTRAN_LDFLAGS $tok" ;;
+    esac
+  done
+  for tok in $MPI_FORTRAN_LINK; do
+    case $tok in
+      -L*) dir=${tok#-L}; MPI_FORTRAN_LDFLAGS="$MPI_FORTRAN_LDFLAGS -Wl,-rpath,$dir" ;;
+    esac
+  done
+  AC_SUBST([MPI_FORTRAN_LIBS])
+  AC_SUBST([MPI_FORTRAN_LDFLAGS])
+
+fi
+
 
 ## C compiler
 #
@@ -525,7 +556,7 @@ if test x"${with_lapack}" == x"yes"; then
   fi
 
   if test -n "${LAPACK_LIBS}"; then
-    OPT_LD_LAPACK+="${LAPACK_LIBS}"
+    OPT_LD_LAPACK+=" ${LAPACK_LIBS}"
     LDFLAGS+=${OPT_LD_LAPACK}
 
   elif test x"${FC_ACT}" = x"ifort"; then
@@ -1168,6 +1199,7 @@ fi
 FCFLAGS+=" ${OPT_OPENMP}"
 FCFLAGS+=" ${OPT_FC_CUDA}"
 FCFLAGS+=" ${OPT_GPROF}"
+FCFLAGS+=" -fPIC"
 TMP="${FARCFLAGS} ${FCFLAGS}"
 FCFLAGS_NOOPT="${FARCFLAGS_NOOPT} ${FCFLAGS}"
 FCFLAGS_DISABLEFARC=" ${FCFLAGS}"
@@ -1367,6 +1399,10 @@ fi
 
 CFLAGS+=" ${OPT_OPENMP}"
 CFLAGS+=" ${OPT_GPROF}"
+CFLAGS+=" -fPIC"
+
+## Python interface
+AM_PATH_PYTHON([3.11])
 
 # LDFLAGS
 if test -z "${LDFLAGS}"; then
@@ -1650,6 +1686,14 @@ else
 fi
 AC_SUBST(FCFLAGS_FPP__PGI_NOOPT)
 
+AC_SUBST([PYTHON_INTERFACE_LDFLAG])
+AS_CASE([$host_os],
+  [darwin*], [
+    PYTHON_INTERFACE_LDFLAG=""
+  ], [
+    PYTHON_INTERFACE_LDFLAG="-Wl,--as-needed"
+  ]
+)
 
 ## check compile information
 #

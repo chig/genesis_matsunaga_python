@@ -11,7 +11,7 @@
 #ifdef HAVE_CONFIG_H
 #include "../config.h"
 #endif
-  
+
 module sp_experiments_mod
 
   use molecules_str_mod
@@ -726,7 +726,9 @@ contains
 
             if (ig_domain0(j,k) < n_grid_cut .or. ig_domain0(j,k) >= nmap(j) - n_grid_cut) then
               write(MsgOut,'(A,I10)') 'Gaussian kernel is extending outside the map box for atom ', n
-              call error_msg('Compute_Energy_Experimental_Restraint_Emfit> Gaussian kernel is extending outside the map box (see "Chapter: Trouble shooting" in the user manual)')
+              call error_msg('Compute_Energy_Experimental_Restraint_Emfit> '//&
+                             'Gaussian kernel is extending outside the map box '//&
+                             '(see "Chapter: Trouble shooting" in the user manual)')
             end if
 
             ig_max_tmp = ig_domain0(j,k) + n_grid_cut

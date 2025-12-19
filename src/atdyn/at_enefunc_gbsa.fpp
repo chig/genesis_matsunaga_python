@@ -171,7 +171,9 @@ contains
       enefunc%imic_use = .false.
       enefunc%gbsa_use = .true.
     else
-      call error_msg('Setup_Enefunc_Implicit_Solvent_Amber> The specified implicit solvent model is not available in the AMBER force field')
+      call error_msg('Setup_Enefunc_Implicit_Solvent_Amber> '//&
+                     'The specified implicit solvent model is '//&
+                     'not available in the AMBER force field')
     end if
 
     if (enefunc%gbsa_use) then

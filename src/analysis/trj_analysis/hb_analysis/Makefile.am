@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = hb_analysis
+noinst_LIBRARIES = libhb_analysis.a
+# noinst_LTLIBRARIES = libhb_analysis.la
 
 hb_analysis_SOURCES = \
 	hb_option_str.fpp \
@@ -25,7 +27,7 @@ hb_analysis_SOURCES = \
 	hb_main.fpp
 
 EXTRA_DIST = \
-	Makefile.depends 
+	Makefile.depends
 
 hb_analysis_ADDLIB = ../../../lib/lib.a $(INT_LAPACK_LIB)
 hb_analysis_ADDLIBANA = ../../libana/libana.a
@@ -53,6 +55,11 @@ hb_analysis$(EXEEXT) : $(hb_analysis_OBJECTS) \
 	$(hb_analysis_ADDLIBANA) $(hb_analysis_ADDLIB)
 	$(FC) -o $(bin_PROGRAMS) $(hb_analysis_OBJECTS) \
 		$(hb_analysis_ADDLIBANA) $(hb_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(hb_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(hb_analysis_OBJECTS)
+
+libhb_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

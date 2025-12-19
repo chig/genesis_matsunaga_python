@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = drms_analysis
+noinst_LIBRARIES = libdrms_analysis.a
+# noinst_LTLIBRARIES = libdrms_analysis.la
 
 drms_analysis_SOURCES = \
 	dr_option_str.fpp \
@@ -53,6 +55,11 @@ drms_analysis$(EXEEXT) : $(drms_analysis_OBJECTS) \
 						   $(drms_analysis_ADDLIBANA) $(drms_analysis_ADDLIB)
 	$(FC) -o $(bin_PROGRAMS) $(drms_analysis_OBJECTS) \
 		$(drms_analysis_ADDLIBANA) $(drms_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(drms_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(drms_analysis_OBJECTS)
+
+libdrms_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

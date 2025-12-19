@@ -15,18 +15,20 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = mbar_analysis
+noinst_LIBRARIES = libmbar_analysis.a
+# noinst_LTLIBRARIES = libmbar_analysis.la
 
 mbar_analysis_SOURCES = \
-        ma_matrix.fpp \
-        ma_option_str.fpp \
-        ma_option.fpp \
-        ma_control.fpp \
-        ma_setup.fpp \
-        ma_analyze.fpp \
-        ma_main.fpp
+        mbar_matrix.fpp \
+        mbar_option_str.fpp \
+        mbar_option.fpp \
+        mbar_control.fpp \
+        mbar_setup.fpp \
+        mbar_analyze.fpp \
+        mbar_main.fpp
 
 EXTRA_DIST = \
-	Makefile.depends 
+	Makefile.depends
 
 mbar_analysis_ADDLIB = ../../../lib/lib.a $(INT_LAPACK_LIB)
 mbar_analysis_ADDLIBANA = ../../libana/libana.a
@@ -37,7 +39,7 @@ MAINTAINERCLEANFILES = Makefile.in
 
 CLEANFILES = $(bin_PROGRAMS) $(mbar_analysis_OBJECTS) *.f90 *~ *.mod
 
-ma_analyze.o : ma_analyze.fpp
+mbar_analyze.o : mbar_analyze.fpp
 if USEKCOMP
 	cp $*.fpp $*.f90
 	$(FPP) $(PPFLAGS) $(DEFS) $*.f90
@@ -67,6 +69,11 @@ mbar_analysis$(EXEEXT) : $(mbar_analysis_ADDLIBANA) $(mbar_analysis_ADDLIB) \
 						$(mbar_analysis_OBJECTS)
 	$(FC) -o $(bin_PROGRAMS) $(mbar_analysis_OBJECTS) \
 		$(mbar_analysis_ADDLIBANA) $(mbar_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(mbar_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(mbar_analysis_OBJECTS)
+
+libmbar_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

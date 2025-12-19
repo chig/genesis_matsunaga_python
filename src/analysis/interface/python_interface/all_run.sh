@@ -1,0 +1,18 @@
+#!/bin/bash
+
+python -m python_interface.crd_convert "$@"
+python -m python_interface.trj_analysis "$@"
+python -m python_interface.wham_analysis "$@"
+python -m python_interface.mbar_analysis_umbrella_1d "$@"
+python -m python_interface.mbar_analysis_umbrella_block "$@"
+python -m python_interface.avecrd_analysis "$@"
+python -m python_interface.kmeans_clustering "$@"
+python -m python_interface.hb_analysis_count_atom "$@"
+python -m python_interface.hb_analysis_count_snap "$@"
+python -m python_interface.rmsd_analysis "$@"
+python -m python_interface.drms_analysis "$@"
+python -m python_interface.rg_analysis "$@"
+python -m python_interface.msd_analysis "$@"
+python -m python_interface.diffusion_analysis "$@"
+python -m python_interface.test_mdanalysis "$@"
+python -m python_interface.test_mdtraj "$@"

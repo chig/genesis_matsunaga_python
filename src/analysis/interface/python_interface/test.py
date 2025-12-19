@@ -1,33 +1,27 @@
 import ctypes
-import os
+import pathlib
+from .libgenesis import LibGenesis
+from .s_molecule import SMolecule
 
-# ライブラリをロード
-lib_name = 'libpython_interface.so'
-lib_dir = os.path.join(os.path.dirname(__file__), '.libs')
-lib_path = os.path.join(lib_dir, lib_name)
 
-if not os.path.exists(lib_path):
-    raise FileNotFoundError(f"Library file {lib_name} not found in {lib_dir}")
+def test():
+    # 関数を呼び出す
+    pdb_filename = pathlib.Path("molecule.pdb")
+    mol = SMolecule.from_file(pdb=pdb_filename)
+    # 結果を処理する
+    print("num_atoms = ", mol.num_atoms)
+    for i in range(max(0, mol.num_atoms - 5), mol.num_atoms):
+        print(mol.atom_coord[i])
+        print(mol.atom_no[i], mol.segment_name[i], mol.atom_name[i])
 
-lib = ctypes.CDLL(lib_path)
+    print("num_atoms = ", mol.num_atoms)
+    mol_c = mol.to_SMoleculeC()
+    LibGenesis().lib.test_conv_c2f(ctypes.byref(mol_c))
 
-# 関数のプロトタイプを定義
-lib.define_molecule_from_pdb.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_void_p)]
-lib.define_molecule_from_pdb.restype = None
 
-# 関数を呼び出す
-pdb_filename = b"molecule.pdb"
-num_atoms = ctypes.c_int()
-atom_names_ptr = ctypes.c_void_p()
-atom_coords_ptr = ctypes.c_void_p()
+def main():
+    test()
 
-lib.define_molecule_from_pdb(pdb_filename, ctypes.byref(num_atoms), ctypes.byref(atom_names_ptr), ctypes.byref(atom_coords_ptr))
 
-print("num_atoms = ", num_atoms)
-
-# 結果を処理する
-# ...
-
-# メモリを解放する
-# ...
-
+if __name__ == "__main__":
+    main()

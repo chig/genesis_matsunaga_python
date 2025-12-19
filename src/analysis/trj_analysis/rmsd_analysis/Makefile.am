@@ -15,6 +15,8 @@ endif
 SUBDIRS := ../../libana .
 
 bin_PROGRAMS = rmsd_analysis
+noinst_LIBRARIES = librmsd_analysis.a
+# noinst_LTLIBRARIES = librmsd_analysis.la
 
 rmsd_analysis_SOURCES = \
 	ra_option_str.fpp \
@@ -25,7 +27,7 @@ rmsd_analysis_SOURCES = \
 	ra_main.fpp
 
 EXTRA_DIST = \
-	Makefile.depends 
+	Makefile.depends
 
 rmsd_analysis_ADDLIB = ../../../lib/lib.a $(INT_LAPACK_LIB)
 rmsd_analysis_ADDLIBANA = ../../libana/libana.a
@@ -53,6 +55,11 @@ rmsd_analysis$(EXEEXT) : $(rmsd_analysis_OBJECTS) \
 		$(rmsd_analysis_ADDLIBANA) $(rmsd_analysis_ADDLIB)
 	$(FC) -o $(bin_PROGRAMS) $(rmsd_analysis_OBJECTS) \
 		$(rmsd_analysis_ADDLIBANA) $(rmsd_analysis_ADDLIB) $(LDFLAGS)
+
+$(noinst_LIBRARIES) : $(rmsd_analysis_OBJECTS)
+	$(AR) $(ARFLAGS) cr $@ $(rmsd_analysis_OBJECTS)
+
+librmsd_analysis.o : ;
 
 depend: clean_depend
 	python ../../../../fortdep.py *.fpp > $(DEPENDS)

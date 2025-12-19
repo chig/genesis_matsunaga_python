@@ -1,0 +1,234 @@
+name: Build and publish wheels
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - pypi
+  workflow_dispatch:
+
+jobs:
+  # Step 1: Build GENESIS (atdyn and libpython_interface.so)
+  build-genesis:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: x86_64
+          - os: macos-latest
+            arch: arm64
+          - os: macos-15
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gfortran liblapack-dev libblas-dev autoconf automake libtool
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install gcc lapack autoconf automake libtool
+          # Create symlink for gfortran (Homebrew installs versioned, e.g., gfortran-14 or gfortran-15)
+          GFORTRAN=$(ls $(brew --prefix)/bin/gfortran-* 2>/dev/null | sort -V | tail -1)
+          if [ -n "$GFORTRAN" ]; then
+            sudo ln -sf "$GFORTRAN" /usr/local/bin/gfortran
+            echo "Linked gfortran: $GFORTRAN"
+          fi
+
+      - name: Generate configure script
+        run: |
+          autoreconf -fi
+
+      - name: Configure GENESIS (no MPI)
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            ./configure --disable-mpi CC=gcc FC=gfortran LAPACK_LIBS="-llapack -lblas"
+          else
+            # macOS - find the highest versioned gcc
+            GCC=$(ls $(brew --prefix)/bin/gcc-* 2>/dev/null | grep -E 'gcc-[0-9]+$' | sort -V | tail -1)
+            echo "Using GCC: $GCC"
+            ./configure --disable-mpi CC="$GCC" FC=gfortran LAPACK_LIBS="-L$(brew --prefix lapack)/lib -llapack -lblas"
+          fi
+
+      - name: Build GENESIS
+        run: |
+          make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          # Copy shared library
+          cp lib/libpython_interface.so artifacts/ || cp lib/libpython_interface.dylib artifacts/ || true
+          # Copy atdyn binary
+          cp src/atdyn/atdyn artifacts/ || true
+          # List what we have
+          ls -la artifacts/
+
+      - name: Upload GENESIS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-${{ matrix.os }}-${{ matrix.arch }}
+          path: artifacts/
+          retention-days: 7
+
+  # Step 2: Build Python wheels
+  build-wheels:
+    needs: build-genesis
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: x86_64
+            cibw_archs: x86_64
+          - os: macos-latest
+            arch: arm64
+            cibw_archs: arm64
+          - os: macos-15
+            arch: x86_64
+            cibw_archs: x86_64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download GENESIS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: genesis-${{ matrix.os }}-${{ matrix.arch }}
+          path: genesis-artifacts/
+
+      - name: Prepare package with binaries
+        run: |
+          # Copy shared library to package
+          cp genesis-artifacts/libpython_interface.* src/genepy/ || true
+          # Copy atdyn binary
+          mkdir -p src/genepy/bin
+          cp genesis-artifacts/atdyn src/genepy/bin/ || true
+          chmod +x src/genepy/bin/* 2>/dev/null || true
+          # List package contents
+          ls -la src/genepy/
+          ls -la src/genepy/bin/ || true
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.21
+        env:
+          # Only build for one Python version since our wheel is py3-none (universal Python 3)
+          CIBW_BUILD: "cp311-*"
+          CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux*"
+          CIBW_ARCHS: ${{ matrix.cibw_archs }}
+          # Skip wheel repair - our shared library uses system libraries (libgfortran, LAPACK)
+          # that are expected to be present on user systems
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: "cp {wheel} {dest_dir}/"
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: "cp {wheel} {dest_dir}/"
+          # Test the wheel with multiple Python versions
+          CIBW_TEST_COMMAND: >
+            python -c "import genepy; print('genepy imported successfully')"
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./wheelhouse/*.whl
+          retention-days: 7
+
+  # Step 3: Build source distribution
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build sdist
+        run: python -m build --sdist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          retention-days: 7
+
+  # Step 4: Publish to PyPI
+  publish:
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: pypi
+      url: https://pypi.org/p/genepy
+    permissions:
+      id-token: write  # Required for trusted publishing
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist/
+
+      - name: List distribution files
+        run: ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Uses trusted publishing - no API token needed if configured on PyPI
+
+  # Optional: Publish to TestPyPI for testing
+  publish-testpypi:
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/genepy
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
