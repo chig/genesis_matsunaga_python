@@ -1,0 +1,24 @@
+# Include license files
+include LICENSE
+include COPYING
+include COPYING.LESSER
+include AUTHORS
+
+# Include README and documentation
+include README.md
+include CHANGELOG.md
+
+# Include package data
+recursive-include src/genepy *.py
+recursive-include src/genepy *.so
+recursive-include src/genepy *.dylib
+recursive-include src/genepy/bin *
+
+# Exclude test files from source distribution
+exclude src/genepy/test*.py
+exclude src/genepy/*_test.py
+
+# Exclude compiled Python files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__

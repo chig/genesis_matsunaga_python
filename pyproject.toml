@@ -5,21 +5,83 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "genepy"
 version = "0.1.0"
-description = "GENESIS Python interface (ctypes)"
+description = "GENESIS: Molecular dynamics simulation and analysis toolkit for biomolecular systems"
 readme = "README.md"
+license = "LGPL-3.0-or-later"
 requires-python = ">=3.9"
-authors = [ {name = "Yasuhiro Matsunaga"},
-{name = "Chigusa Kobayashi"},]
-dependencies = []
+authors = [
+    {name = "Yasuhiro Matsunaga"},
+    {name = "Chigusa Kobayashi"},
+    {name = "GENESIS Development Team"},
+]
+keywords = [
+    "molecular dynamics",
+    "simulation",
+    "biomolecular",
+    "analysis",
+    "GENESIS",
+    "MD",
+    "protein",
+    "trajectory",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Fortran",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=1.20",
+]
+
+[project.optional-dependencies]
+full = [
+    "mdtraj",
+    "MDAnalysis",
+    "nglview",
+    "py3Dmol",
+]
+visualization = [
+    "nglview",
+    "py3Dmol",
+]
+analysis = [
+    "mdtraj",
+    "MDAnalysis",
+]
+dev = [
+    "pytest",
+    "pytest-cov",
+]
+
+[project.scripts]
+atdyn = "genepy.cli:run_atdyn"
+
+[project.urls]
+Homepage = "https://www.r-ccs.riken.jp/labs/cbrt/"
+Repository = "https://github.com/genesis-release-r-ccs/genesis"
+Documentation = "https://www.r-ccs.riken.jp/labs/cbrt/genesis/"
+"Bug Tracker" = "https://github.com/genesis-release-r-ccs/genesis/issues"
 
 [tool.setuptools]
-package-dir = {"" = "."}
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["src/analysis/interface","src"]
-include = ["python_interface*", "genepy*"]
+where = ["src"]
+include = ["genepy*"]
 
 [tool.setuptools.package-data]
-genesis_interface = [".lib/*"] 
-genepy = [".lib/*"]  
-
+genepy = [
+    "*.so",
+    "*.dylib",
+    "bin/*",
+]

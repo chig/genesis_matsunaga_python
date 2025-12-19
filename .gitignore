@@ -150,3 +150,11 @@ src/analysis/utilities/molecule_setup/molecule_setup
 src/analysis/utilities/morph_generator/morph_generator
 src/analysis/utilities/table_generator/table_generator
 src/cgdyn/cgdyn
+
+# PyPI build artifacts
+src/genepy/*.so
+src/genepy/*.dylib
+src/genepy/bin/
+dist/
+build/
+*.egg-info/
