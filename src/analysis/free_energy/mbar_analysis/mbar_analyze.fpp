@@ -1,6 +1,6 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
 !
-!  Module   ma_analyze_mod
+!  Module   mbar_analyze_mod
 !> @brief   run analyzing trajectories
 !! @authors Norio Takase (NT)
 !
@@ -12,10 +12,10 @@
 #include "../../../config.h"
 #endif
 
-module ma_analyze_mod
+module mbar_analyze_mod
 
-  use ma_option_str_mod
-  use ma_matrix_mod
+  use mbar_option_str_mod
+  use mbar_matrix_mod
   use fileio_trj_mod
   use measure_mod
   use trajectory_str_mod
@@ -3036,4 +3036,4 @@ contains
 
   end subroutine assign_bin_1d
 
-end module ma_analyze_mod
+end module mbar_analyze_mod

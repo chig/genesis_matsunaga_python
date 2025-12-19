@@ -1,6 +1,6 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
 !
-!  Module   ma_matrix_mod
+!  Module   mbar_matrix_mod
 !> @brief   matrix routines
 !! @authors Norio Takase (NT)
 !
@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module ma_matrix_mod
+module mbar_matrix_mod
 
   use messages_mod
   use constants_mod
@@ -109,4 +109,4 @@ contains
 
   end subroutine mul_matrix
 
-end module ma_matrix_mod
+end module mbar_matrix_mod

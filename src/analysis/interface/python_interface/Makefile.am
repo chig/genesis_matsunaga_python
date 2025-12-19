@@ -14,7 +14,7 @@ SUBDIRS := ../../libana \
 		   ../../trj_analysis/rg_analysis \
 		   ../../trj_analysis/rmsd_analysis \
 		   ../../clustering/kmeans_clustering \
-		   ../mbar_analysis \
+		   ../../free_energy/mbar_analysis \
 		   ../../free_energy/wham_analysis \
 		   ../../mode_analysis/avecrd_analysis \
 		   .
@@ -80,7 +80,7 @@ libpython_interface_la_LIBADD = \
 		../../mode_analysis/avecrd_analysis/libavecrd_analysis.a \
 		../../clustering/kmeans_clustering/libkmeans_clustering.a \
 		../../free_energy/wham_analysis/libwham_analysis.a \
-		../mbar_analysis/libmbar_analysis.a \
+		../../free_energy/mbar_analysis/libmbar_analysis.a \
 		../../libana/libana.a ../../../lib/lib.a ../../../ \
 		$(INT_LAPACK_LIB) \
 		$(LAPACK_LIBS) \
@@ -115,7 +115,7 @@ if USEKCOMP
 		-I ../../mode_analysis/avecrd_analysis \
 		-I ../../clustering/kmeans_clustering \
 		-I ../../free_energy/wham_analysis \
-		-I ../mbar_analysis \
+		-I ../../free_energy/mbar_analysis \
 		$(libpython_interface_la_FCFLAGS) -c $*.f90
 else
 	$(FPP) $(PPFLAGS) $(DEFS) $< $*.f90
@@ -132,7 +132,7 @@ else
 		-I ../../mode_analysis/avecrd_analysis \
 		-I ../../clustering/kmeans_clustering \
 		-I ../../free_energy/wham_analysis \
-		-I ../mbar_analysis \
+		-I ../../free_energy/mbar_analysis \
 		$(libpython_interface_la_FCFLAGS) -c $*.f90
 endif
 

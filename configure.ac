@@ -1797,7 +1797,6 @@ AM_COND_IF([ANALYSIS],[AC_CONFIG_FILES([src/analysis/Makefile
                 src/analysis/interface/Makefile
                 src/analysis/interface/dssp_interface/Makefile
                 src/analysis/interface/python_interface/Makefile
-                src/analysis/interface/mbar_analysis/Makefile
                 src/analysis/clustering/Makefile
                 src/analysis/clustering/kmeans_clustering/Makefile
                 src/analysis/utilities/Makefile

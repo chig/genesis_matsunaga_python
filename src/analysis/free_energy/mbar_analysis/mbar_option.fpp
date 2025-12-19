@@ -1,6 +1,6 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
 !
-!  Module   ma_option_mod
+!  Module   mbar_option_mod
 !> @brief   module for analysis options
 !! @authors Norio Takase (NT)
 ! 
@@ -12,9 +12,9 @@
 #include "../../../config.h"
 #endif
 
-module ma_option_mod
+module mbar_option_mod
 
-  use ma_option_str_mod
+  use mbar_option_str_mod
   use select_mod
   use select_atoms_mod
   use molecules_str_mod
@@ -624,4 +624,4 @@ contains
 
   end subroutine setup_option
   
-end module ma_option_mod
+end module mbar_option_mod

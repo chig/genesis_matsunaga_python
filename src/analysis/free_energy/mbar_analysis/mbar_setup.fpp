@@ -1,6 +1,6 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
 !
-!  Module   ma_setup_mod
+!  Module   mbar_setup_mod
 !> @brief   setup variables and structures in MBAR_ANALYSIS
 !! @authors Norio Takase (NT)
 !
@@ -12,11 +12,11 @@
 #include "../../../config.h"
 #endif
 
-module ma_setup_mod
+module mbar_setup_mod
 
-  use ma_control_mod
-  use ma_option_mod
-  use ma_option_str_mod
+  use mbar_control_mod
+  use mbar_option_mod
+  use mbar_option_str_mod
   use output_mod
   use input_mod
   use output_str_mod
@@ -126,4 +126,4 @@ contains
 
   end subroutine setup
 
-end module ma_setup_mod
+end module mbar_setup_mod

@@ -12,12 +12,12 @@
 #include "../../../config.h"
 #endif
 
-program ma_main
+program mbar_main
 
-  use ma_analyze_mod
-  use ma_setup_mod
-  use ma_control_mod
-  use ma_option_str_mod
+  use mbar_analyze_mod
+  use mbar_setup_mod
+  use mbar_control_mod
+  use mbar_option_str_mod
   use output_str_mod
   use input_str_mod
   use molecules_str_mod
@@ -81,4 +81,4 @@ program ma_main
 
   stop
 
-end program ma_main
+end program mbar_main

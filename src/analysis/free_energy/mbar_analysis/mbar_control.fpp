@@ -1,6 +1,6 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
 !
-!  Module   ma_control_mod
+!  Module   mbar_control_mod
 !> @brief   read parameters and data for MD trajectory analysis
 !! @authors Norio Takase (NT)
 ! 
@@ -12,9 +12,9 @@
 #include "../../../config.h"
 #endif
 
-module ma_control_mod
+module mbar_control_mod
 
-  use ma_option_mod
+  use mbar_option_mod
   use output_mod
   use input_mod
   use select_mod
@@ -173,4 +173,4 @@ contains
 
   end subroutine control
 
-end module ma_control_mod
+end module mbar_control_mod

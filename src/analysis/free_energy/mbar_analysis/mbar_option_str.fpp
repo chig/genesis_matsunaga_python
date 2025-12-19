@@ -1,6 +1,6 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
 !
-!  Module   ma_option_str_mod
+!  Module   mbar_option_str_mod
 !> @brief   structure of option information
 !! @authors Norio Takase (NT)
 ! 
@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module ma_option_str_mod
+module mbar_option_str_mod
 
   use select_atoms_str_mod
   use string_mod
@@ -216,4 +216,4 @@ contains
 
   end subroutine dealloc_option
 
-end module ma_option_str_mod
+end module mbar_option_str_mod

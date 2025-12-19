@@ -19,13 +19,13 @@ noinst_LIBRARIES = libmbar_analysis.a
 # noinst_LTLIBRARIES = libmbar_analysis.la
 
 mbar_analysis_SOURCES = \
-        ma_matrix.fpp \
-        ma_option_str.fpp \
-        ma_option.fpp \
-        ma_control.fpp \
-        ma_setup.fpp \
-        ma_analyze.fpp \
-        ma_main.fpp
+        mbar_matrix.fpp \
+        mbar_option_str.fpp \
+        mbar_option.fpp \
+        mbar_control.fpp \
+        mbar_setup.fpp \
+        mbar_analyze.fpp \
+        mbar_main.fpp
 
 EXTRA_DIST = \
 	Makefile.depends
@@ -39,7 +39,7 @@ MAINTAINERCLEANFILES = Makefile.in
 
 CLEANFILES = $(bin_PROGRAMS) $(mbar_analysis_OBJECTS) *.f90 *~ *.mod
 
-ma_analyze.o : ma_analyze.fpp
+mbar_analyze.o : mbar_analyze.fpp
 if USEKCOMP
 	cp $*.fpp $*.f90
 	$(FPP) $(PPFLAGS) $(DEFS) $*.f90
