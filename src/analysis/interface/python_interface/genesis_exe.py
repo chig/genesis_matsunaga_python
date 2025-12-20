@@ -130,7 +130,25 @@ def crd_convert(
         Tuple of (STrajectoriesArray, SMolecule) where the SMolecule contains
         only the atoms selected by selection_group, or the original molecule
         if no selection_group is specified.
+
+    Notes:
+        When md_step is None in TrajectoryParameters, frame count is
+        auto-detected from the DCD header. This only works for DCD format.
     """
+    # Warn if auto-detection is used with non-DCD format
+    if traj_params is not None:
+        import warnings
+        for traj in traj_params:
+            if traj.md_step is None and trj_format is not None:
+                fmt_upper = trj_format.upper()
+                if fmt_upper != "DCD":
+                    warnings.warn(
+                        f"Auto-detection of frame count (md_step=None) is only "
+                        f"supported for DCD format, not {fmt_upper}. "
+                        f"Please specify md_step explicitly.",
+                        UserWarning
+                    )
+
     buf = ctypes.c_void_p(None)
     num_trajs_c = ctypes.c_int(0)
     selected_atom_indices_c = ctypes.c_void_p(None)

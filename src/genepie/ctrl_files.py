@@ -240,6 +240,25 @@ def write_ctrl_output(
 
 @dataclass
 class TrajectoryParameters:
+    """
+    Parameters for trajectory file specification.
+
+    Attributes:
+        trjfile: Path to trajectory file
+        md_step: Number of MD steps. If None or 0, auto-detect from DCD file.
+                 Negative values (e.g., -10) read all frames except last N.
+                 Auto-detection only works for DCD format.
+        mdout_period: MD output period. Auto-set to 1 when md_step is None/0/<0.
+        ana_period: Analysis period (default: 1)
+        repeat: Repeat count (default: 1)
+
+    Example:
+        # Auto-detect all frames (DCD only):
+        TrajectoryParameters(trjfile="traj.dcd")
+
+        # Explicit frame count:
+        TrajectoryParameters(trjfile="traj.dcd", md_step=1000)
+    """
     trjfile: Optional[str] = None
     md_step: Optional[int] = None
     mdout_period: Optional[int] = None
@@ -268,10 +287,18 @@ def write_trajectory_info(
     for idx, traj in enumerate(trajectories, 1):
         if traj.trjfile is not None:
             dst.write(f"trjfile{idx} = {traj.trjfile}\n".encode('utf-8'))
-        if traj.md_step is not None:
-            dst.write(f"md_step{idx} = {traj.md_step}\n".encode('utf-8'))
-        if traj.mdout_period is not None:
-            dst.write(f"mdout_period{idx} = {traj.mdout_period}\n".encode('utf-8'))
+
+        # md_step: None means auto-detect (write 0)
+        effective_md_step = traj.md_step if traj.md_step is not None else 0
+        dst.write(f"md_step{idx} = {effective_md_step}\n".encode('utf-8'))
+
+        # mdout_period: Must be 1 when auto-detecting (md_step <= 0)
+        if effective_md_step <= 0:
+            effective_mdout_period = 1
+        else:
+            effective_mdout_period = traj.mdout_period if traj.mdout_period is not None else 1
+        dst.write(f"mdout_period{idx} = {effective_mdout_period}\n".encode('utf-8'))
+
         if traj.ana_period is not None:
             dst.write(f"ana_period{idx} = {traj.ana_period}\n".encode('utf-8'))
         if traj.repeat is not None:
