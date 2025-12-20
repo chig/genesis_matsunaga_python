@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module hb_analysis_analyze_c_mod
+module hb_impl_mod
   use hb_option_str_mod
   use fileio_trj_mod
   use measure_mod
@@ -960,4 +960,4 @@ contains
 
   end subroutine print_output_info
 
-end module hb_analysis_analyze_c_mod
+end module hb_impl_mod

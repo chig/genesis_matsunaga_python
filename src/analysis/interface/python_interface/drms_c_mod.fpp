@@ -12,11 +12,11 @@
 #include "../../../config.h"
 #endif
 
-module dr_analysis_c_mod
+module drms_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use dr_analysis_analyze_c_mod
+  use drms_impl_mod
 
   use dr_control_mod
   use dr_option_str_mod
@@ -662,5 +662,5 @@ contains
 
   end subroutine calc_avoid_bonding
 
-end module dr_analysis_c_mod
+end module drms_c_mod
 

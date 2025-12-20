@@ -1,8 +1,8 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
-! 
-!> Program  hb_main
-!! @brief   hydrogen bond analysis program
-!! @authors Daisuke Matsuoka (DM), Yuji Sugita (YS)
+!
+!> Program  kc_main
+!! @brief   analysis trajectory files
+!! @authors Takaharu Mori (TM)
 !
 !  (c) Copyright 2014 RIKEN. All rights reserved.
 !
@@ -12,15 +12,17 @@
 #include "../../../config.h"
 #endif
 
-module hb_analysis_c_mod
+module kmeans_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use hb_analysis_analyze_c_mod
+  use kmeans_impl_mod
 
-  use hb_control_mod
-  use hb_option_str_mod
+  use kc_control_mod
+  use kc_option_str_mod
+  use fitting_str_mod
   use trajectory_str_mod
+  use input_str_mod
   use output_str_mod
   use molecules_str_mod
   use fileio_control_mod
@@ -32,32 +34,38 @@ module hb_analysis_c_mod
   implicit none
 
 contains
-  subroutine hb_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
-                           out_text_ptr, status, msg, msglen) &
-        bind(C, name="hb_analysis_c")
+  subroutine kc_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path, &
+          out_pdb_ptr, cluster_index, size_cluster_index, status, msg, msglen)  &
+        bind(C, name="kc_analysis_c")
     use conv_f_c_util
     implicit none
     type(s_molecule_c), intent(in) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
-    integer, intent(in) :: ana_period
+    integer(c_int), intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
-    type(c_ptr), intent(out) :: out_text_ptr
+    type(c_ptr), intent(out) :: out_pdb_ptr
+    type(c_ptr), intent(out) :: cluster_index
+    integer(c_int), intent(out) :: size_cluster_index
     integer(c_int),          intent(out) :: status
     character(kind=c_char),  intent(out) :: msg(*)
     integer(c_int),          value       :: msglen
 
     type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
-    character(len=:), allocatable :: out_text_f
-    character(kind=c_char), pointer :: out_text_c(:)
+    character(len=:), allocatable :: out_pdb_f
+    character(kind=c_char), pointer :: out_pdb_c(:)
+    integer, allocatable :: cluster_index_f(:)
 
     type(s_error) :: err
 
     call error_init(err)
+
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     call c2f_s_molecule(molecule, f_molecule)
-    call hb_analysis_main( &
-        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, out_text_f, err)
+    call kc_analysis_main( &
+        f_molecule, s_trajes_c, ana_period, fort_ctrl_path, &
+        out_pdb_f, cluster_index_f, err)
+
     if (error_has(err)) then
       call error_to_c(err, status, msg, msglen)
       return
@@ -66,24 +74,38 @@ contains
     status = 0
     if (msglen > 0) msg(1) = c_null_char
 
-    call dealloc_molecules_all(f_molecule)
-    call f2c_string(out_text_f, out_text_c)
-    out_text_ptr = c_loc(out_text_c(1))
-  end subroutine hb_analysis_c
+    if (allocated(out_pdb_f)) then
+      call f2c_string(out_pdb_f, out_pdb_c)
+      out_pdb_ptr = c_loc(out_pdb_c(1))
+    else
+      out_pdb_ptr = c_null_ptr
+    end if
+    if (allocated(cluster_index_f)) then
+        cluster_index = f2c_int_array(cluster_index_f)
+        size_cluster_index = size(cluster_index_f)
+    else
+        cluster_index = c_null_ptr
+        size_cluster_index = 0
+    end if
+  end subroutine kc_analysis_c
 
-  subroutine hb_analysis_main( &
-          molecule, s_trajes_c, ana_period, ctrl_filename, out_text, err)
+  subroutine kc_analysis_main( &
+          molecule, s_trajes_c, ana_period, ctrl_filename, &
+          out_pdb, cluster_index, err)
     implicit none
     type(s_molecule), intent(inout) :: molecule
     type(s_trajectories_c), intent(in) :: s_trajes_c
     integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
-    character(len=:), allocatable, intent(out) :: out_text
+    character(len=:), allocatable, intent(out) :: out_pdb
+    integer, allocatable,     intent(out) :: cluster_index(:)
     type(s_error),                   intent(inout) :: err
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
+    type(s_input)          :: input
     type(s_trajectory)     :: trajectory
+    type(s_fitting)        :: fitting
     type(s_output)         :: output
     type(s_option)         :: option
 
@@ -101,15 +123,17 @@ contains
     call control(ctrl_filename, ctrl_data)
 
 
-    ! [Step2] Set relevant variables and structures 
+    ! [Step2] Set relevant variables and structures
     !
     write(MsgOut,'(A)') '[STEP2] Set Relevant Variables and Structures'
     write(MsgOut,'(A)') ' '
 
-    call setup(molecule,   &
-               ctrl_data,  &
-               output,     &
-               option)
+    call setup(ctrl_data,  &
+               molecule,   &
+               input,      &
+               fitting,    &
+               option,     &
+               output)
 
 
     ! [Step3] Analyze trajectory
@@ -118,43 +142,61 @@ contains
     write(MsgOut,'(A)') ' '
 
     call analyze(molecule,   &
+                 input,      &
                  s_trajes_c, &
                  ana_period, &
+                 fitting,    &
                  option,     &
                  output,     &
-                 out_text,   &
+                 out_pdb,    &
+                 cluster_index, &
                  err)
     if (error_has(err)) return
+
 
     ! [Step4] Deallocate memory
     !
     write(MsgOut,'(A)') '[STEP4] Deallocate memory'
     write(MsgOut,'(A)') ' '
 
-    call dealloc_option(option)
     call dealloc_trajectory(trajectory)
-  end subroutine hb_analysis_main
+    call dealloc_molecules_all(molecule)
+    call dealloc_option(option)
+end subroutine kc_analysis_main
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
   !  Subroutine    setup
-  !> @brief        setup variables and structures in HB_ANALYSIS
-  !! @authors      NT
-  !! @param[in]    ctrl_data      : information of control parameters
-  !! @param[inout] output         : output information
-  !! @param[inout] option         : option information
+  !> @brief        setup variables and structures
+  !! @authors      TM
+  !! @param[in]    ctrl_data  : information of control parameters
+  !! @param[inout] input      : input information
+  !! @param[inout] molecule   : molecule information
+  !! @param[inout] trj_list   : trajectory list information
+  !! @param[inout] trajectory : trajectory information
+  !! @param[inout] fitting    : fitting information
+  !! @param[inout] option     : option information
+  !! @param[inout] output     : output information
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup(molecule, ctrl_data, output, option)
-    use hb_control_mod
-    use hb_option_mod
-    use hb_option_str_mod
-    use trajectory_mod
-    use output_mod
+  subroutine setup(ctrl_data,  &
+                   molecule,   &
+                   input,      &
+                   fitting,    &
+                   option,     &
+                   output)
+    use kc_control_mod
+    use kc_option_mod
+    use kc_option_str_mod
+    use fitting_mod
+    use fitting_str_mod
     use input_mod
-    use trajectory_str_mod
+    use input_str_mod
+    use output_mod
     use output_str_mod
+    use trajectory_mod
+    use trajectory_str_mod
     use select_mod
     use molecules_mod
     use molecules_str_mod
@@ -162,19 +204,33 @@ contains
     use fileio_grotop_mod
     use fileio_ambcrd_mod
     use fileio_prmtop_mod
+    use fileio_grotop_mod
+    use fileio_par_mod
     use fileio_psf_mod
     use fileio_pdb_mod
     implicit none
 
     ! formal arguments
-    type(s_molecule),        intent(inout) :: molecule
     type(s_ctrl_data),       intent(in)    :: ctrl_data
-    type(s_output),          intent(inout) :: output
+    type(s_molecule),        intent(inout) :: molecule
+    type(s_input),           intent(inout) :: input
+    type(s_fitting),         intent(inout) :: fitting
     type(s_option),          intent(inout) :: option
+    type(s_output),          intent(inout) :: output
+
+
+    ! setup input
+    !
+    call setup_input(ctrl_data%inp_info, input)
 
     ! setup selection
     !
     call setup_selection(ctrl_data%sel_info, molecule)
+
+    ! setup fitting
+    !
+    call setup_fitting(ctrl_data%fit_info, ctrl_data%sel_info, &
+                       molecule, fitting)
 
     ! setup option
     !
@@ -185,8 +241,10 @@ contains
     !
     call setup_output(ctrl_data%out_info, output)
 
+
     return
 
   end subroutine setup
 
-end module hb_analysis_c_mod
+end module kmeans_c_mod
+

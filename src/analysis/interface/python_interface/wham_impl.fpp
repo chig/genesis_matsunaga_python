@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module wa_analysis_analyze_c_mod
+module wham_impl_mod
 
   use wa_option_str_mod
   use fileio_trj_mod
@@ -1521,4 +1521,4 @@ contains
 
   end function std
 
-end module wa_analysis_analyze_c_mod
+end module wham_impl_mod

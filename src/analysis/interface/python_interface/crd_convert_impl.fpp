@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module crd_convert_convert
+module crd_convert_impl_mod
 
   use cc_option_mod
   use cc_option_str_mod
@@ -355,4 +355,4 @@ contains
 
   end function get_filename
 
-end module crd_convert_convert
+end module crd_convert_impl_mod

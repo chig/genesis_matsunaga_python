@@ -13,7 +13,7 @@
 #endif
 
 
-module diffusion_analysis_analyze_c_mod
+module diffusion_impl_mod
 
   use da_option_str_mod
   use input_str_mod
@@ -403,4 +403,4 @@ contains
 
   end function fit_least_squares
 
-end module diffusion_analysis_analyze_c_mod
+end module diffusion_impl_mod

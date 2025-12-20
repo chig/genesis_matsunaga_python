@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module mbar_analysis_analyze_c_mod
+module mbar_impl_mod
 
   use mbar_option_str_mod
   use mbar_matrix_mod
@@ -3196,4 +3196,4 @@ contains
 
   end subroutine assign_bin_1d
 
-end module mbar_analysis_analyze_c_mod
+end module mbar_impl_mod

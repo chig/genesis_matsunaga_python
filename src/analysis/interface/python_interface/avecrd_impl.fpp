@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module aa_analysis_analyze_c_mod
+module avecrd_impl_mod
 
   use aa_option_str_mod
   use fitting_mod
@@ -326,4 +326,4 @@ contains
 
   end subroutine assign_mass
 
-end module aa_analysis_analyze_c_mod
+end module avecrd_impl_mod

@@ -1,7 +1,7 @@
 !--------1---------2---------3---------4---------5---------6---------7---------8
 ! 
-!> Program  ma_main
-!! @brief   MBAR analysis tool
+!> Program  wa_main
+!! @brief   WHAM analysis tool
 !! @authors Norio Takase (NT)
 !
 !  (c) Copyright 2014 RIKEN. All rights reserved.
@@ -12,14 +12,14 @@
 #include "../../../config.h"
 #endif
 
- module mbar_analysis_c_mod
+module wham_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use mbar_analysis_analyze_c_mod
+  use wham_impl_mod
 
-  use mbar_control_mod
-  use mbar_option_str_mod
+  use wa_control_mod
+  use wa_option_str_mod
   use output_str_mod
   use input_str_mod
   use molecules_str_mod
@@ -31,20 +31,20 @@
   use constants_mod
   implicit none
 
- contains
-  ! subroutine mbar_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path) &
-  subroutine mbar_analysis_c(ctrl_path, result_fene, &
-                             n_replica, n_blocks, status, msg, msglen  ) &
-        bind(C, name="mbar_analysis_c")
+contains
+  ! subroutine wa_analysis_c(molecule, s_trajes_c, ana_period, ctrl_path) &
+  subroutine wa_analysis_c(ctrl_path, result_pmf, n_bins, n_bin_x,    &
+                           status, msg, msglen) &
+        bind(C, name="wa_analysis_c")
     use conv_f_c_util
     implicit none
     ! type(s_molecule_c), intent(in) :: molecule
     ! type(s_trajectories_c), intent(in) :: s_trajes_c
     ! integer, intent(in) :: ana_period
     character(kind=c_char), intent(in) :: ctrl_path(*)
-    type(c_ptr), intent(out) :: result_fene
-    integer(c_int), intent(out) :: n_replica
-    integer(c_int), intent(out) :: n_blocks
+    type(c_ptr), intent(out)    :: result_pmf
+    integer(c_int), intent(out) :: n_bins
+    integer(c_int), intent(out) :: n_bin_x
     integer(c_int),          intent(out) :: status
     character(kind=c_char),  intent(out) :: msg(*)
     integer(c_int),          value       :: msglen
@@ -52,18 +52,18 @@
 
     ! type(s_molecule) :: f_molecule
     character(len=:), allocatable :: fort_ctrl_path
-    real(wp), pointer :: fene_f(:,:) => null()
+    real(wp), pointer :: pmf_f(:,:) => null()
 
     type(s_error) :: err
 
     call error_init(err)
+
     call c2f_string_allocate(ctrl_path, fort_ctrl_path)
     ! call c2f_s_molecule(molecule, f_molecule)
     ! call wa_analysis_main( &
     !     f_molecule, s_trajes_c, ana_period, fort_ctrl_path)
-    call mbar_analysis_main( &
-        fort_ctrl_path, fene_f, n_replica, n_blocks, err)
-
+    call wa_analysis_main( &
+        fort_ctrl_path, pmf_f, n_bins, n_bin_x, err)
     if (error_has(err)) then
       call error_to_c(err, status, msg, msglen)
       return
@@ -72,30 +72,30 @@
     status = 0
     if (msglen > 0) msg(1) = c_null_char
 
-    result_fene = c_loc(fene_f)
-  end subroutine mbar_analysis_c
+    result_pmf = c_loc(pmf_f)
+  end subroutine wa_analysis_c
 
-  ! subroutine mbar_analysis_main( &
+  ! subroutine wa_analysis_main( &
   !         molecule, s_trajes_c, ana_period, ctrl_filename)
-  subroutine mbar_analysis_main( &
-          ctrl_filename, result_fene, n_replica, n_blocks, err)
+  subroutine wa_analysis_main( &
+          ctrl_filename, result_pmf, n_bins, n_bin_x, err)
     implicit none
     ! type(s_molecule), intent(inout) :: molecule
     ! type(s_trajectories_c), intent(in) :: s_trajes_c
     ! integer,                intent(in) :: ana_period
     character(*), intent(in) :: ctrl_filename
-    real(wp), pointer, intent(out) :: result_fene(:,:)
-    integer,           intent(out) :: n_replica
-    integer,           intent(out) :: n_blocks
-    type(s_error),     intent(inout) :: err
+    real(wp), pointer, intent(out) :: result_pmf(:,:)
+    integer,           intent(out) :: n_bins
+    integer,           intent(out) :: n_bin_x
+    type(s_error),                   intent(inout) :: err
 
 
     ! local variables
     type(s_ctrl_data)      :: ctrl_data
-    type(s_molecule)       :: molecule
     type(s_option)         :: option
     type(s_input)          :: input
     type(s_output)         :: output
+    type(s_molecule)       :: molecule
 
 
     my_city_rank = 0
@@ -125,8 +125,7 @@
     write(MsgOut,'(A)') ' '
 
     ! call analyze(molecule, s_trajes_c, ana_period, input, output, option)
-    call analyze(molecule, input, output, option, &
-                 result_fene, n_replica, n_blocks, err)
+    call analyze(molecule, input, output, option, result_pmf, n_bins, n_bin_x, err)
     if (error_has(err)) return
 
 
@@ -137,12 +136,12 @@
 
     call dealloc_option(option)
     call dealloc_molecules_all(molecule)
-end subroutine mbar_analysis_main
+end subroutine wa_analysis_main
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
   !  Subroutine    setup
-  !> @brief        setup variables and structures in MBAR_ANALYSIS
+  !> @brief        setup variables and structures in WHAM_ANALYSIS
   !! @authors      NT
   !! @param[in]    ctrl_data  : information of control parameters
   !! @param[inout] molecule   : molecule information
@@ -153,9 +152,9 @@ end subroutine mbar_analysis_main
   !======1=========2=========3=========4=========5=========6=========7=========8
 
   subroutine setup(ctrl_data, molecule, option, input, output)
-    use mbar_control_mod
-    use mbar_option_mod
-    use mbar_option_str_mod
+    use wa_control_mod
+    use wa_option_mod
+    use wa_option_str_mod
     use output_mod
     use input_mod
     use output_str_mod
@@ -172,8 +171,7 @@ end subroutine mbar_analysis_main
     use constants_mod
     implicit none
 
-
-    ! formal arguments
+   ! formal arguments
     type(s_ctrl_data),       intent(in)    :: ctrl_data
     type(s_molecule),        intent(inout) :: molecule
     type(s_option),          intent(inout) :: option
@@ -206,4 +204,5 @@ end subroutine mbar_analysis_main
 
   end subroutine setup
 
-end module mbar_analysis_c_mod
+end module wham_c_mod
+

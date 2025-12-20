@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module kc_analysis_analyze_c_mod
+module kmeans_impl_mod
 
   use kc_option_str_mod
   use fitting_mod
@@ -717,4 +717,4 @@ contains
     return
 
   end function random_get_legacy
-end module kc_analysis_analyze_c_mod
+end module kmeans_impl_mod

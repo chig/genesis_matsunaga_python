@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module trj_analysis_analyze_c_mod
+module trj_impl_mod
 
   use ta_option_str_mod
   use fileio_trj_mod
@@ -430,4 +430,4 @@ contains
 
   end subroutine out_result
 
-end module trj_analysis_analyze_c_mod
+end module trj_impl_mod

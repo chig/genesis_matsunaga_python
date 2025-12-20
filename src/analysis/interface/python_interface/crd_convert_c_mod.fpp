@@ -16,7 +16,7 @@ module crd_convert_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use crd_convert_convert
+  use crd_convert_impl_mod
   use conv_f_c_util
 
   use cc_control_mod

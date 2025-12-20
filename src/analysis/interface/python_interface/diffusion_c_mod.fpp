@@ -12,11 +12,11 @@
 #include "../../../config.h"
 #endif
 
-module diffusion_analysis_c_mod
+module diffusion_c_mod
 
   use, intrinsic :: iso_c_binding
   use constants_mod
-  use diffusion_analysis_analyze_c_mod
+  use diffusion_impl_mod
   use da_setup_mod
   use da_control_mod
   use da_option_str_mod
@@ -110,4 +110,4 @@ contains
 
   end subroutine diffusion_analysis_main
 
-end module diffusion_analysis_c_mod
+end module diffusion_c_mod

@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module rg_analysis_analyze_c_mod
+module rg_impl_mod
 
   use rg_option_str_mod
   use fileio_trj_mod
@@ -153,4 +153,4 @@ contains
 
   end subroutine analyze
 
-end module rg_analysis_analyze_c_mod
+end module rg_impl_mod

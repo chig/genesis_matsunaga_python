@@ -11,11 +11,11 @@
 #include "../../../config.h"
 #endif
 
-module trj_analysis_c_mod
+module trj_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use trj_analysis_analyze_c_mod
+  use trj_impl_mod
 
   use ta_control_mod
   use ta_option_str_mod
@@ -263,4 +263,4 @@ contains
 
   end subroutine setup
 
-end module trj_analysis_c_mod
+end module trj_c_mod

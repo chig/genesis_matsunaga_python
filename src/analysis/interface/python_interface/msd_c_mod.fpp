@@ -12,11 +12,11 @@
 #include "../../../config.h"
 #endif
 
-module ma_analysis_c_mod
+module msd_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use ma_analysis_analyze_c_mod
+  use msd_impl_mod
 
   use ma_control_mod
   use ma_option_str_mod
@@ -173,4 +173,4 @@ end subroutine ma_analysis_main
 
   end subroutine setup
 
-end module ma_analysis_c_mod
+end module msd_c_mod

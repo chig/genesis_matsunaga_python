@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module dr_analysis_analyze_c_mod
+module drms_impl_mod
 
   use dr_option_str_mod
   use fileio_trj_mod
@@ -310,4 +310,4 @@ contains
     return
   end subroutine compute_drms_two_states
 
-end module dr_analysis_analyze_c_mod
+end module drms_impl_mod

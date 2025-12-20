@@ -12,7 +12,7 @@
 #include "../../../config.h"
 #endif
 
-module ma_analysis_analyze_c_mod
+module msd_impl_mod
 
   use ma_option_str_mod
   use fileio_trj_mod
@@ -495,4 +495,4 @@ contains
 
   end function get_start_end
 
-end module ma_analysis_analyze_c_mod
+end module msd_impl_mod
