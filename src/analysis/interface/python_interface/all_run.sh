@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Change to the script's directory (python_interface/)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Add parent directory to PYTHONPATH so python can find the python_interface module
+export PYTHONPATH="${SCRIPT_DIR}/..:${PYTHONPATH}"
+
 python -m python_interface.test_crd_convert "$@"
 python -m python_interface.test_trj "$@"
 python -m python_interface.test_wham "$@"
