@@ -1,16 +1,12 @@
 import ctypes
-import sys
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
-
+from typing import Self
 import numpy as np
 import numpy.typing as npt
 from .s_trajectories_c import STrajectoriesC
 from .libgenesis import LibGenesis
 from .s_molecule import SMolecule
+from .exceptions import GenesisValidationError, GenesisMemoryError
+from .validation import validate_trajectory_dimensions, validate_non_negative
 
 
 class STrajectories:
@@ -22,6 +18,18 @@ class STrajectories:
 
     def __init__(self, natom: int = 0, nframe: int = 0,
                  trajs_c: STrajectoriesC = None, mem_owner: bool = True):
+        # Validate dimensions before allocation
+        if trajs_c is None:
+            validate_non_negative(natom, "natom")
+            validate_non_negative(nframe, "nframe")
+            if natom > 0 and nframe > 0:
+                validate_trajectory_dimensions(nframe, natom)
+        else:
+            validate_non_negative(trajs_c.natom, "trajs_c.natom")
+            validate_non_negative(trajs_c.nframe, "trajs_c.nframe")
+            if trajs_c.natom > 0 and trajs_c.nframe > 0:
+                validate_trajectory_dimensions(trajs_c.nframe, trajs_c.natom)
+
         if not trajs_c:
             trajs_c = STrajectoriesC()
             LibGenesis().lib.init_empty_s_trajectories_c(
@@ -31,15 +39,34 @@ class STrajectories:
         self.c_obj = trajs_c
         self.natom = trajs_c.natom
         self.nframe = trajs_c.nframe
-        self.coords = np.ctypeslib.as_array(
-                ctypes.cast(trajs_c.coords, ctypes.POINTER(
-                    ctypes.c_double * trajs_c.nframe * trajs_c.natom * 3
-                    )).contents
-                ).reshape(trajs_c.nframe, trajs_c.natom, 3)
-        self.pbc_boxes = np.ctypeslib.as_array(
-                ctypes.cast(trajs_c.pbc_boxes, ctypes.POINTER(
-                    ctypes.c_double * trajs_c.nframe * 3 * 3)).contents
-                ).reshape(trajs_c.nframe, 3, 3)
+
+        # Validate coords pointer before array access
+        if trajs_c.nframe > 0 and trajs_c.natom > 0:
+            if not trajs_c.coords:
+                raise GenesisMemoryError(
+                    "trajs_c.coords is NULL but nframe > 0 and natom > 0"
+                )
+            self.coords = np.ctypeslib.as_array(
+                    ctypes.cast(trajs_c.coords, ctypes.POINTER(
+                        ctypes.c_double * trajs_c.nframe * trajs_c.natom * 3
+                        )).contents
+                    ).reshape(trajs_c.nframe, trajs_c.natom, 3)
+        else:
+            self.coords = np.empty((0, 0, 3), dtype=np.float64)
+
+        # Validate pbc_boxes pointer before array access
+        if trajs_c.nframe > 0:
+            if not trajs_c.pbc_boxes:
+                raise GenesisMemoryError(
+                    "trajs_c.pbc_boxes is NULL but nframe > 0"
+                )
+            self.pbc_boxes = np.ctypeslib.as_array(
+                    ctypes.cast(trajs_c.pbc_boxes, ctypes.POINTER(
+                        ctypes.c_double * trajs_c.nframe * 3 * 3)).contents
+                    ).reshape(trajs_c.nframe, 3, 3)
+        else:
+            self.pbc_boxes = np.empty((0, 3, 3), dtype=np.float64)
+
         self._mem_owner = mem_owner
 
     def __del__(self) -> None:
@@ -198,10 +225,18 @@ except ImportError:
 
 class STrajectoriesArray:
     def __init__(self, traj_c_array: ctypes.c_void_p, len_array: int):
+        # Validate inputs
+        validate_non_negative(len_array, "len_array")
+
+        if len_array > 0 and not traj_c_array:
+            raise GenesisMemoryError(
+                "traj_c_array is NULL but len_array > 0"
+            )
+
         self.src_c_obj = ctypes.cast(
                 traj_c_array, ctypes.POINTER(STrajectoriesC))
         self.traj_array = []
-        for i in range(0, len_array):
+        for i in range(len_array):
             self.traj_array.append(
                     STrajectories.from_trajectories_c(
                         self.src_c_obj[i], mem_owner=False))

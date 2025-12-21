@@ -1,14 +1,8 @@
 import ctypes
 import os
-import sys
 import tempfile
 from typing import Optional, Union
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
-
+from typing_extensions import Self
 import numpy as np
 import numpy.typing as npt
 from . import c2py_util
@@ -16,6 +10,8 @@ from . import py2c_util
 import traceback
 from .libgenesis import LibGenesis
 from .s_molecule_c import SMoleculeC
+from .exceptions import GenesisValidationError
+from .validation import validate_non_negative
 
 
 class SMolecule:
@@ -190,7 +186,22 @@ class SMolecule:
         -------
         An instance that has same data as src.
 
+        Raises
+        ------
+        GenesisValidationError: If any count fields are negative.
         """
+        # Validate source structure counts
+        validate_non_negative(src.num_atoms, "num_atoms")
+        validate_non_negative(src.num_bonds, "num_bonds")
+        validate_non_negative(src.num_enm_bonds, "num_enm_bonds")
+        validate_non_negative(src.num_angles, "num_angles")
+        validate_non_negative(src.num_dihedrals, "num_dihedrals")
+        validate_non_negative(src.num_impropers, "num_impropers")
+        validate_non_negative(src.num_cmaps, "num_cmaps")
+        validate_non_negative(src.num_residues, "num_residues")
+        validate_non_negative(src.num_molecules, "num_molecules")
+        validate_non_negative(src.num_segments, "num_segments")
+
         dst = SMolecule()
         dst.num_deg_freedom = src.num_deg_freedom
         dst.num_atoms = src.num_atoms
@@ -460,20 +471,15 @@ class SMolecule:
         >>> obj = SMolecule.from_file(pdb="example.pdb", top="example.top")
         """
         paths = [pdb, top, gpr, psf, ref, fit, prmtop, ambcrd, ambref, grotop, grocrd, groref]
-        labels = ['pdb', 'top', 'gpr', 'psf', 'ref', 'fit', 'prmtop', 'ambcrd', 'ambref', 'grotop', 'grocrd', 'groref']
         args = [py2c_util.pathlike_to_c_char_p(p) for p in paths]
-
-        for i, (label, val) in enumerate(zip(labels, args)):
-            print(f"arg[{i}] {label}: {val}, type = {type(val)}")
 
         mol_c = SMoleculeC()
 
         try:
             ret = LibGenesis().lib.define_molecule_from_file(
                  *args,
-                 ctypes.byref(mol_c)  # 13番目の引数
+                 ctypes.byref(mol_c)
             )
-            print(f"define_molecule_from_file retturned: {ret}")
             if ret != 0:
                 raise RuntimeError("define_molecule_from_file failed")
 

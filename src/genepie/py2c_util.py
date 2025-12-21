@@ -38,14 +38,14 @@ def write_pystring_ndarray(src: npt.NDArray[np.object_], dst: ctypes.c_void_p,
     k = 0
     for i, v in enumerate(np.ravel(src)):
         for j in range(0, str_size):
-            if j <= len(v):
+            if j < len(v):
                 dst_p[k] = v[j].encode('ascii')
             else:
-                dst_p[k] = ' '.encode('ascii')
+                dst_p[k] = b' '[0]
             k = k + 1
 
 
-def pathlike_to_byte(path: Union[str, bytes, os.PathLike]) -> bytes:
+def pathlike_to_byte(path: str | bytes | os.PathLike) -> bytes:
     if (type(path) is str):
         return path.encode()
     elif (type(path) is bytes):

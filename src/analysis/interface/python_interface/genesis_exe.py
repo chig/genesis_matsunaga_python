@@ -15,6 +15,9 @@ from . import ctrl_files
 from . import c2py_util
 from . import py2c_util
 from functools import lru_cache
+from .exceptions import GenesisFortranError, GenesisValidationError
+from .output_capture import suppress_stdout_capture_stderr
+from .validation import validate_positive, validate_non_negative, validate_trajectory_dimensions
 
 _DEFAULT_MSG_LEN = 2048
 
@@ -193,7 +196,7 @@ def crd_convert(
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
 
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.crd_convert_c(
                     ctypes.byref(mol_c),
                     ctrl_bytes,
@@ -206,8 +209,13 @@ def crd_convert(
                     msgbuf,
                     ctypes.c_int(MSG_LEN),
                     )
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
 
     finally:
         if mol_c:
@@ -305,7 +313,7 @@ def trj_analysis(molecule: SMolecule, trajs: STrajectories,
 
         ctrl_bytes = ctrl.getvalue()
         ctrl_len = len(ctrl_bytes)
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.trj_analysis_c(
                     ctypes.byref(mol_c),
                     ctypes.byref(trajs.get_c_obj()),
@@ -337,10 +345,10 @@ def trj_analysis(molecule: SMolecule, trajs: STrajectories,
                         if result_torsion_c else None)
         result_cdis = (c2py_util.conv_double_ndarray(
             result_cdis_c, [n_frame_c.value, num_cdis.value])
-                           if result_distance_c else None)
+                           if result_cdis_c else None)
         result_cang = (c2py_util.conv_double_ndarray(
                 result_cang_c, [n_frame_c.value, num_cang.value])
-                        if result_angle_c else None)
+                        if result_cang_c else None)
         result_ctor = (c2py_util.conv_double_ndarray(
                 result_ctor_c, [n_frame_c.value, num_ctor.value])
                         if result_ctor_c else None)
@@ -424,7 +432,7 @@ def rg_analysis(molecule: SMolecule, trajs: STrajectories,
 
         ctrl_bytes = ctrl.getvalue()
         ctrl_len = len(ctrl_bytes)
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.rg_analysis_c(
                     ctypes.byref(mol_c),
                     ctypes.byref(trajs.get_c_obj()),
@@ -498,7 +506,7 @@ def rmsd_analysis(
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
 
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.ra_analysis_c(
                     ctypes.byref(mol_c),
                     ctypes.byref(trajs.get_c_obj()),
@@ -511,8 +519,13 @@ def rmsd_analysis(
                     ctypes.c_int(MSG_LEN),
                     )
 
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
         n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
         result_rmsd = (c2py_util.conv_double_ndarray(
             result_rmsd_c, n_frame_c.value)
@@ -596,7 +609,7 @@ def drms_analysis(
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
 
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.dr_analysis_c(
                     ctypes.byref(mol_c),
                     ctypes.byref(trajs.get_c_obj()),
@@ -608,8 +621,13 @@ def drms_analysis(
                     msgbuf,
                     ctypes.c_int(MSG_LEN),
                     )
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
 
         n_frame_c = ctypes.c_int(int(trajs.nframe / ana_period))
         result_drms = (c2py_util.conv_double_ndarray(
@@ -677,7 +695,7 @@ def msd_analysis(
 
         ctrl_bytes = ctrl.getvalue()
         ctrl_len = len(ctrl_bytes)
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.ma_analysis_c(
                     ctypes.byref(mol_c),
                     ctypes.byref(trajs.get_c_obj()),
@@ -759,7 +777,7 @@ def hb_analysis(molecule: SMolecule, trajs: STrajectories,
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
 
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.hb_analysis_c(
                     ctypes.byref(mol_c),
                     ctypes.byref(trajs.get_c_obj()),
@@ -772,8 +790,13 @@ def hb_analysis(molecule: SMolecule, trajs: STrajectories,
                     ctypes.c_int(MSG_LEN),
                     )
 
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
 
         s = c2py_util.conv_string(result)
         return s
@@ -828,7 +851,7 @@ def diffusion_analysis(msd_data: npt.NDArray[np.float64],
         ctrl_len = len(ctrl_bytes)
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.diffusion_analysis_c(
                 ctypes.byref(c_msd),
                 ctypes.byref(d0),
@@ -840,8 +863,13 @@ def diffusion_analysis(msd_data: npt.NDArray[np.float64],
                 msgbuf,
                 ctypes.c_int(MSG_LEN),
                 )
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
 
         return c2py_util.conv_double_ndarray(
                 c_out, (msd_data.shape[0], msd_data.shape[1] * 2 - 1))
@@ -910,7 +938,7 @@ def avecrd_analysis(
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
 
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
            LibGenesis().lib.aa_analysis_c(
                     ctypes.byref(mol_c),
                     ctypes.byref(trajs.get_c_obj()),
@@ -922,8 +950,13 @@ def avecrd_analysis(
                     msgbuf,
                     ctypes.c_int(MSG_LEN),
                     )
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
 
         if pdb_ave_c:
             pdb_ave = c2py_util.conv_string(pdb_ave_c)
@@ -1019,7 +1052,7 @@ def wham_analysis(
         ctrl_len = len(ctrl_bytes)
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.wa_analysis_c(
                     ctrl_bytes,
                     ctypes.c_int(ctrl_len),
@@ -1030,13 +1063,18 @@ def wham_analysis(
                     msgbuf,
                     ctypes.c_int(MSG_LEN),
                     )
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
 
-            result_pmf = c2py_util.conv_double_ndarray(
-                    result_pmf_c, [n_bins.value, n_bin_x.value])
+        result_pmf = c2py_util.conv_double_ndarray(
+                result_pmf_c, [n_bins.value, n_bin_x.value])
 
-            return result_pmf
+        return result_pmf
     finally:
         if result_pmf_c:
             LibGenesis().lib.deallocate_double2(
@@ -1128,7 +1166,7 @@ def mbar_analysis(
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
 
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.mbar_analysis_c(
                     ctrl_bytes,
                     ctypes.c_int(ctrl_len),
@@ -1139,8 +1177,13 @@ def mbar_analysis(
                     msgbuf,
                     ctypes.c_int(MSG_LEN),
                     )
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
 
             result_fene = c2py_util.conv_double_ndarray(
                     result_fene_c, [n_replica.value, n_blocks.value])
@@ -1227,7 +1270,7 @@ def kmeans_clustering(
         ctrl_len = len(ctrl_bytes)
         msgbuf, MSG_LEN = make_msgbuf()
         status = ctypes.c_int(0)
-        with suppress_stdout_simple():
+        with suppress_stdout_capture_stderr() as captured:
             LibGenesis().lib.kc_analysis_c(
                     ctypes.byref(mol_c),
                     ctypes.byref(trajs.get_c_obj()),
@@ -1242,8 +1285,13 @@ def kmeans_clustering(
                     ctypes.c_int(MSG_LEN),
                     )
 
-        if status.value  != 0:
-            raise RuntimeError(msgbuf.value.decode("utf-8","replace"))
+        if status.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status.value,
+                stderr_output=captured.stderr
+            )
 
         if pdb_c:
             pdb_str = c2py_util.conv_string(pdb_c)

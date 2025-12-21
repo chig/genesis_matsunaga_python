@@ -8,14 +8,29 @@ from .s_molecule import SMolecule
 from .s_trajectories import STrajectories, STrajectoriesArray
 from . import genesis_exe
 from .genesis_exe import LibGenesis
-from . import ctrl_files 
+from . import ctrl_files
+
+# Exception classes for error handling
+from .exceptions import (
+    GenesisError,
+    GenesisFortranError,
+    GenesisValidationError,
+    GenesisMemoryError,
+    GenesisOverflowError,
+)
 
 __version__ = "1.0.0"
 __all__ = [
     "SMolecule",
-    "STrajectories", 
+    "STrajectories",
     "STrajectoriesArray",
-    "genesis_exe", 
-    "LibGenesis", 
+    "genesis_exe",
+    "LibGenesis",
     "ctrl_files",
+    # Exception classes
+    "GenesisError",
+    "GenesisFortranError",
+    "GenesisValidationError",
+    "GenesisMemoryError",
+    "GenesisOverflowError",
 ]
