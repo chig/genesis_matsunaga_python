@@ -445,6 +445,14 @@ contains
     call mpi_comm_split(mpi_comm_city,index_z,my_city_rank,grid_commz,ierror)
     call mpi_comm_size (grid_commz, nprocz, ierror)
     call mpi_comm_rank (grid_commz, my_z_rank, ierror)
+#else
+    ! For non-MPI builds, set single-process values
+    grid_commy = 0
+    grid_commz = 0
+    nprocy     = 1
+    nprocz     = 1
+    my_y_rank  = 0
+    my_z_rank  = 0
 #endif
 
     ! setup bs_fact
