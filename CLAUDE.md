@@ -149,6 +149,18 @@ The Python interface uses ctypes to call Fortran functions compiled into `libpyt
 | `conv_f_c_util.fpp` | Fortran ↔ C data conversion utilities |
 | `s_molecule_c_mod.fpp` | s_molecule C structure allocation/deallocation |
 | `s_trajectories_c_mod.fpp` | s_trajectories C structure handling |
+| `atdyn_c_mod.fpp` | ATDYN MD/minimization C wrappers with state reset |
+
+#### Timer Reset for Library Mode
+
+The `src/lib/timers.fpp` module includes a `reset_timers()` subroutine for library mode usage. This resets accumulated timer state between sequential atdyn runs:
+
+```fortran
+! In atdyn_c_mod.fpp - called at start of each MD/minimization run
+call reset_timers()
+```
+
+The `reset_atdyn_state_c()` function is also exposed to Python for explicit state cleanup.
 
 ### Available Analysis Functions (in `genesis_exe.py`)
 
@@ -164,6 +176,90 @@ The Python interface uses ctypes to call Fortran functions compiled into `libpyt
 - `wham_analysis()` - WHAM free energy analysis
 - `mbar_analysis()` - MBAR free energy analysis
 - `kmeans_clustering()` - K-means trajectory clustering
+
+### ATDYN MD Engine Functions (in `genesis_exe.py`)
+
+The Python interface also provides functions to run molecular dynamics and energy minimization:
+
+- `run_atdyn_md()` - Run MD simulation, returns energies and final coordinates
+- `run_atdyn_min()` - Run energy minimization, returns energies and minimized coordinates
+
+#### Supported File Formats
+
+| Format | Topology | Coordinates | Parameters |
+|--------|----------|-------------|------------|
+| AMBER | `prmtopfile` | `ambcrdfile` | (in prmtop) |
+| GROMACS | `grotopfile` | `grocrdfile` | (in grotop) |
+| CHARMM | `psffile` | `pdbfile`/`crdfile` | `parfile`, `strfile` |
+
+#### Example Usage
+
+```python
+from genepie import genesis_exe
+
+# AMBER format
+energies, coords = genesis_exe.run_atdyn_md(
+    prmtopfile="protein.prmtop",
+    ambcrdfile="protein.inpcrd",
+    nsteps=1000,
+    timestep=0.002,
+    eneout_period=100,
+    ensemble="NVE",
+)
+
+# GROMACS format
+energies, coords = genesis_exe.run_atdyn_md(
+    grotopfile="protein.top",
+    grocrdfile="protein.gro",
+    nsteps=1000,
+    timestep=0.002,
+)
+
+# CHARMM format with parameter files
+energies, coords = genesis_exe.run_atdyn_md(
+    psffile="protein.psf",
+    pdbfile="protein.pdb",
+    parfile=["par_all36_prot.prm", "par_all36_lipid.prm"],
+    strfile=["toppar_water.str"],
+    nsteps=1000,
+)
+
+# Energy minimization
+energies, coords, converged, final_grad = genesis_exe.run_atdyn_min(
+    prmtopfile="protein.prmtop",
+    ambcrdfile="protein.inpcrd",
+    method="SD",  # Steepest Descent
+    nsteps=500,
+)
+```
+
+#### Key Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `nsteps` | Number of MD steps or minimization steps | Required |
+| `timestep` | Time step in ps | 0.001 |
+| `ensemble` | NVE, NVT, or NPT | "NVE" |
+| `temperature` | Target temperature in K | 300.0 |
+| `eneout_period` | Energy output frequency | 100 |
+| `electrostatic` | PME or CUTOFF | "PME" |
+| `pme_alpha` | PME Ewald coefficient | Auto |
+| `pme_ngrid_x/y/z` | PME grid dimensions | Auto |
+| `switchdist` | Switch distance in Å | 10.0 |
+| `cutoffdist` | Cutoff distance in Å | 12.0 |
+| `pairlistdist` | Pair list distance in Å | 13.5 |
+| `rigid_bond` | Enable SHAKE | False |
+| `shake_iteration` | Max SHAKE iterations | 500 |
+| `shake_tolerance` | SHAKE convergence | 1.0e-10 |
+
+#### Fortran State Management
+
+When running multiple atdyn calls in the same Python process, the Fortran library maintains global state (timers, FFT plans, etc.). For sequential runs:
+
+- **2-3 runs**: Generally work in the same process
+- **6+ runs**: May cause segfaults due to accumulated Fortran state
+
+For reliable testing with many sequential runs, use subprocess isolation (see test_atdyn.py).
 
 ### Integration with MDTraj and MDAnalysis
 
@@ -241,6 +337,45 @@ Tests include:
 ```bash
 cd src/analysis/interface/python_interface
 python -m python_interface.test_error_handling
+```
+
+### ATDYN MD Engine Tests (test_atdyn.py)
+
+Tests for the atdyn Python interface covering AMBER, GROMACS, and CHARMM file formats:
+
+```bash
+cd src/analysis/interface/python_interface
+python -m python_interface.test_atdyn
+```
+
+Currently includes 6 tests:
+- `test_glycam_CUTOFF` - AMBER format with CUTOFF electrostatics
+- `test_bpti_CUTOFF` - AMBER format with CUTOFF electrostatics
+- `test_bpti_PME` - AMBER format with PME electrostatics
+- `test_jac_param27_CUTOFF` - CHARMM format with CUTOFF
+- `test_jac_param27_PME` - CHARMM format with PME
+- `test_dppc_PME` - CHARMM format with PME (lipid bilayer)
+
+**Note**: These tests use subprocess isolation to avoid Fortran global state issues. Each test runs in a separate Python subprocess to ensure clean library state.
+
+#### Subprocess Isolation Pattern
+
+```python
+def run_test_in_subprocess(test_func_name):
+    """Run a test in a subprocess for clean Fortran state."""
+    result = subprocess.run(
+        [sys.executable, "-c", f"""
+import sys
+sys.path.insert(0, '{base_path}')
+from python_interface.test_atdyn import {test_func_name}
+{test_func_name}()
+print("PASSED")
+"""],
+        capture_output=True,
+        text=True,
+        cwd=base_path,
+    )
+    return result.returncode == 0 and "PASSED" in result.stdout
 ```
 
 ## Adding a New Analysis Function
