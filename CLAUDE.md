@@ -133,9 +133,12 @@ The Python interface uses ctypes to call Fortran functions compiled into `libpyt
 | `s_molecule_c.py` | `SMoleculeC` class - ctypes Structure for C interface |
 | `s_trajectories.py` | `STrajectories` class - trajectory data handling |
 | `s_trajectories_c.py` | `STrajectoriesC` class - ctypes Structure for C interface |
-| `c2py_util.py` | C data → numpy array conversion utilities |
+| `c2py_util.py` | C data → numpy array conversion utilities (with validation) |
 | `py2c_util.py` | numpy array → C data conversion utilities |
 | `ctrl_files.py` | Generates temporary control files for GENESIS functions |
+| `exceptions.py` | Custom exception classes (GenesisError hierarchy) |
+| `validation.py` | Input validation utilities for sizes/pointers |
+| `output_capture.py` | Context managers for stdout/stderr capture |
 
 ### Fortran Interface Files (.fpp)
 
@@ -168,20 +171,76 @@ The Python interface uses ctypes to call Fortran functions compiled into `libpyt
 - `to_mdtraj_topology()` / `from_mdtraj_topology()`
 - `to_mdanalysis_universe()` / `from_mdanalysis_universe()`
 
+### Error Handling
+
+Custom exception hierarchy for better error diagnosis:
+
+| Exception | Purpose |
+|-----------|---------|
+| `GenesisError` | Base exception for all GENESIS errors |
+| `GenesisFortranError` | Errors from Fortran code (includes `code` and `stderr_output` attributes) |
+| `GenesisValidationError` | Input validation errors (before Fortran call) |
+| `GenesisMemoryError` | Memory/pointer operation errors |
+| `GenesisOverflowError` | Integer overflow in size calculations |
+
+Usage:
+```python
+from genepie import GenesisError, GenesisFortranError, GenesisValidationError
+
+try:
+    result = genesis_exe.rmsd_analysis(...)
+except GenesisFortranError as e:
+    print(f"Fortran error (code {e.code}): {e}")
+    print(f"Fortran stderr: {e.stderr_output}")
+except GenesisValidationError as e:
+    print(f"Invalid input: {e}")
+except GenesisError as e:
+    print(f"GENESIS error: {e}")
+```
+
 ## Testing
 
-### Run All Python Interface Tests
+### Unit Tests (all_run.sh)
+
+Runs 16 unit tests for individual analysis functions:
+
 ```bash
 cd src/analysis/interface/python_interface
 ./all_run.sh
 ```
 
-### Run Individual Tests
+Individual tests can be run with:
 ```bash
-python rmsd_analysis.py
-python trj_analysis.py
-python mbar_analysis_umbrella_1d.py
+cd src/analysis/interface/python_interface
+python -m python_interface.test_rmsd
+python -m python_interface.test_trj_analysis
+python -m python_interface.test_mbar_analysis_umbrella_1d
 # etc.
+```
+
+### Integration Tests (test_demo.py)
+
+Comprehensive test script (42 tests) covering all major functionality:
+
+```bash
+cd demo
+python test_demo.py
+```
+
+Tests include:
+- SMolecule loading and manipulation
+- crd_convert trajectory loading with selections
+- Analysis functions (trj_analysis, rg_analysis, rmsd_analysis, etc.)
+- Free energy (WHAM) analysis
+- MDTraj/MDAnalysis integration
+- scikit-learn/PyTorch integration
+- Error handling and exception classes
+
+### Error Handling Tests
+
+```bash
+cd src/analysis/interface/python_interface
+python -m python_interface.test_error_handling
 ```
 
 ## Adding a New Analysis Function
@@ -201,13 +260,16 @@ python mbar_analysis_umbrella_1d.py
 # In genesis_exe.py
 mol_c = molecule.to_SMoleculeC()  # Convert Python → C structure
 try:
-    with suppress_stdout_simple():  # Suppress Fortran output
+    with suppress_stdout_capture_stderr() as captured:  # Suppress stdout, capture stderr
         LibGenesis().lib.some_analysis_c(
             ctypes.byref(mol_c),
             ctypes.byref(result_c),
             # ... other args
         )
     result = c2py_util.conv_double_ndarray(result_c, size)  # C → numpy
+except Exception as e:
+    # captured.stderr contains Fortran error messages
+    raise GenesisFortranError(str(e), stderr_output=captured.stderr)
 finally:
     LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 ```
