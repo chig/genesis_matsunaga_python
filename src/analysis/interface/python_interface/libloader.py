@@ -68,6 +68,13 @@ def load_genesis_lib() -> ctypes.CDLL:
         if hit:
             return _load(hit)
 
+    # First check same directory as this file (for development)
+    here = Path(__file__).resolve().parent
+    tried.append(f"{here}/")
+    hit = _first_existing(_candidate_paths_in_dir(here))
+    if hit:
+        return _load(hit)
+
     # in python_interface
     p = _find_in_package_dotlib("python_interface")
     tried.append("python_interface/.lib/")

@@ -5,6 +5,7 @@ else
 endif
 
 SUBDIRS := ../../libana \
+		   ../../../atdyn \
 		   ../../converter/crd_convert \
 		   ../../trj_analysis/trj_analysis \
 		   ../../trj_analysis/diffusion_analysis \
@@ -54,7 +55,8 @@ libpython_interface_la_SOURCES = \
         kmeans_impl.fpp \
         dynamic_string_mod.fpp \
         internal_file_type_mod.fpp \
-        export_molecule_c_mod.fpp
+        export_molecule_c_mod.fpp \
+        atdyn_c_mod.fpp
 
 EXTRA_DIST = \
 	Makefile.depends
@@ -69,6 +71,7 @@ libpython_interface_la_LDFLAGS = -module -avoid-version -export-dynamic -shared 
 libpython_interface_la_LDFLAGS += $(MPI_FORTRAN_LDFLAGS)
 libpython_interface_la_LDFLAGS += $(PYTHON_INTERFACE_LDFLAG) -Wl,-rpath,$(libdir)
 libpython_interface_la_LIBADD = \
+		../../../atdyn/libatdyn.a \
 		../../converter/crd_convert/libcrd_convert.a \
 		../../trj_analysis/trj_analysis/libtrj_analysis.a \
 		../../trj_analysis/rg_analysis/librg_analysis.a \
@@ -103,7 +106,7 @@ if USEKCOMP
 	$(FPP) $(PPFLAGS) $(DEFS) $*.f90
 	mv $*.cpp.f90 $*.f90
 	$(LIBTOOL) --tag=FC --mode=compile $(FC) $(DEFAULT_INCLUDES) $(INCLUDES) \
-		-I../../../lib -I../../libana \
+		-I../../../lib -I../../libana -I../../../atdyn \
 		-I../../converter/crd_convert \
 		-I ../../trj_analysis/trj_analysis \
 		-I ../../trj_analysis/rg_analysis \
@@ -120,7 +123,7 @@ if USEKCOMP
 else
 	$(FPP) $(PPFLAGS) $(DEFS) $< $*.f90
 	$(LIBTOOL) --tag=FC --mode=compile $(FC) $(DEFAULT_INCLUDES) $(INCLUDES) \
-		-I../../../lib -I../../libana \
+		-I../../../lib -I../../libana -I../../../atdyn \
 		-I../../converter/crd_convert \
 		-I ../../trj_analysis/trj_analysis \
 		-I ../../trj_analysis/rg_analysis \

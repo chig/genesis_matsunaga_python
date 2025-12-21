@@ -426,3 +426,195 @@ def write_values(
 
 def write_kwargs(dst: TextIO, **kwargs) -> None:
     write_values(dst, kwargs.items())
+
+
+# ============================================================================
+# ATDYN Control Sections
+# ============================================================================
+
+def write_ctrl_energy(
+    dst: TextIO,
+    forcefield: Optional[str] = None,
+    electrostatic: Optional[str] = None,
+    switchdist: Optional[float] = None,
+    cutoffdist: Optional[float] = None,
+    pairlistdist: Optional[float] = None,
+    dielec_const: Optional[float] = None,
+    pme_alpha: Optional[float] = None,
+    pme_ngrid_x: Optional[int] = None,
+    pme_ngrid_y: Optional[int] = None,
+    pme_ngrid_z: Optional[int] = None,
+    pme_nspline: Optional[int] = None,
+    vdw_force_switch: Optional[bool] = None,
+    vdw_shift: Optional[bool] = None,
+    implicit_solvent: Optional[str] = None,
+    gbsa_eps_solvent: Optional[float] = None,
+    gbsa_eps_solute: Optional[float] = None,
+    gbsa_salt_cons: Optional[float] = None,
+    gbsa_surf_tens: Optional[float] = None,
+    table_density: Optional[float] = None,
+    output_style: Optional[str] = None,
+) -> None:
+    """Write [ENERGY] section for atdyn."""
+    dst.write(b"[ENERGY]\n")
+    write_kwargs(dst,
+                 forcefield=forcefield,
+                 electrostatic=electrostatic,
+                 switchdist=switchdist,
+                 cutoffdist=cutoffdist,
+                 pairlistdist=pairlistdist,
+                 dielec_const=dielec_const,
+                 pme_alpha=pme_alpha,
+                 pme_ngrid_x=pme_ngrid_x,
+                 pme_ngrid_y=pme_ngrid_y,
+                 pme_ngrid_z=pme_ngrid_z,
+                 pme_nspline=pme_nspline,
+                 vdw_force_switch=vdw_force_switch,
+                 vdw_shift=vdw_shift,
+                 implicit_solvent=implicit_solvent,
+                 gbsa_eps_solvent=gbsa_eps_solvent,
+                 gbsa_eps_solute=gbsa_eps_solute,
+                 gbsa_salt_cons=gbsa_salt_cons,
+                 gbsa_surf_tens=gbsa_surf_tens,
+                 table_density=table_density,
+                 output_style=output_style,
+                 )
+
+
+def write_ctrl_dynamics(
+    dst: TextIO,
+    integrator: Optional[str] = None,
+    nsteps: Optional[int] = None,
+    timestep: Optional[float] = None,
+    eneout_period: Optional[int] = None,
+    crdout_period: Optional[int] = None,
+    velout_period: Optional[int] = None,
+    rstout_period: Optional[int] = None,
+    stoptr_period: Optional[int] = None,
+    nbupdate_period: Optional[int] = None,
+    iseed: Optional[int] = None,
+    initial_time: Optional[float] = None,
+    annealing: Optional[bool] = None,
+    anneal_period: Optional[int] = None,
+    dtemperature: Optional[float] = None,
+    verbose: Optional[bool] = None,
+    target_md: Optional[bool] = None,
+    steered_md: Optional[bool] = None,
+) -> None:
+    """Write [DYNAMICS] section for atdyn."""
+    dst.write(b"[DYNAMICS]\n")
+    write_kwargs(dst,
+                 integrator=integrator,
+                 nsteps=nsteps,
+                 timestep=timestep,
+                 eneout_period=eneout_period,
+                 crdout_period=crdout_period,
+                 velout_period=velout_period,
+                 rstout_period=rstout_period,
+                 stoptr_period=stoptr_period,
+                 nbupdate_period=nbupdate_period,
+                 iseed=iseed,
+                 initial_time=initial_time,
+                 annealing=annealing,
+                 anneal_period=anneal_period,
+                 dtemperature=dtemperature,
+                 verbose=verbose,
+                 target_md=target_md,
+                 steered_md=steered_md,
+                 )
+
+
+def write_ctrl_minimize(
+    dst: TextIO,
+    method: Optional[str] = None,
+    nsteps: Optional[int] = None,
+    eneout_period: Optional[int] = None,
+    crdout_period: Optional[int] = None,
+    rstout_period: Optional[int] = None,
+    nbupdate_period: Optional[int] = None,
+    force_scale_init: Optional[float] = None,
+    force_scale_max: Optional[float] = None,
+    verbose: Optional[bool] = None,
+    tol_rmsg: Optional[float] = None,
+    tol_maxg: Optional[float] = None,
+) -> None:
+    """Write [MINIMIZE] section for atdyn."""
+    dst.write(b"[MINIMIZE]\n")
+    write_kwargs(dst,
+                 method=method,
+                 nsteps=nsteps,
+                 eneout_period=eneout_period,
+                 crdout_period=crdout_period,
+                 rstout_period=rstout_period,
+                 nbupdate_period=nbupdate_period,
+                 force_scale_init=force_scale_init,
+                 force_scale_max=force_scale_max,
+                 verbose=verbose,
+                 tol_rmsg=tol_rmsg,
+                 tol_maxg=tol_maxg,
+                 )
+
+
+def write_ctrl_boundary(
+    dst: TextIO,
+    type: Optional[str] = None,
+    box_size_x: Optional[float] = None,
+    box_size_y: Optional[float] = None,
+    box_size_z: Optional[float] = None,
+    domain_x: Optional[int] = None,
+    domain_y: Optional[int] = None,
+    domain_z: Optional[int] = None,
+) -> None:
+    """Write [BOUNDARY] section for atdyn."""
+    dst.write(b"[BOUNDARY]\n")
+    write_kwargs(dst,
+                 type=type,
+                 box_size_x=box_size_x,
+                 box_size_y=box_size_y,
+                 box_size_z=box_size_z,
+                 domain_x=domain_x,
+                 domain_y=domain_y,
+                 domain_z=domain_z,
+                 )
+
+
+def write_ctrl_ensemble(
+    dst: TextIO,
+    ensemble: Optional[str] = None,
+    tpcontrol: Optional[str] = None,
+    temperature: Optional[float] = None,
+    pressure: Optional[float] = None,
+    gamma_t: Optional[float] = None,
+    gamma_p: Optional[float] = None,
+    isotropy: Optional[str] = None,
+) -> None:
+    """Write [ENSEMBLE] section for atdyn."""
+    dst.write(b"[ENSEMBLE]\n")
+    write_kwargs(dst,
+                 ensemble=ensemble,
+                 tpcontrol=tpcontrol,
+                 temperature=temperature,
+                 pressure=pressure,
+                 gamma_t=gamma_t,
+                 gamma_p=gamma_p,
+                 isotropy=isotropy,
+                 )
+
+
+def write_ctrl_constraints(
+    dst: TextIO,
+    rigid_bond: Optional[bool] = None,
+    shake_iteration: Optional[int] = None,
+    shake_tolerance: Optional[float] = None,
+    water_model: Optional[str] = None,
+    hydrogen_type: Optional[str] = None,
+) -> None:
+    """Write [CONSTRAINTS] section for atdyn."""
+    dst.write(b"[CONSTRAINTS]\n")
+    write_kwargs(dst,
+                 rigid_bond=rigid_bond,
+                 shake_iteration=shake_iteration,
+                 shake_tolerance=shake_tolerance,
+                 water_model=water_model,
+                 hydrogen_type=hydrogen_type,
+                 )

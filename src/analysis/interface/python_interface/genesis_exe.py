@@ -1374,3 +1374,438 @@ def make_msgbuf():
     n = get_msg_len()
     buf = (ctypes.c_char * n)()
     return buf, n
+
+
+# ============================================================================
+# ATDYN MD/Minimization Functions
+# ============================================================================
+
+class AtdynMDResult(NamedTuple):
+    """Result from atdyn MD simulation."""
+    energies: npt.NDArray[np.float64]  # Shape: (nterms, nframes)
+    final_coords: npt.NDArray[np.float64]  # Shape: (3, natom)
+    energy_labels: tuple  # ('total', 'bond', 'angle', ...)
+
+
+class AtdynMinResult(NamedTuple):
+    """Result from atdyn energy minimization."""
+    energies: npt.NDArray[np.float64]  # Shape: (nterms, nsteps)
+    final_coords: npt.NDArray[np.float64]  # Shape: (3, natom)
+    converged: bool
+    final_gradient: float
+    energy_labels: tuple  # ('total', 'bond', 'angle', ...)
+
+
+_ENERGY_LABELS = ('total', 'bond', 'angle', 'urey_bradley', 'dihedral',
+                  'improper', 'electrostatic', 'van_der_waals')
+
+
+def run_atdyn_md(
+        # Input files
+        psffile: Optional[str] = None,
+        prmtopfile: Optional[str] = None,
+        ambcrdfile: Optional[str] = None,
+        pdbfile: Optional[str] = None,
+        rstfile: Optional[str] = None,
+        topfile: Optional[str] = None,
+        # Energy parameters
+        forcefield: Optional[str] = None,
+        electrostatic: Optional[str] = None,
+        switchdist: Optional[float] = None,
+        cutoffdist: Optional[float] = None,
+        pairlistdist: Optional[float] = None,
+        vdw_force_switch: Optional[bool] = None,
+        implicit_solvent: Optional[str] = None,
+        output_style: Optional[str] = None,
+        # Dynamics parameters
+        integrator: Optional[str] = None,
+        nsteps: Optional[int] = None,
+        timestep: Optional[float] = None,
+        eneout_period: Optional[int] = None,
+        crdout_period: Optional[int] = None,
+        rstout_period: Optional[int] = None,
+        nbupdate_period: Optional[int] = None,
+        iseed: Optional[int] = None,
+        verbose: Optional[bool] = None,
+        # Boundary parameters
+        boundary_type: Optional[str] = None,
+        box_size_x: Optional[float] = None,
+        box_size_y: Optional[float] = None,
+        box_size_z: Optional[float] = None,
+        # Ensemble parameters
+        ensemble: Optional[str] = None,
+        tpcontrol: Optional[str] = None,
+        temperature: Optional[float] = None,
+        pressure: Optional[float] = None,
+        gamma_t: Optional[float] = None,
+        # Constraints parameters
+        rigid_bond: Optional[bool] = None,
+        water_model: Optional[str] = None,
+        # Output files (optional)
+        dcdfile: Optional[str] = None,
+        ) -> AtdynMDResult:
+    """
+    Run atdyn molecular dynamics simulation.
+
+    Args:
+        psffile: PSF topology file (CHARMM format)
+        prmtopfile: AMBER parameter/topology file
+        ambcrdfile: AMBER coordinate file
+        pdbfile: PDB coordinate file
+        rstfile: GENESIS restart file
+        topfile: GROMACS topology file
+        forcefield: Force field type (CHARMM, AMBER, GROAMBER, etc.)
+        electrostatic: Electrostatic method (PME, CUTOFF, etc.)
+        switchdist: Switch distance for vdW (angstrom)
+        cutoffdist: Cutoff distance (angstrom)
+        pairlistdist: Pairlist distance (angstrom)
+        vdw_force_switch: Use force switching for vdW
+        implicit_solvent: Implicit solvent model (NONE, GBSA, EEF1, etc.)
+        output_style: Output style (GENESIS, CHARMM, etc.)
+        integrator: Integrator (VVER, LEAP, etc.)
+        nsteps: Number of MD steps
+        timestep: Time step (fs)
+        eneout_period: Energy output period
+        crdout_period: Coordinate output period
+        rstout_period: Restart output period
+        nbupdate_period: Nonbond list update period
+        iseed: Random seed
+        verbose: Verbose output
+        boundary_type: Boundary type (PBC, NOBC)
+        box_size_x: Box size X (angstrom)
+        box_size_y: Box size Y (angstrom)
+        box_size_z: Box size Z (angstrom)
+        ensemble: Ensemble type (NVE, NVT, NPT, etc.)
+        tpcontrol: Thermostat/barostat (LANGEVIN, BERENDSEN, etc.)
+        temperature: Temperature (K)
+        pressure: Pressure (atm)
+        gamma_t: Langevin friction coefficient
+        rigid_bond: Use rigid bonds (SHAKE/SETTLE)
+        water_model: Water model for SETTLE (TIP3, etc.)
+        dcdfile: Output DCD trajectory file
+
+    Returns:
+        AtdynMDResult containing:
+            - energies: Array of energy terms (nterms x nframes)
+            - final_coords: Final coordinates (3 x natom)
+            - energy_labels: Tuple of energy term names
+    """
+    result_energies_c = ctypes.c_void_p(None)
+    result_nframes_c = ctypes.c_int(0)
+    result_nterms_c = ctypes.c_int(0)
+    result_final_coords_c = ctypes.c_void_p(None)
+    result_natom_c = ctypes.c_int(0)
+    status_c = ctypes.c_int(0)
+    msgbuf, MSG_LEN = make_msgbuf()
+
+    try:
+        # Build control string
+        ctrl = io.BytesIO()
+        ctrl_files.write_ctrl_input(
+            ctrl,
+            psffile=psffile,
+            prmtopfile=prmtopfile,
+            ambcrdfile=ambcrdfile,
+            pdbfile=pdbfile,
+            rstfile=rstfile,
+            topfile=topfile,
+        )
+        ctrl_files.write_ctrl_output(
+            ctrl,
+            dcdfile=dcdfile,
+        )
+        ctrl_files.write_ctrl_energy(
+            ctrl,
+            forcefield=forcefield,
+            electrostatic=electrostatic,
+            switchdist=switchdist,
+            cutoffdist=cutoffdist,
+            pairlistdist=pairlistdist,
+            vdw_force_switch=vdw_force_switch,
+            implicit_solvent=implicit_solvent,
+            output_style=output_style,
+        )
+        ctrl_files.write_ctrl_dynamics(
+            ctrl,
+            integrator=integrator,
+            nsteps=nsteps,
+            timestep=timestep,
+            eneout_period=eneout_period,
+            crdout_period=crdout_period,
+            rstout_period=rstout_period,
+            nbupdate_period=nbupdate_period,
+            iseed=iseed,
+            verbose=verbose,
+        )
+        ctrl_files.write_ctrl_boundary(
+            ctrl,
+            type=boundary_type,
+            box_size_x=box_size_x,
+            box_size_y=box_size_y,
+            box_size_z=box_size_z,
+        )
+        ctrl_files.write_ctrl_ensemble(
+            ctrl,
+            ensemble=ensemble,
+            tpcontrol=tpcontrol,
+            temperature=temperature,
+            pressure=pressure,
+            gamma_t=gamma_t,
+        )
+        ctrl_files.write_ctrl_constraints(
+            ctrl,
+            rigid_bond=rigid_bond,
+            water_model=water_model,
+        )
+
+        ctrl_bytes = ctrl.getvalue()
+        ctrl_len = len(ctrl_bytes)
+
+        with suppress_stdout_capture_stderr() as captured:
+            LibGenesis().lib.atdyn_md_c(
+                ctrl_bytes,
+                ctypes.c_int(ctrl_len),
+                ctypes.byref(result_energies_c),
+                ctypes.byref(result_nframes_c),
+                ctypes.byref(result_nterms_c),
+                ctypes.byref(result_final_coords_c),
+                ctypes.byref(result_natom_c),
+                ctypes.byref(status_c),
+                msgbuf,
+                ctypes.c_int(MSG_LEN),
+            )
+
+        if status_c.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status_c.value,
+                stderr_output=captured.stderr
+            )
+
+        # Convert results to numpy arrays
+        nframes = result_nframes_c.value
+        nterms = result_nterms_c.value
+        natom = result_natom_c.value
+
+        energies = c2py_util.conv_double_ndarray(
+            result_energies_c, [nterms, nframes])
+        final_coords = c2py_util.conv_double_ndarray(
+            result_final_coords_c, [3, natom])
+
+        return AtdynMDResult(
+            energies=energies,
+            final_coords=final_coords,
+            energy_labels=_ENERGY_LABELS,
+        )
+
+    finally:
+        # Deallocate results
+        LibGenesis().lib.deallocate_atdyn_results_c()
+
+
+def run_atdyn_min(
+        # Input files
+        psffile: Optional[str] = None,
+        prmtopfile: Optional[str] = None,
+        ambcrdfile: Optional[str] = None,
+        pdbfile: Optional[str] = None,
+        rstfile: Optional[str] = None,
+        topfile: Optional[str] = None,
+        # Energy parameters
+        forcefield: Optional[str] = None,
+        electrostatic: Optional[str] = None,
+        switchdist: Optional[float] = None,
+        cutoffdist: Optional[float] = None,
+        pairlistdist: Optional[float] = None,
+        vdw_force_switch: Optional[bool] = None,
+        implicit_solvent: Optional[str] = None,
+        output_style: Optional[str] = None,
+        pme_alpha: Optional[float] = None,
+        pme_ngrid_x: Optional[int] = None,
+        pme_ngrid_y: Optional[int] = None,
+        pme_ngrid_z: Optional[int] = None,
+        pme_nspline: Optional[int] = None,
+        dispersion_corr: Optional[str] = None,
+        # Minimize parameters
+        method: Optional[str] = None,
+        nsteps: Optional[int] = None,
+        eneout_period: Optional[int] = None,
+        crdout_period: Optional[int] = None,
+        rstout_period: Optional[int] = None,
+        nbupdate_period: Optional[int] = None,
+        force_scale_init: Optional[float] = None,
+        force_scale_max: Optional[float] = None,
+        verbose: Optional[bool] = None,
+        tol_rmsg: Optional[float] = None,
+        tol_maxg: Optional[float] = None,
+        # Constraints parameters
+        rigid_bond: Optional[bool] = None,
+        # Boundary parameters
+        boundary_type: Optional[str] = None,
+        box_size_x: Optional[float] = None,
+        box_size_y: Optional[float] = None,
+        box_size_z: Optional[float] = None,
+        # Output files (optional)
+        dcdfile: Optional[str] = None,
+        ) -> AtdynMinResult:
+    """
+    Run atdyn energy minimization.
+
+    Args:
+        psffile: PSF topology file (CHARMM format)
+        prmtopfile: AMBER parameter/topology file
+        ambcrdfile: AMBER coordinate file
+        pdbfile: PDB coordinate file
+        rstfile: GENESIS restart file
+        topfile: GROMACS topology file
+        forcefield: Force field type (CHARMM, AMBER, GROAMBER, etc.)
+        electrostatic: Electrostatic method (PME, CUTOFF, etc.)
+        switchdist: Switch distance for vdW (angstrom)
+        cutoffdist: Cutoff distance (angstrom)
+        pairlistdist: Pairlist distance (angstrom)
+        vdw_force_switch: Use force switching for vdW
+        implicit_solvent: Implicit solvent model (NONE, GBSA, EEF1, etc.)
+        output_style: Output style (GENESIS, CHARMM, etc.)
+        method: Minimization method (SD, LBFGS)
+        nsteps: Maximum number of minimization steps
+        eneout_period: Energy output period
+        crdout_period: Coordinate output period
+        rstout_period: Restart output period
+        nbupdate_period: Nonbond list update period
+        force_scale_init: Initial force scale (SD)
+        force_scale_max: Maximum force scale (SD)
+        verbose: Verbose output
+        tol_rmsg: RMS gradient tolerance for convergence
+        tol_maxg: Max gradient tolerance for convergence
+        boundary_type: Boundary type (PBC, NOBC)
+        box_size_x: Box size X (angstrom)
+        box_size_y: Box size Y (angstrom)
+        box_size_z: Box size Z (angstrom)
+        dcdfile: Output DCD trajectory file
+
+    Returns:
+        AtdynMinResult containing:
+            - energies: Array of energy terms (nterms x nsteps)
+            - final_coords: Final coordinates (3 x natom)
+            - converged: Whether minimization converged
+            - final_gradient: Final RMS gradient
+            - energy_labels: Tuple of energy term names
+    """
+    result_energies_c = ctypes.c_void_p(None)
+    result_nsteps_c = ctypes.c_int(0)
+    result_nterms_c = ctypes.c_int(0)
+    result_final_coords_c = ctypes.c_void_p(None)
+    result_natom_c = ctypes.c_int(0)
+    result_converged_c = ctypes.c_int(0)
+    result_final_gradient_c = ctypes.c_double(0.0)
+    status_c = ctypes.c_int(0)
+    msgbuf, MSG_LEN = make_msgbuf()
+
+    try:
+        # Build control string
+        ctrl = io.BytesIO()
+        ctrl_files.write_ctrl_input(
+            ctrl,
+            psffile=psffile,
+            prmtopfile=prmtopfile,
+            ambcrdfile=ambcrdfile,
+            pdbfile=pdbfile,
+            rstfile=rstfile,
+            topfile=topfile,
+        )
+        ctrl_files.write_ctrl_output(
+            ctrl,
+            dcdfile=dcdfile,
+        )
+        ctrl_files.write_ctrl_energy(
+            ctrl,
+            forcefield=forcefield,
+            electrostatic=electrostatic,
+            switchdist=switchdist,
+            cutoffdist=cutoffdist,
+            pairlistdist=pairlistdist,
+            vdw_force_switch=vdw_force_switch,
+            implicit_solvent=implicit_solvent,
+            output_style=output_style,
+            pme_alpha=pme_alpha,
+            pme_ngrid_x=pme_ngrid_x,
+            pme_ngrid_y=pme_ngrid_y,
+            pme_ngrid_z=pme_ngrid_z,
+            pme_nspline=pme_nspline,
+            dispersion_corr=dispersion_corr,
+        )
+        ctrl_files.write_ctrl_minimize(
+            ctrl,
+            method=method,
+            nsteps=nsteps,
+            eneout_period=eneout_period,
+            crdout_period=crdout_period,
+            rstout_period=rstout_period,
+            nbupdate_period=nbupdate_period,
+            force_scale_init=force_scale_init,
+            force_scale_max=force_scale_max,
+            verbose=verbose,
+            tol_rmsg=tol_rmsg,
+            tol_maxg=tol_maxg,
+        )
+        ctrl_files.write_ctrl_constraints(
+            ctrl,
+            rigid_bond=rigid_bond,
+        )
+        ctrl_files.write_ctrl_boundary(
+            ctrl,
+            type=boundary_type,
+            box_size_x=box_size_x,
+            box_size_y=box_size_y,
+            box_size_z=box_size_z,
+        )
+
+        ctrl_bytes = ctrl.getvalue()
+        ctrl_len = len(ctrl_bytes)
+
+        with suppress_stdout_capture_stderr() as captured:
+            LibGenesis().lib.atdyn_min_c(
+                ctrl_bytes,
+                ctypes.c_int(ctrl_len),
+                ctypes.byref(result_energies_c),
+                ctypes.byref(result_nsteps_c),
+                ctypes.byref(result_nterms_c),
+                ctypes.byref(result_final_coords_c),
+                ctypes.byref(result_natom_c),
+                ctypes.byref(result_converged_c),
+                ctypes.byref(result_final_gradient_c),
+                ctypes.byref(status_c),
+                msgbuf,
+                ctypes.c_int(MSG_LEN),
+            )
+
+        if status_c.value != 0:
+            error_msg = msgbuf.value.decode("utf-8", "replace")
+            raise GenesisFortranError(
+                error_msg,
+                code=status_c.value,
+                stderr_output=captured.stderr
+            )
+
+        # Convert results to numpy arrays
+        nsteps_out = result_nsteps_c.value
+        nterms = result_nterms_c.value
+        natom = result_natom_c.value
+
+        energies = c2py_util.conv_double_ndarray(
+            result_energies_c, [nterms, nsteps_out])
+        final_coords = c2py_util.conv_double_ndarray(
+            result_final_coords_c, [3, natom])
+
+        return AtdynMinResult(
+            energies=energies,
+            final_coords=final_coords,
+            converged=bool(result_converged_c.value),
+            final_gradient=result_final_gradient_c.value,
+            energy_labels=_ENERGY_LABELS,
+        )
+
+    finally:
+        # Deallocate results
+        LibGenesis().lib.deallocate_atdyn_results_c()

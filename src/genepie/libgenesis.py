@@ -277,3 +277,37 @@ class LibGenesis:
                 ctypes.POINTER(ctypes.c_void_p),
                 ]
         self.lib.deep_copy_s_trajectories_c.restype = None
+
+        # ATDYN MD/Minimization functions
+        self.lib.atdyn_md_c.argtypes = [
+                ctypes.c_char_p,                  # ctrl_text
+                ctypes.c_int,                     # ctrl_len
+                ctypes.POINTER(ctypes.c_void_p),  # result_energies
+                ctypes.POINTER(ctypes.c_int),     # result_nframes
+                ctypes.POINTER(ctypes.c_int),     # result_nterms
+                ctypes.POINTER(ctypes.c_void_p),  # result_final_coords
+                ctypes.POINTER(ctypes.c_int),     # result_natom
+                ctypes.POINTER(ctypes.c_int),     # status
+                ctypes.c_char_p,                  # msg
+                ctypes.c_int,                     # msglen
+                ]
+        self.lib.atdyn_md_c.restype = None
+
+        self.lib.atdyn_min_c.argtypes = [
+                ctypes.c_char_p,                  # ctrl_text
+                ctypes.c_int,                     # ctrl_len
+                ctypes.POINTER(ctypes.c_void_p),  # result_energies
+                ctypes.POINTER(ctypes.c_int),     # result_nsteps
+                ctypes.POINTER(ctypes.c_int),     # result_nterms
+                ctypes.POINTER(ctypes.c_void_p),  # result_final_coords
+                ctypes.POINTER(ctypes.c_int),     # result_natom
+                ctypes.POINTER(ctypes.c_int),     # result_converged
+                ctypes.POINTER(ctypes.c_double),  # result_final_gradient
+                ctypes.POINTER(ctypes.c_int),     # status
+                ctypes.c_char_p,                  # msg
+                ctypes.c_int,                     # msglen
+                ]
+        self.lib.atdyn_min_c.restype = None
+
+        self.lib.deallocate_atdyn_results_c.argtypes = []
+        self.lib.deallocate_atdyn_results_c.restype = None

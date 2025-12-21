@@ -111,7 +111,9 @@ module at_control_mod
   ! subroutines
   public  :: usage
   public  :: control_md
+  public  :: control_md_from_string
   public  :: control_min
+  public  :: control_min_from_string
   public  :: control_remd
   public  :: control_rpath
   public  :: control_vib
@@ -338,6 +340,113 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
+  !  Subroutine    control_md_from_string
+  !> @brief        read control parameters from string for MD
+  !! @authors      Claude Code
+  !! @param[in]    ctrl_text : control file content as C string
+  !! @param[in]    ctrl_len  : length of ctrl_text
+  !! @param[out]   ctrl_data : information of control parameters
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine control_md_from_string(ctrl_text, ctrl_len, ctrl_data)
+
+    use, intrinsic :: iso_c_binding
+
+    ! formal arguments
+    character(kind=c_char),  intent(in)    :: ctrl_text(*)
+    integer,                 intent(in)    :: ctrl_len
+    type(s_ctrl_data),       intent(inout) :: ctrl_data
+
+    ! local variables
+    integer                  :: handle
+    character(len=1024)      :: dummy_filename
+
+
+    ! open control data from string
+    !
+    call open_ctrlfile_from_string(ctrl_text, ctrl_len, handle)
+
+    if (handle == 0) &
+      call error_msg('Control_Md_From_String> Memory Error')
+
+    ! Use dummy filename for qmmm section
+    dummy_filename = ''
+
+    ! read input section
+    !
+    call read_ctrl_input(handle, ctrl_data%inp_info)
+
+
+    ! read output section
+    !
+    call read_ctrl_output(handle, ctrl_data%out_info)
+
+
+    ! read gamd section
+    !
+    call read_ctrl_gamd(handle, ctrl_data%gamd_info)
+
+
+    ! read energy section
+    !
+    call read_ctrl_energy(handle, ctrl_data%ene_info)
+
+
+    ! read dynamics section
+    !
+    call read_ctrl_dynamics(handle, ctrl_data%dyn_info)
+
+
+    ! read constraints section
+    !
+    call read_ctrl_constraints(handle, ctrl_data%cons_info)
+
+
+    ! read ensemble section
+    !
+    call read_ctrl_ensemble(handle, ctrl_data%ens_info)
+
+
+    ! read boundary section
+    !
+    call read_ctrl_boundary(handle, ctrl_data%bound_info)
+
+
+    ! read selection section
+    !
+    call read_ctrl_selection(handle, ctrl_data%sel_info)
+
+
+    ! read restraints section
+    !
+    call read_ctrl_restraints(handle, ctrl_data%res_info)
+
+    ! read fitting section
+    !
+    call read_ctrl_fitting_md(handle, ctrl_data%fit_info)
+
+
+    ! skip QM/MM section (requires file-based control for find_ctrlfile_section)
+    ! call read_ctrl_qmmm(handle, dummy_filename, ctrl_data%qmmm_info)
+    ctrl_data%qmmm_info%do_qmmm = .false.
+
+
+    ! skip experiments section (not needed for string-based control)
+    ! call read_ctrl_experiments(handle, ctrl_data%exp_info)
+
+
+    ! close control data
+    !
+    call close_ctrlfile(handle)
+
+
+    return
+
+  end subroutine control_md_from_string
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
   !  Subroutine    control_min
   !> @brief        open/read/close control files for Minimization
   !! @authors      TM, CK
@@ -422,6 +531,99 @@ contains
     return
 
   end subroutine control_min
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    control_min_from_string
+  !> @brief        read control parameters from string for Minimization
+  !! @authors      Claude Code
+  !! @param[in]    ctrl_text : control file content as C string
+  !! @param[in]    ctrl_len  : length of ctrl_text
+  !! @param[out]   ctrl_data : information of control parameters
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine control_min_from_string(ctrl_text, ctrl_len, ctrl_data)
+
+    use, intrinsic :: iso_c_binding
+
+    ! formal arguments
+    character(kind=c_char),  intent(in)    :: ctrl_text(*)
+    integer,                 intent(in)    :: ctrl_len
+    type(s_ctrl_data),       intent(inout) :: ctrl_data
+
+    ! local variables
+    integer                  :: handle
+    character(len=1024)      :: dummy_filename
+
+
+    ! open control data from string
+    !
+    call open_ctrlfile_from_string(ctrl_text, ctrl_len, handle)
+
+    if (handle == 0) &
+      call error_msg('Control_Min_From_String> Memory Error')
+
+    ! Use dummy filename for qmmm section
+    dummy_filename = ''
+
+    ! read input section
+    !
+    call read_ctrl_input(handle, ctrl_data%inp_info)
+
+
+    ! read output section
+    !
+    call read_ctrl_output(handle, ctrl_data%out_info)
+
+
+    ! read energy section
+    !
+    call read_ctrl_energy(handle, ctrl_data%ene_info)
+
+
+    ! read minimize section
+    !
+    call read_ctrl_minimize(handle, ctrl_data%min_info)
+
+
+    ! read boundary section
+    !
+    call read_ctrl_boundary(handle, ctrl_data%bound_info)
+
+
+    ! read selection section
+    !
+    call read_ctrl_selection(handle, ctrl_data%sel_info)
+
+
+    ! read restraints section
+    !
+    call read_ctrl_restraints(handle, ctrl_data%res_info)
+
+
+    ! read fitting section
+    !
+    call read_ctrl_fitting_md(handle, ctrl_data%fit_info)
+
+
+    ! skip QM/MM section (requires file-based control for find_ctrlfile_section)
+    ! call read_ctrl_qmmm(handle, dummy_filename, ctrl_data%qmmm_info)
+    ctrl_data%qmmm_info%do_qmmm = .false.
+
+
+    ! skip experiments section (not needed for string-based control)
+    ! call read_ctrl_experiments(handle, ctrl_data%exp_info)
+
+
+    ! close control data
+    !
+    call close_ctrlfile(handle)
+
+
+    return
+
+  end subroutine control_min_from_string
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
