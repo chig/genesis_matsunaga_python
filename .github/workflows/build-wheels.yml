@@ -39,7 +39,7 @@ jobs:
           # 3. Using basic x86-64 architecture (no AVX)
           ./configure --disable-mpi CC=gcc FC=gfortran \
             FCFLAGS="-O2 -march=x86-64 -fno-tree-vectorize -fno-tree-loop-vectorize -fno-tree-slp-vectorize -ffree-line-length-none -fallow-argument-mismatch -fopenmp -fPIC" \
-            LDFLAGS="-fopenmp" \
+            LDFLAGS="-fopenmp -lmvec -lm" \
             LAPACK_LIBS="-llapack -lblas"
 
       - name: Build GENESIS
