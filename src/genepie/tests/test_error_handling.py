@@ -17,7 +17,7 @@ from ..exceptions import (
     GenesisMemoryError,
     GenesisOverflowError,
 )
-from .validation import (
+from ..validation import (
     validate_size,
     validate_pointer,
     validate_trajectory_dimensions,
@@ -25,7 +25,7 @@ from .validation import (
     validate_non_negative,
     MAX_SAFE_SIZE,
 )
-from .output_capture import (
+from ..output_capture import (
     capture_fortran_output,
     suppress_stdout_capture_stderr,
     suppress_all_output,
