@@ -24,7 +24,7 @@ def test_diffusion_analysis():
     assert ret is not None, "Diffusion result should not be None"
     assert len(ret) > 0, "Diffusion result should have at least one value"
     # Diffusion coefficients should be non-negative
-    assert all(d >= 0 for d in ret), "Diffusion coefficients should be non-negative"
+    assert (ret >= 0).all(), "Diffusion coefficients should be non-negative"
     print(f"Diffusion coefficients (n={len(ret)}): {ret}")
 
 
