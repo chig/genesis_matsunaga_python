@@ -314,10 +314,10 @@ def validate_timestep(
 
     validate_positive(timestep, "timestep")
 
-    # Warn about large timesteps (but don't fail)
-    max_safe = 0.002 if rigid_bond else 0.001
+    # Reject excessively large timesteps
     if timestep > 0.005:
+        typical = "0.002 ps with SHAKE/RATTLE" if rigid_bond else "0.001 ps without SHAKE/RATTLE"
         raise GenesisValidationError(
             f"timestep ({timestep} ps) is very large. "
-            f"Typical values are 0.001-0.002 ps with SHAKE/RATTLE."
+            f"Typical value is {typical}."
         )

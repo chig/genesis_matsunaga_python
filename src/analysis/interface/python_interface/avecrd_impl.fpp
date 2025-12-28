@@ -96,7 +96,7 @@ contains
              ave_coord(3,natom), &
              trj_coord(3,natom), stat=alloc_stat)
     if (alloc_stat /= 0) then
-      call error_set(err, ERROR_CODE, "AA_Analysis> allocation is failed")
+      call error_set(err, ERROR_ALLOC, "AA_Analysis> allocation is failed")
       return
     endif
 

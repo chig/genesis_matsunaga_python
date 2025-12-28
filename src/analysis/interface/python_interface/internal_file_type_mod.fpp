@@ -35,53 +35,53 @@ contains
     character(len=80) :: line_buf
 
     if (.not.allocated(pdb%hetatm)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%hetatm')
       return
     end if
 
     if (.not.allocated(pdb%atom_name)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%atom_name')
       return
     end if
     if (.not.allocated(pdb%residue_name)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%residue_name')
       return
     end if
     if (.not.allocated(pdb%segment_name)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%segment_name')
       return
     end if
     if (.not.allocated(pdb%chain_id)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%chain_id')
       return
     end if
     if (.not.allocated(pdb%atom_no)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%atom_no')
       return
     end if
     if (.not.allocated(pdb%residue_no)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%residue_no')
       return
     end if
     if (.not.allocated(pdb%atom_coord)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%atom_coord')
       return
     end if
     if (.not.allocated(pdb%atom_occupancy)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%atom_occupancy')
       return
     end if
     if (.not.allocated(pdb%atom_temp_factor)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
       'Out_Pdb> not allocated: pdb%atom_temp_factor')
       return
     end if

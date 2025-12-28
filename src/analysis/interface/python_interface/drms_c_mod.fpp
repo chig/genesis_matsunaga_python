@@ -330,13 +330,13 @@ contains
                    temp_conv(1:ncount),              &
                    stat = alloc_stat)
           if (alloc_stat /= 0) then
-              call error_set(err, ERROR_CODE, & 
+              call error_set(err, ERROR_ALLOC, &
                 'Setup_Contact_List> allocate error')
               return
           end if
           call alloc_option(option, DA_Contact, ncount)
         else
-          call error_set(err, ERROR_CODE, & 
+          call error_set(err, ERROR_NO_DATA, &
               'Setup_Contact_List> ERROR : no contact is defined.')
           return
         end if
@@ -353,7 +353,7 @@ contains
           option%contact_dist(i) = temp_contact_dist(itmp)
         end do
       else
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_BOND_INFO, &
              'Setup_Contact_List> ERROR : bond/angle/dihedral information is required in avoid_bonding option')
         return
       end if
@@ -395,7 +395,7 @@ contains
                 temp_conv,         &
               stat = dealloc_stat)
     if (dealloc_stat /= 0) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_DEALLOC, &
             'Setup_Contact_List> deallocation error')
         return
     end if
@@ -531,13 +531,13 @@ contains
                    temp_conv(1:ncount),               &
                    stat = alloc_stat)
           if (alloc_stat /= 0) then
-            call error_set(err, ERROR_CODE, & 
+            call error_set(err, ERROR_ALLOC, &
                  'Setup_Contact_List> allocation error')
             return
           end if
           call alloc_option(option, DA_Contact, ncount)
         else
-          call error_set(err, ERROR_CODE, & 
+          call error_set(err, ERROR_NO_DATA, &
                  'Setup_Contact_List> ERROR : no contact is defined.')
           return
         end if
@@ -555,7 +555,7 @@ contains
           option%contact_cur_dist(i) = temp_contact_dist_other(itmp)
         end do
       else
-          call error_set(err, ERROR_CODE, & 
+          call error_set(err, ERROR_BOND_INFO, &
              'Setup_Contact_List> ERROR : bond/angle/dihedral information is required in avoid_bonding option')
           return
       end if
@@ -599,7 +599,7 @@ contains
                 temp_conv,               &
               stat = dealloc_stat)
      if (dealloc_stat /= 0) then
-       call error_set(err, ERROR_CODE, & 
+       call error_set(err, ERROR_DEALLOC, &
             'Setup_Contact_List_Two_states> deallocation error')
        return
      end if

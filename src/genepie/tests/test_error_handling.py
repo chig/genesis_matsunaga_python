@@ -420,5 +420,59 @@ class TestOutputCapture(unittest.TestCase):
             # No error should occur
 
 
+class TestFileValidators(unittest.TestCase):
+    """Test file validators."""
+
+    def test_validate_file_exists_with_list(self):
+        """Test that list of files is validated correctly."""
+        from ..file_validators import validate_file_exists
+        from ..exceptions import GenesisValidationError
+
+        # List with non-existent file should raise error
+        with self.assertRaises(GenesisValidationError) as ctx:
+            validate_file_exists(["/nonexistent/file1.txt", "/nonexistent/file2.txt"], "files")
+        self.assertIn("files[0]", str(ctx.exception))
+
+    def test_validate_file_exists_empty_list(self):
+        """Empty list should pass validation."""
+        from ..file_validators import validate_file_exists
+        # Empty list should not raise
+        validate_file_exists([], "files")
+
+    def test_validate_file_exists_none_not_required(self):
+        """None should pass when not required."""
+        from ..file_validators import validate_file_exists
+        # None with required=False should not raise
+        validate_file_exists(None, "optional_file", required=False)
+
+
+class TestIsolatedFunctions(unittest.TestCase):
+    """Test isolated subprocess functions exist and have proper signatures."""
+
+    def test_isolated_md_function_exists(self):
+        """run_atdyn_md_isolated should exist."""
+        from ..genesis_exe import run_atdyn_md_isolated
+        self.assertTrue(callable(run_atdyn_md_isolated))
+
+    def test_isolated_min_function_exists(self):
+        """run_atdyn_min_isolated should exist."""
+        from ..genesis_exe import run_atdyn_min_isolated
+        self.assertTrue(callable(run_atdyn_min_isolated))
+
+    def test_isolated_md_accepts_timeout(self):
+        """run_atdyn_md_isolated should accept timeout parameter."""
+        from ..genesis_exe import run_atdyn_md_isolated
+        import inspect
+        sig = inspect.signature(run_atdyn_md_isolated)
+        self.assertIn("timeout", sig.parameters)
+
+    def test_isolated_min_accepts_timeout(self):
+        """run_atdyn_min_isolated should accept timeout parameter."""
+        from ..genesis_exe import run_atdyn_min_isolated
+        import inspect
+        sig = inspect.signature(run_atdyn_min_isolated)
+        self.assertIn("timeout", sig.parameters)
+
+
 if __name__ == "__main__":
     unittest.main()

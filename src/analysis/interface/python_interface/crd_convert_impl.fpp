@@ -343,7 +343,7 @@ contains
     br = index(filename, '}', back=.true.)
 
     if (bl == 0 .or. br == 0 .or. bl > br) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_INVALID_PARAM, &
                     'Get_Filename> {} is not found in the output trjfile name')
       return
     endif

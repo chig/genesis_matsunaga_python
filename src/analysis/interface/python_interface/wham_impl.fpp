@@ -228,7 +228,7 @@ contains
     else
 
       if (nfunc == 1) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_DIMENSION, &
           'Build_Data_K_Cv> # of rest_func must be 2 on dim=2')
         return
       endif
@@ -302,7 +302,7 @@ contains
     if (error_has(err)) return
 
     if (natom /= option%num_atoms) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_ATOM_COUNT, &
         'Build_Data_K_Dcd> Dcd atom count is different from PSF/PRMTOP.')
       return
     end if
@@ -351,7 +351,7 @@ contains
     else
 
       if (nfunc == 1) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_DIMENSION, &
           'Build_Data_K_Cv> # of rest_func must be 2 on dim=2')
       end if
 
@@ -926,7 +926,7 @@ contains
         ! end do
 
         if (option%nblocks > 1) then
-          call error_set(err, ERROR_CODE, & 
+          call error_set(err, ERROR_BLOCK_NOT_SUPP, &
             'Output_Wham> n-block is not supported in 2D')
           return
         end if
@@ -995,7 +995,7 @@ contains
     grid_range = grid_max - grid_min + num_grid * EPS
 
     if (num_grid <= 1) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_GRID_SIZE, &
             'Assign_Bin> ERROR: # of grid must be > 1.')
       return
     end if
@@ -1110,7 +1110,7 @@ contains
     !
     func_no = option%rest_func_no(func_idx)
     if (func_no > size(option%rest_funcs(:))) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_FUNC_NOT_SUPP, &
             'Get_Dcd_Cv> bad restraint function No.')
       return
     end if
@@ -1124,7 +1124,7 @@ contains
     select case (func)
 
     case (RestraintsFuncPOSI)
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_FUNC_NOT_SUPP, &
         'Get_Dcd_Cv> ERROR : RestraintsFuncPOSI : not supprted.')
       return
 
@@ -1132,7 +1132,7 @@ contains
       get_dcd_cv = get_com_dist(molecule, trajectory, option%selatoms, func_sel)
 
     case (RestraintsFuncRMSD, RestraintsFuncRMSDCOM)
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_FUNC_NOT_SUPP, &
         'Get_Dcd_Cv> ERROR : RestraintsFuncRMSD/RMSDCOM : not supprted.')
       return
 
@@ -1380,7 +1380,7 @@ contains
     br = index(filename, '}', back=.true.)
 
     if (bl == 0 .or. br == 0 .or. bl > br) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_SYNTAX, &
         'Get_Replicate_Name1> Syntax error.')
       return
     end if
@@ -1415,7 +1415,7 @@ contains
     br2 = index(filename, '}', back=.true.)
 
     if (bl1 == 0 .or. br1 == 0 .or. bl1 == bl2 .or. br1 == br2 .or. bl1 > br1) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_SYNTAX, &
         'Get_Replicate_Name2> Syntax error.')
       return
     end if

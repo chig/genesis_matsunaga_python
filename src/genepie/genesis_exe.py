@@ -943,6 +943,26 @@ def wham_analysis(
     Returns:
         pmf
     """
+    # === INPUT VALIDATION ===
+    from .file_validators import validate_file_exists, validate_file_pattern
+    from .param_validators import validate_positive, validate_range
+
+    # Validate input files
+    validate_file_exists(psffile, "psffile", required=False)
+    validate_file_exists(prmtopfile, "prmtopfile", required=False)
+    validate_file_exists(grotopfile, "grotopfile", required=False)
+    validate_file_pattern(dcdfile, "dcdfile", required=False)
+    validate_file_pattern(cvfile, "cvfile", required=False)
+
+    # Validate parameters
+    if dimension is not None:
+        validate_range(dimension, 1, 2, "dimension")
+    if temperature is not None:
+        validate_positive(temperature, "temperature")
+    if nblocks is not None:
+        validate_positive(nblocks, "nblocks")
+    # === END VALIDATION ===
+
     result_pmf_c = ctypes.c_void_p(None)
     n_bins = ctypes.c_int(0)
     n_bin_x = ctypes.c_int(0)
@@ -1055,6 +1075,28 @@ def mbar_analysis(
     Returns:
         fene
     """
+    # === INPUT VALIDATION ===
+    from .file_validators import validate_file_exists, validate_file_pattern
+    from .param_validators import validate_positive, validate_range
+
+    # Validate input files
+    validate_file_exists(psffile, "psffile", required=False)
+    validate_file_exists(prmtopfile, "prmtopfile", required=False)
+    validate_file_exists(grotopfile, "grotopfile", required=False)
+    validate_file_pattern(dcdfile, "dcdfile", required=False)
+    validate_file_pattern(cvfile, "cvfile", required=False)
+
+    # Validate parameters
+    if dimension is not None:
+        validate_range(dimension, 1, 2, "dimension")
+    if temperature is not None:
+        validate_positive(temperature, "temperature")
+    if nreplica is not None:
+        validate_positive(nreplica, "nreplica")
+    if nblocks is not None:
+        validate_positive(nblocks, "nblocks")
+    # === END VALIDATION ===
+
     result_fene_c = ctypes.c_void_p(None)
     n_replica = ctypes.c_int(0)
     n_blocks = ctypes.c_int(0)
@@ -1939,6 +1981,105 @@ def run_atdyn_min(
 # Subprocess Isolation API
 # =============================================================================
 
+def _run_isolated_subprocess(
+    func_name: str,
+    result_fields: list,
+    timeout: Optional[float],
+    task_description: str,
+    **kwargs
+) -> dict:
+    """
+    Common helper for running atdyn functions in isolated subprocess.
+
+    Args:
+        func_name: Name of the genesis_exe function to call
+        result_fields: List of field names to extract from result
+        timeout: Maximum time in seconds to wait
+        task_description: Description for error messages (e.g., "MD simulation")
+        **kwargs: Arguments to pass to the function
+
+    Returns:
+        Dictionary with the result fields
+    """
+    import subprocess
+    import sys
+    import pickle
+    import base64
+
+    kwargs_bytes = base64.b64encode(pickle.dumps(kwargs)).decode('ascii')
+    result_fields_str = repr(result_fields)
+
+    script = f'''
+import sys
+import pickle
+import base64
+
+try:
+    from genepie import genesis_exe
+except ImportError:
+    sys.path.insert(0, "{os.path.dirname(os.path.dirname(__file__))}")
+    from genepie import genesis_exe
+
+kwargs = pickle.loads(base64.b64decode("{kwargs_bytes}"))
+
+try:
+    result = genesis_exe.{func_name}(**kwargs)
+    output = {{"success": True}}
+    for field in {result_fields_str}:
+        val = getattr(result, field)
+        output[field] = val.tolist() if hasattr(val, 'tolist') else val
+except Exception as e:
+    import traceback
+    output = {{
+        "success": False,
+        "error": str(e),
+        "error_type": type(e).__name__,
+        "traceback": traceback.format_exc(),
+    }}
+
+sys.stdout.buffer.write(base64.b64encode(pickle.dumps(output)))
+'''
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, '-c', script],
+            capture_output=True,
+            timeout=timeout,
+            env={**os.environ, 'OMP_NUM_THREADS': os.environ.get('OMP_NUM_THREADS', '1')},
+        )
+    except subprocess.TimeoutExpired as e:
+        raise TimeoutError(f"atdyn {task_description} timed out after {timeout} seconds") from e
+
+    if proc.returncode != 0:
+        stderr_text = proc.stderr.decode('utf-8', errors='replace')
+        raise RuntimeError(
+            f"atdyn subprocess failed with code {proc.returncode}:\n{stderr_text}"
+        )
+
+    try:
+        output = pickle.loads(base64.b64decode(proc.stdout))
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to decode subprocess output: {e}\n"
+            f"stdout: {proc.stdout[:500]}\n"
+            f"stderr: {proc.stderr.decode('utf-8', errors='replace')}"
+        )
+
+    if not output["success"]:
+        from .exceptions import GenesisFortranError, GenesisValidationError
+        error_type = output.get("error_type", "")
+        error_msg = output.get("error", "Unknown error")
+
+        if "GenesisFortran" in error_type:
+            raise GenesisFortranError(error_msg)
+        elif error_type == "GenesisValidationError":
+            raise GenesisValidationError(error_msg)
+        else:
+            raise RuntimeError(f"{error_type}: {error_msg}\n{output.get('traceback', '')}")
+
+    return output
+
+
 def run_atdyn_md_isolated(
     timeout: Optional[float] = None,
     **kwargs
@@ -1974,95 +2115,13 @@ def run_atdyn_md_isolated(
         ...         timeout=300,  # 5 minute timeout
         ...     )
     """
-    import subprocess
-    import sys
-    import pickle
-    import base64
-
-    # Serialize kwargs to base64
-    kwargs_bytes = base64.b64encode(pickle.dumps(kwargs)).decode('ascii')
-
-    # Python script to run in subprocess
-    script = f'''
-import sys
-import pickle
-import base64
-import numpy as np
-
-# Ensure genepie is importable
-try:
-    from genepie import genesis_exe
-except ImportError:
-    sys.path.insert(0, "{os.path.dirname(os.path.dirname(__file__))}")
-    from genepie import genesis_exe
-
-# Decode kwargs
-kwargs = pickle.loads(base64.b64decode("{kwargs_bytes}"))
-
-try:
-    result = genesis_exe.run_atdyn_md(**kwargs)
-    output = {{
-        "success": True,
-        "energies": result.energies.tolist(),
-        "final_coords": result.final_coords.tolist(),
-        "energy_labels": result.energy_labels,
-    }}
-except Exception as e:
-    import traceback
-    output = {{
-        "success": False,
-        "error": str(e),
-        "error_type": type(e).__name__,
-        "traceback": traceback.format_exc(),
-    }}
-
-# Output as base64-encoded pickle
-import sys
-sys.stdout.buffer.write(base64.b64encode(pickle.dumps(output)))
-'''
-
-    try:
-        proc = subprocess.run(
-            [sys.executable, '-c', script],
-            capture_output=True,
-            timeout=timeout,
-            env={**os.environ, 'OMP_NUM_THREADS': os.environ.get('OMP_NUM_THREADS', '1')},
-        )
-    except subprocess.TimeoutExpired as e:
-        raise TimeoutError(f"atdyn MD simulation timed out after {timeout} seconds") from e
-
-    if proc.returncode != 0:
-        stderr_text = proc.stderr.decode('utf-8', errors='replace')
-        raise RuntimeError(
-            f"atdyn subprocess failed with code {proc.returncode}:\n{stderr_text}"
-        )
-
-    # Decode result
-    try:
-        output = pickle.loads(base64.b64decode(proc.stdout))
-    except Exception as e:
-        raise RuntimeError(
-            f"Failed to decode subprocess output: {e}\n"
-            f"stdout: {proc.stdout[:500]}\n"
-            f"stderr: {proc.stderr.decode('utf-8', errors='replace')}"
-        )
-
-    if not output["success"]:
-        # Re-raise the original exception type if possible
-        from .exceptions import (
-            GenesisFortranError,
-            GenesisValidationError,
-        )
-        error_type = output.get("error_type", "")
-        error_msg = output.get("error", "Unknown error")
-
-        if "GenesisFortran" in error_type:
-            raise GenesisFortranError(error_msg)
-        elif error_type == "GenesisValidationError":
-            raise GenesisValidationError(error_msg)
-        else:
-            raise RuntimeError(f"{error_type}: {error_msg}\n{output.get('traceback', '')}")
-
+    output = _run_isolated_subprocess(
+        func_name="run_atdyn_md",
+        result_fields=["energies", "final_coords", "energy_labels"],
+        timeout=timeout,
+        task_description="MD simulation",
+        **kwargs
+    )
     return AtdynMDResult(
         energies=np.array(output["energies"]),
         final_coords=np.array(output["final_coords"]),
@@ -2093,92 +2152,13 @@ def run_atdyn_min_isolated(
         TimeoutError: If minimization exceeds timeout
         RuntimeError: If subprocess fails unexpectedly
     """
-    import subprocess
-    import sys
-    import pickle
-    import base64
-
-    # Serialize kwargs to base64
-    kwargs_bytes = base64.b64encode(pickle.dumps(kwargs)).decode('ascii')
-
-    # Python script to run in subprocess
-    script = f'''
-import sys
-import pickle
-import base64
-import numpy as np
-
-try:
-    from genepie import genesis_exe
-except ImportError:
-    sys.path.insert(0, "{os.path.dirname(os.path.dirname(__file__))}")
-    from genepie import genesis_exe
-
-kwargs = pickle.loads(base64.b64decode("{kwargs_bytes}"))
-
-try:
-    result = genesis_exe.run_atdyn_min(**kwargs)
-    output = {{
-        "success": True,
-        "energies": result.energies.tolist(),
-        "final_coords": result.final_coords.tolist(),
-        "converged": result.converged,
-        "final_gradient": result.final_gradient,
-        "energy_labels": result.energy_labels,
-    }}
-except Exception as e:
-    import traceback
-    output = {{
-        "success": False,
-        "error": str(e),
-        "error_type": type(e).__name__,
-        "traceback": traceback.format_exc(),
-    }}
-
-import sys
-sys.stdout.buffer.write(base64.b64encode(pickle.dumps(output)))
-'''
-
-    try:
-        proc = subprocess.run(
-            [sys.executable, '-c', script],
-            capture_output=True,
-            timeout=timeout,
-            env={**os.environ, 'OMP_NUM_THREADS': os.environ.get('OMP_NUM_THREADS', '1')},
-        )
-    except subprocess.TimeoutExpired as e:
-        raise TimeoutError(f"atdyn minimization timed out after {timeout} seconds") from e
-
-    if proc.returncode != 0:
-        stderr_text = proc.stderr.decode('utf-8', errors='replace')
-        raise RuntimeError(
-            f"atdyn subprocess failed with code {proc.returncode}:\n{stderr_text}"
-        )
-
-    try:
-        output = pickle.loads(base64.b64decode(proc.stdout))
-    except Exception as e:
-        raise RuntimeError(
-            f"Failed to decode subprocess output: {e}\n"
-            f"stdout: {proc.stdout[:500]}\n"
-            f"stderr: {proc.stderr.decode('utf-8', errors='replace')}"
-        )
-
-    if not output["success"]:
-        from .exceptions import (
-            GenesisFortranError,
-            GenesisValidationError,
-        )
-        error_type = output.get("error_type", "")
-        error_msg = output.get("error", "Unknown error")
-
-        if "GenesisFortran" in error_type:
-            raise GenesisFortranError(error_msg)
-        elif error_type == "GenesisValidationError":
-            raise GenesisValidationError(error_msg)
-        else:
-            raise RuntimeError(f"{error_type}: {error_msg}\n{output.get('traceback', '')}")
-
+    output = _run_isolated_subprocess(
+        func_name="run_atdyn_min",
+        result_fields=["energies", "final_coords", "converged", "final_gradient", "energy_labels"],
+        timeout=timeout,
+        task_description="minimization",
+        **kwargs
+    )
     return AtdynMinResult(
         energies=np.array(output["energies"]),
         final_coords=np.array(output["final_coords"]),

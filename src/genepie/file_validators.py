@@ -9,14 +9,14 @@ from .exceptions import GenesisValidationError
 
 
 def validate_file_exists(
-    path: Optional[Union[str, Path]],
+    path: Optional[Union[str, Path, List[Union[str, Path]]]],
     name: str,
     required: bool = True
 ) -> None:
-    """Validate that a file exists.
+    """Validate that a file or list of files exists.
 
     Args:
-        path: File path to validate
+        path: File path or list of file paths to validate
         name: Parameter name for error messages
         required: If True, raise error when path is None
 
@@ -28,6 +28,12 @@ def validate_file_exists(
             raise GenesisValidationError(
                 f"{name} is required but was not provided"
             )
+        return
+
+    # Handle list of files (e.g., parfile, strfile)
+    if isinstance(path, list):
+        for i, p in enumerate(path):
+            validate_file_exists(p, f"{name}[{i}]", required=True)
         return
 
     path = Path(path)
@@ -92,6 +98,13 @@ def validate_file_pattern(
 
     Raises:
         GenesisValidationError: If no matching files found
+
+    Note:
+        This function checks if files exist at the pattern location.
+        However, for patterns with format specifiers (like {}, {:d}, {0}),
+        the actual file existence is checked by trying index 1 as a test.
+        If no files exist yet (e.g., they will be created by the analysis),
+        this validation is skipped.
     """
     if pattern is None:
         if required:
@@ -100,22 +113,27 @@ def validate_file_pattern(
             )
         return
 
+    import re
+
     # Check if pattern contains format placeholder
-    if '{}' in pattern or '{' in pattern:
-        # Try to find at least one matching file
-        base_pattern = pattern.replace('{}', '*')
-        # Handle {0}, {1}, etc.
-        import re
-        base_pattern = re.sub(r'\{\d+\}', '*', base_pattern)
+    # Matches: {}, {0}, {1}, {:d}, {:02d}, {0:d}, etc.
+    format_pattern = r'\{[^}]*\}'
+    if re.search(format_pattern, pattern):
+        # Convert format placeholders to glob wildcards
+        base_pattern = re.sub(format_pattern, '*', pattern)
         matches = glob.glob(base_pattern)
         if not matches:
-            # Try with index 1 as a fallback
-            test_path = pattern.format(1) if '{}' in pattern else pattern
-            if not os.path.exists(test_path):
-                raise GenesisValidationError(
-                    f"{name}: No files found matching pattern: {pattern}\n"
-                    f"Tried pattern: {base_pattern}"
-                )
+            # No files found with glob - try with index 1 as fallback
+            # This handles cases like {:d} that need actual formatting
+            try:
+                test_path = pattern.format(1)
+                if not os.path.exists(test_path):
+                    # Files don't exist yet - skip validation
+                    # (they may be created by the analysis function)
+                    return
+            except (ValueError, KeyError, IndexError):
+                # Pattern cannot be formatted with integer - skip validation
+                return
     else:
         # Not a pattern, just a regular file
         validate_file_exists(pattern, name, required=True)

@@ -186,7 +186,7 @@ contains
       if (input%pathfile /= '') then
         call readref_path(input%pathfile, option)
       else
-         call error_set(err, ERROR_CODE, & 
+         call error_set(err, ERROR_FILE_NOT_FOUND, &
               'Analyze> pathfile is not set')
          return
       end if
@@ -195,7 +195,7 @@ contains
         call readref_pdb(input%pdbfile, molecule, option, err)
         if (error_has(err)) return
       else
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_FILE_NOT_FOUND, &
              'Analyze> reffile is not set')
          return
       end if
@@ -460,7 +460,7 @@ contains
 
       call input_pdb(filename, pdb)
       if (molecule%num_atoms /= pdb%num_atoms) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_ATOM_COUNT, &
            'Readref_PDB> # of atoms is mismatch ref/system')
         return
       end if
@@ -513,7 +513,7 @@ contains
         nbrella = nbrella * option%rest_nreplica(option%rest_func_no(i, 1))
       end do
     else
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_DIM_NOT_SUPP, &
            'Build_Data_K_From_Cv> dimension > 2 not supported')
       return
     end if
@@ -649,7 +649,7 @@ contains
              .or. option%input_type == InputTypeMBGO) then
       nfunc = nbrella
     else
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_FUNC_NOT_SUPP, &
            'Build_Data_K_From_Ene> unsupported input type')
       return
     end if
@@ -854,7 +854,7 @@ contains
         nbrella = nbrella * option%rest_nreplica(option%rest_func_no(i, 1))
       end do
     else
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_DIM_NOT_SUPP, &
                    'Build_Data_K_From_Cv> dimension > 2 not supported')
       return
     end if
@@ -872,7 +872,7 @@ contains
 
 
     if (natom /= option%num_atoms) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_ATOM_COUNT, &
          'Build_Data_K_From_Dcd> Dcd atom count is different from PSF/PRMTOP.')
       return
     end if
@@ -1025,7 +1025,7 @@ contains
     allocate(time_k(nstep, nbrella))
 
     if (natom /= option%num_atoms) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_ATOM_COUNT, &
          'Build_Data_K_Readref> Dcd atom count is different from PSF/PRMTOP.')
       return
     end if
@@ -1124,7 +1124,7 @@ contains
         nbrella = nbrella * option%rest_nreplica(option%rest_func_no(i, 1))
       end do
     else
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_DIM_NOT_SUPP, &
          'Build_U_Kl_From_CV> dimension > 2 not supported')
       return
     end if
@@ -1230,7 +1230,7 @@ contains
         nbrella = nbrella * option%rest_nreplica(option%rest_func_no(i, 1))
       end do
     else
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_DIM_NOT_SUPP, &
          'Build_U_Kl_From_CV> dimension > 2 not supported')
       return
     end if
@@ -1333,7 +1333,7 @@ contains
              .or. option%input_type == InputTypeMBGO) then
       nfunc = nbrella
     else
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_FUNC_NOT_SUPP, &
           'Build_U_KL_From_Ene> unsupported input type')
       return
     end if
@@ -1547,7 +1547,7 @@ contains
 
     N_max = maxval(N_k(1:nbrella))
     if (int(N_max) /= nstep) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_BLOCK_NOT_SUPP, &
             'Solve_Mbar_Block> must be N_max eq nstep')
       return
     end if
@@ -2024,7 +2024,7 @@ contains
 
     N_max = maxval(N_k(1:nbrella))
     if (int(N_max) /= nstep) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_BLOCK_NOT_SUPP, &
             'Compute_Pmf_Block> must be N_max eq n-step')
       return
     end if
@@ -2150,7 +2150,7 @@ contains
 
     N_max = maxval(N_k(1:nbrella))
     if (int(N_max) /= nstep) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_BLOCK_NOT_SUPP, &
            'Compute_Weight_Block> must be N_max eq n-step')
       return
     end if
@@ -2279,7 +2279,7 @@ contains
       else
 
         if (option%nblocks > 1) then
-          call error_set(err, ERROR_CODE, & 
+          call error_set(err, ERROR_BLOCK_NOT_SUPP, &
                  'Output_MBar> n-block > 1 is not supported in 2D')
           return
         end if
@@ -2332,7 +2332,7 @@ contains
       else
 
         if (option%nblocks > 1) then
-          call error_set(err, ERROR_CODE, & 
+          call error_set(err, ERROR_BLOCK_NOT_SUPP, &
             'Output_MBar> n-block is not supported in 2D')
           return
         end if
@@ -2374,7 +2374,7 @@ contains
     if (output%weightfile /= '') then
 
       if (option%nblocks > 1) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_BLOCK_NOT_SUPP, &
                'Output_MBar> # of block must be 1 when given weight file.')
         return
       end if
@@ -2512,7 +2512,7 @@ contains
       func_no = option%rest_func_no(2, func_idx-option%rest_func_num(1))
     end if
     if (func_no > size(option%rest_funcs(:))) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_FUNC_NOT_SUPP, &
             'Get_Dcd_Cv> bad restraint function No.')
       return
     end if
@@ -2526,7 +2526,7 @@ contains
     select case (func)
 
     case (RestraintsFuncPOSI)
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_FUNC_NOT_SUPP, &
         'Get_Dcd_Cv> ERROR : RestraintsFuncPOSI : not supprted.')
       return
 
@@ -2534,7 +2534,7 @@ contains
       get_dcd_cv = get_com_dist(molecule, trajectory, option%selatoms, func_sel)
 
     case (RestraintsFuncRMSD, RestraintsFuncRMSDCOM)
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_FUNC_NOT_SUPP, &
         'Get_Dcd_Cv> ERROR : RestraintsFuncRMSD/RMSDCOM : not supprted.')
       return
 
@@ -2785,7 +2785,7 @@ contains
     br = index(filename, '}', back=.true.)
 
     if (bl == 0 .or. br == 0 .or. bl > br) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_SYNTAX, &
         'Get_Replicate_Name1> Syntax error.')
       return
     end if
@@ -2820,7 +2820,7 @@ contains
     br2 = index(filename, '}', back=.true.)
 
     if (bl1 == 0 .or. br1 == 0 .or. bl1 == bl2 .or. br1 == br2 .or. bl1 > br1) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_SYNTAX, &
         'Get_Replicate_Name2> Syntax error.')
       return
     end if
@@ -2886,7 +2886,7 @@ contains
     do irep = 1, nrep
 
       if (nstp /= N_k(irep)) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_INTERNAL, &
         'MBar_Log_Wi_Jn> ERROR ')
       end if
 
@@ -3153,7 +3153,7 @@ contains
     grid_range = grid_max - grid_min + num_grid * EPS
 
     if (num_grid <= 1) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_GRID_SIZE, &
         'Assign_Bin> ERROR: # of grid must be > 1.')
       return
     end if

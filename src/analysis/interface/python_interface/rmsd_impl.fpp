@@ -91,7 +91,7 @@ contains
 
     if (fitting%mass_weight) then
       if (abs(molecule%mass(1)) < 1.0e-05_wp) then
-         call error_set(err, ERROR_CODE, & 
+         call error_set(err, ERROR_MASS_UNDEFINED, &
                         'Analyze> mass is not defined')
          return
       else

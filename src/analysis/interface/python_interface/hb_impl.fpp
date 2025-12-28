@@ -515,7 +515,7 @@ contains
     if (error_has(err)) return
 
     if (.not. allocated(option%solvent_list)) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_NOT_ALLOCATED, &
         "Setup_HB_partner_List> option%solvent_list is not allocated")
       return
     end if
@@ -578,7 +578,7 @@ contains
       mass         = molecule%mass(atom_no)
 
       if (.not. is_polar_atom(mass, atomcls))  then
-         call error_set(err, ERROR_CODE,  &
+         call error_set(err, ERROR_DATA_MISMATCH, &
          "Setup_HB_partner_List> ERROR: non-polar atom is included")
          return
       endif

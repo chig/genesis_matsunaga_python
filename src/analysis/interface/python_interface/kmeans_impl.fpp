@@ -132,7 +132,7 @@ contains
              diff2(nclst),              &
              ndata(nclst), stat=alloc_stat)
     if (alloc_stat /= 0) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_ALLOC, &
           'Analyze> allocate error')
         return
     end if
@@ -670,7 +670,7 @@ contains
     br = index(filename, '}', back=.true.)
 
     if (bl == 0 .or. br == 0 .or. bl > br) then
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_SYNTAX, &
         'Get_Replicate_Name1> Syntax error.')
       return
     endif

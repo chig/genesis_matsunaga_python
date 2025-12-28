@@ -188,7 +188,7 @@ contains
       if (box(1) <= 0.0_wp .or.  &
         box(2) <= 0.0_wp .or.    &
         box(3) <= 0.0_wp  ) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_PBC_BOX, &
                        'Compute_Drms> Box is required for pbc_correct')
         return
       endif
@@ -269,7 +269,7 @@ contains
       if (box(1) <= 0.0_wp .or.  &
         box(2) <= 0.0_wp .or.    &
         box(3) <= 0.0_wp  ) then
-        call error_set(err, ERROR_CODE, & 
+        call error_set(err, ERROR_PBC_BOX, &
                        'Compute_Drms_Two_States> Box is required for pbc_correct')
         return
       endif

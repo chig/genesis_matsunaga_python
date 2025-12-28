@@ -88,7 +88,7 @@ contains
     else if (size(option%ndofs) == size(ndofs)) then
       ndofs(:) = option%ndofs
     else
-      call error_set(err, ERROR_CODE, & 
+      call error_set(err, ERROR_MISSING_PARAM, &
         'Analyze> Number of degrees of freedom in "ndofs"'//&
         ' does not match the number of MSD sets found in data file')
     end if
