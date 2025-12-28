@@ -139,6 +139,8 @@ The Python interface uses ctypes to call Fortran functions compiled into `libpyt
 | `py2c_util.py` | numpy array → C data conversion utilities |
 | `ctrl_files.py` | Generates temporary control files for GENESIS functions |
 | `exceptions.py` | Custom exception classes (GenesisError hierarchy) |
+| `file_validators.py` | File path validation (existence, patterns, topology) |
+| `param_validators.py` | Parameter validation (enums, ranges, MD parameters) |
 | `validation.py` | Input validation utilities for sizes/pointers |
 | `output_capture.py` | Context managers for stdout/stderr capture |
 
@@ -261,7 +263,27 @@ When running multiple atdyn calls in the same Python process, the Fortran librar
 - **2-3 runs**: Generally work in the same process
 - **6+ runs**: May cause segfaults due to accumulated Fortran state
 
-For reliable testing with many sequential runs, use subprocess isolation (see test_atdyn.py).
+For reliable testing with many sequential runs, use the subprocess-isolated variants:
+
+```python
+from genepie import genesis_exe
+
+# Isolated functions run in separate subprocess (crash-safe)
+result = genesis_exe.run_atdyn_md_isolated(
+    prmtopfile="protein.prmtop",
+    ambcrdfile="protein.inpcrd",
+    nsteps=1000,
+    timeout=300.0,  # Optional timeout in seconds
+)
+print(result.energies, result.final_coords)
+
+result = genesis_exe.run_atdyn_min_isolated(
+    prmtopfile="protein.prmtop",
+    ambcrdfile="protein.inpcrd",
+    nsteps=500,
+)
+print(result.energies, result.final_coords, result.converged)
+```
 
 ### Integration with MDTraj and MDAnalysis
 
@@ -277,19 +299,46 @@ Custom exception hierarchy for better error diagnosis:
 |-----------|---------|
 | `GenesisError` | Base exception for all GENESIS errors |
 | `GenesisFortranError` | Errors from Fortran code (includes `code` and `stderr_output` attributes) |
+| `GenesisFortranMemoryError` | Memory allocation/deallocation errors (code 100-199) |
+| `GenesisFortranFileError` | File I/O errors (code 200-299) |
+| `GenesisFortranValidationError` | Parameter validation errors from Fortran (code 300-399) |
+| `GenesisFortranDataError` | Data inconsistency errors (code 400-499) |
+| `GenesisFortranNotSupportedError` | Unsupported feature errors (code 500-599) |
 | `GenesisValidationError` | Input validation errors (before Fortran call) |
 | `GenesisMemoryError` | Memory/pointer operation errors |
 | `GenesisOverflowError` | Integer overflow in size calculations |
 
+#### Error Code Categories
+
+| Category | Code Range | Examples |
+|----------|------------|----------|
+| MEMORY_ERROR | 100-199 | ERROR_ALLOC (101), ERROR_DEALLOC (102) |
+| FILE_ERROR | 200-299 | ERROR_FILE_NOT_FOUND (201), ERROR_FILE_FORMAT (202) |
+| VALIDATION_ERROR | 300-399 | ERROR_INVALID_PARAM (301), ERROR_MISSING_PARAM (302) |
+| DATA_ERROR | 400-499 | ERROR_DATA_MISMATCH (401), ERROR_NO_DATA (402) |
+| NOT_SUPPORTED_ERROR | 500-599 | ERROR_NOT_SUPPORTED (501), ERROR_DIMENSION (502) |
+| INTERNAL_ERROR | 600-699 | ERROR_INTERNAL (601), ERROR_SYNTAX (602) |
+
 Usage:
 ```python
-from genepie import GenesisError, GenesisFortranError, GenesisValidationError
+from genepie import (
+    GenesisError,
+    GenesisFortranError,
+    GenesisFortranNotSupportedError,
+    GenesisValidationError,
+    ErrorCode,
+)
 
 try:
     result = genesis_exe.rmsd_analysis(...)
+except GenesisFortranNotSupportedError as e:
+    print(f"Unsupported feature (code {e.code}): {e}")
 except GenesisFortranError as e:
     print(f"Fortran error (code {e.code}): {e}")
     print(f"Fortran stderr: {e.stderr_output}")
+    # Check specific error codes
+    if e.code == ErrorCode.ERROR_ATOM_COUNT:
+        print("Atom count mismatch")
 except GenesisValidationError as e:
     print(f"Invalid input: {e}")
 except GenesisError as e:
