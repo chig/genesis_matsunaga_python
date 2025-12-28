@@ -14,9 +14,17 @@ from . import ctrl_files
 from .exceptions import (
     GenesisError,
     GenesisFortranError,
+    GenesisFortranMemoryError,
+    GenesisFortranFileError,
+    GenesisFortranValidationError,
+    GenesisFortranDataError,
+    GenesisFortranNotSupportedError,
+    GenesisFortranInternalError,
     GenesisValidationError,
     GenesisMemoryError,
     GenesisOverflowError,
+    ErrorCode,
+    raise_fortran_error,
 )
 
 __version__ = "1.0.0"
@@ -30,7 +38,16 @@ __all__ = [
     # Exception classes
     "GenesisError",
     "GenesisFortranError",
+    "GenesisFortranMemoryError",
+    "GenesisFortranFileError",
+    "GenesisFortranValidationError",
+    "GenesisFortranDataError",
+    "GenesisFortranNotSupportedError",
+    "GenesisFortranInternalError",
     "GenesisValidationError",
     "GenesisMemoryError",
     "GenesisOverflowError",
+    # Error handling utilities
+    "ErrorCode",
+    "raise_fortran_error",
 ]

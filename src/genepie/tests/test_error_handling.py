@@ -13,9 +13,17 @@ import numpy as np
 from ..exceptions import (
     GenesisError,
     GenesisFortranError,
+    GenesisFortranMemoryError,
+    GenesisFortranFileError,
+    GenesisFortranValidationError,
+    GenesisFortranDataError,
+    GenesisFortranNotSupportedError,
+    GenesisFortranInternalError,
     GenesisValidationError,
     GenesisMemoryError,
     GenesisOverflowError,
+    ErrorCode,
+    raise_fortran_error,
 )
 from ..validation import (
     validate_size,
@@ -57,6 +65,183 @@ class TestExceptionHierarchy(unittest.TestCase):
         for error in errors:
             with self.assertRaises(GenesisError):
                 raise error
+
+
+class TestErrorCode(unittest.TestCase):
+    """Test ErrorCode class."""
+
+    def test_memory_error_category(self):
+        """Memory errors (100-199) should return MEMORY_ERROR."""
+        self.assertEqual(ErrorCode.get_category(101), "MEMORY_ERROR")
+        self.assertEqual(ErrorCode.get_category(102), "MEMORY_ERROR")
+        self.assertEqual(ErrorCode.get_category(199), "MEMORY_ERROR")
+
+    def test_file_error_category(self):
+        """File errors (200-299) should return FILE_ERROR."""
+        self.assertEqual(ErrorCode.get_category(201), "FILE_ERROR")
+        self.assertEqual(ErrorCode.get_category(299), "FILE_ERROR")
+
+    def test_validation_error_category(self):
+        """Validation errors (300-399) should return VALIDATION_ERROR."""
+        self.assertEqual(ErrorCode.get_category(301), "VALIDATION_ERROR")
+        self.assertEqual(ErrorCode.get_category(399), "VALIDATION_ERROR")
+
+    def test_data_error_category(self):
+        """Data errors (400-499) should return DATA_ERROR."""
+        self.assertEqual(ErrorCode.get_category(401), "DATA_ERROR")
+        self.assertEqual(ErrorCode.get_category(499), "DATA_ERROR")
+
+    def test_not_supported_error_category(self):
+        """Not supported errors (500-599) should return NOT_SUPPORTED_ERROR."""
+        self.assertEqual(ErrorCode.get_category(501), "NOT_SUPPORTED_ERROR")
+        self.assertEqual(ErrorCode.get_category(599), "NOT_SUPPORTED_ERROR")
+
+    def test_internal_error_category(self):
+        """Internal errors (600-699) should return INTERNAL_ERROR."""
+        self.assertEqual(ErrorCode.get_category(601), "INTERNAL_ERROR")
+        self.assertEqual(ErrorCode.get_category(699), "INTERNAL_ERROR")
+
+    def test_unknown_error_category(self):
+        """Unknown codes should return UNKNOWN_ERROR."""
+        self.assertEqual(ErrorCode.get_category(0), "UNKNOWN_ERROR")
+        self.assertEqual(ErrorCode.get_category(99), "UNKNOWN_ERROR")
+        self.assertEqual(ErrorCode.get_category(700), "UNKNOWN_ERROR")
+
+    def test_error_code_constants(self):
+        """Error code constants should be defined."""
+        self.assertEqual(ErrorCode.ERROR_ALLOC, 101)
+        self.assertEqual(ErrorCode.ERROR_FILE_NOT_FOUND, 201)
+        self.assertEqual(ErrorCode.ERROR_INVALID_PARAM, 301)
+        self.assertEqual(ErrorCode.ERROR_DATA_MISMATCH, 401)
+        self.assertEqual(ErrorCode.ERROR_NOT_SUPPORTED, 501)
+        self.assertEqual(ErrorCode.ERROR_INTERNAL, 601)
+
+
+class TestFortranErrorSubclasses(unittest.TestCase):
+    """Test Fortran error subclasses."""
+
+    def test_memory_error_inheritance(self):
+        """GenesisFortranMemoryError should inherit from GenesisFortranError."""
+        self.assertTrue(issubclass(GenesisFortranMemoryError, GenesisFortranError))
+        error = GenesisFortranMemoryError("alloc failed", code=101)
+        self.assertIsInstance(error, GenesisFortranError)
+        self.assertIsInstance(error, GenesisError)
+
+    def test_file_error_inheritance(self):
+        """GenesisFortranFileError should inherit from GenesisFortranError."""
+        self.assertTrue(issubclass(GenesisFortranFileError, GenesisFortranError))
+
+    def test_validation_error_inheritance(self):
+        """GenesisFortranValidationError should inherit from GenesisFortranError."""
+        self.assertTrue(issubclass(GenesisFortranValidationError, GenesisFortranError))
+
+    def test_data_error_inheritance(self):
+        """GenesisFortranDataError should inherit from GenesisFortranError."""
+        self.assertTrue(issubclass(GenesisFortranDataError, GenesisFortranError))
+
+    def test_not_supported_error_inheritance(self):
+        """GenesisFortranNotSupportedError should inherit from GenesisFortranError."""
+        self.assertTrue(issubclass(GenesisFortranNotSupportedError, GenesisFortranError))
+
+    def test_internal_error_inheritance(self):
+        """GenesisFortranInternalError should inherit from GenesisFortranError."""
+        self.assertTrue(issubclass(GenesisFortranInternalError, GenesisFortranError))
+
+    def test_catch_all_with_base_class(self):
+        """All subclasses should be catchable with GenesisFortranError."""
+        errors = [
+            GenesisFortranMemoryError("test", code=101),
+            GenesisFortranFileError("test", code=201),
+            GenesisFortranValidationError("test", code=301),
+            GenesisFortranDataError("test", code=401),
+            GenesisFortranNotSupportedError("test", code=501),
+            GenesisFortranInternalError("test", code=601),
+        ]
+        for error in errors:
+            with self.assertRaises(GenesisFortranError):
+                raise error
+
+
+class TestRaiseFortranError(unittest.TestCase):
+    """Test raise_fortran_error factory function."""
+
+    def test_raises_memory_error(self):
+        """Code 101 should raise GenesisFortranMemoryError."""
+        with self.assertRaises(GenesisFortranMemoryError) as ctx:
+            raise_fortran_error("test", code=101)
+        self.assertEqual(ctx.exception.code, 101)
+
+    def test_raises_file_error(self):
+        """Code 201 should raise GenesisFortranFileError."""
+        with self.assertRaises(GenesisFortranFileError) as ctx:
+            raise_fortran_error("test", code=201)
+        self.assertEqual(ctx.exception.code, 201)
+
+    def test_raises_validation_error(self):
+        """Code 301 should raise GenesisFortranValidationError."""
+        with self.assertRaises(GenesisFortranValidationError) as ctx:
+            raise_fortran_error("test", code=301)
+        self.assertEqual(ctx.exception.code, 301)
+
+    def test_raises_data_error(self):
+        """Code 401 should raise GenesisFortranDataError."""
+        with self.assertRaises(GenesisFortranDataError) as ctx:
+            raise_fortran_error("test", code=401)
+        self.assertEqual(ctx.exception.code, 401)
+
+    def test_raises_not_supported_error(self):
+        """Code 501 should raise GenesisFortranNotSupportedError."""
+        with self.assertRaises(GenesisFortranNotSupportedError) as ctx:
+            raise_fortran_error("test", code=501)
+        self.assertEqual(ctx.exception.code, 501)
+
+    def test_raises_internal_error(self):
+        """Code 601 should raise GenesisFortranInternalError."""
+        with self.assertRaises(GenesisFortranInternalError) as ctx:
+            raise_fortran_error("test", code=601)
+        self.assertEqual(ctx.exception.code, 601)
+
+    def test_raises_base_for_unknown_code(self):
+        """Unknown code should raise GenesisFortranError."""
+        with self.assertRaises(GenesisFortranError) as ctx:
+            raise_fortran_error("test", code=999)
+        self.assertEqual(ctx.exception.code, 999)
+        # Should not be a subclass
+        self.assertEqual(type(ctx.exception), GenesisFortranError)
+
+    def test_preserves_message_and_stderr(self):
+        """Should preserve message and stderr_output."""
+        with self.assertRaises(GenesisFortranError) as ctx:
+            raise_fortran_error("error message", code=101, stderr_output="stderr text")
+        self.assertEqual(str(ctx.exception), "error message")
+        self.assertEqual(ctx.exception.stderr_output, "stderr text")
+
+
+class TestGenesisFortranErrorCategoryMethods(unittest.TestCase):
+    """Test is_*_error() methods on GenesisFortranError."""
+
+    def test_is_memory_error(self):
+        """is_memory_error() should return True for code 100-199."""
+        error = GenesisFortranError("test", code=101)
+        self.assertTrue(error.is_memory_error())
+        self.assertFalse(error.is_file_error())
+
+    def test_is_file_error(self):
+        """is_file_error() should return True for code 200-299."""
+        error = GenesisFortranError("test", code=201)
+        self.assertTrue(error.is_file_error())
+        self.assertFalse(error.is_memory_error())
+
+    def test_is_not_supported_error(self):
+        """is_not_supported_error() should return True for code 500-599."""
+        error = GenesisFortranError("test", code=502)
+        self.assertTrue(error.is_not_supported_error())
+        self.assertFalse(error.is_internal_error())
+
+    def test_category_attribute(self):
+        """category attribute should be set correctly."""
+        error = GenesisFortranError("test", code=501)
+        self.assertEqual(error.category, "NOT_SUPPORTED_ERROR")
 
 
 class TestGenesisFortranError(unittest.TestCase):

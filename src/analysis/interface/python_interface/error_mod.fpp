@@ -11,8 +11,46 @@ module error_mod
   public :: s_error, error_init, error_clear, error_set, error_has, &
             fi_msg_len, error_to_c
 
-  integer,      public, parameter :: ERROR_CODE = 101
-  integer(c_int),  parameter :: MSG_LEN_ = 2048
+  ! Legacy error code (kept for backward compatibility)
+  integer, public, parameter :: ERROR_CODE = 101
+
+  ! Memory errors (100-199)
+  integer, public, parameter :: ERROR_ALLOC         = 101
+  integer, public, parameter :: ERROR_DEALLOC       = 102
+  integer, public, parameter :: ERROR_NOT_ALLOCATED = 103
+
+  ! File errors (200-299)
+  integer, public, parameter :: ERROR_FILE_NOT_FOUND = 201
+  integer, public, parameter :: ERROR_FILE_FORMAT    = 202
+  integer, public, parameter :: ERROR_FILE_READ      = 203
+
+  ! Validation errors (300-399)
+  integer, public, parameter :: ERROR_INVALID_PARAM  = 301
+  integer, public, parameter :: ERROR_MISSING_PARAM  = 302
+  integer, public, parameter :: ERROR_DIMENSION      = 303
+  integer, public, parameter :: ERROR_ATOM_COUNT     = 304
+  integer, public, parameter :: ERROR_GRID_SIZE      = 305
+  integer, public, parameter :: ERROR_BOND_INFO      = 306
+  integer, public, parameter :: ERROR_SELECTION      = 307
+
+  ! Data errors (400-499)
+  integer, public, parameter :: ERROR_DATA_MISMATCH  = 401
+  integer, public, parameter :: ERROR_NO_DATA        = 402
+  integer, public, parameter :: ERROR_MASS_UNDEFINED = 403
+  integer, public, parameter :: ERROR_PBC_BOX        = 404
+
+  ! Not supported errors (500-599)
+  integer, public, parameter :: ERROR_NOT_SUPPORTED  = 501
+  integer, public, parameter :: ERROR_DIM_NOT_SUPP   = 502
+  integer, public, parameter :: ERROR_FUNC_NOT_SUPP  = 503
+  integer, public, parameter :: ERROR_BLOCK_NOT_SUPP = 504
+
+  ! Internal errors (600-699)
+  integer, public, parameter :: ERROR_INTERNAL       = 601
+  integer, public, parameter :: ERROR_SYNTAX         = 602
+  integer, public, parameter :: ERROR_GENERIC        = 699
+
+  integer(c_int), parameter :: MSG_LEN_ = 2048
 
   type :: s_error
      integer :: code = 0

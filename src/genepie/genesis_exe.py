@@ -13,7 +13,11 @@ from . import ctrl_files
 from . import c2py_util
 from . import py2c_util
 from functools import lru_cache
-from .exceptions import GenesisFortranError, GenesisValidationError
+from .exceptions import (
+    GenesisFortranError,
+    GenesisValidationError,
+    raise_fortran_error,
+)
 from .output_capture import suppress_stdout_capture_stderr
 from .validation import validate_positive, validate_non_negative, validate_trajectory_dimensions
 
@@ -147,7 +151,7 @@ def crd_convert(
                     )
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -456,7 +460,7 @@ def rmsd_analysis(
 
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -558,7 +562,7 @@ def drms_analysis(
                     )
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -727,7 +731,7 @@ def hb_analysis(molecule: SMolecule, trajs: STrajectories,
 
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -800,7 +804,7 @@ def diffusion_analysis(msd_data: npt.NDArray[np.float64],
                 )
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -887,7 +891,7 @@ def avecrd_analysis(
                     )
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -1000,7 +1004,7 @@ def wham_analysis(
                     )
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -1114,7 +1118,7 @@ def mbar_analysis(
                     )
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -1222,7 +1226,7 @@ def kmeans_clustering(
 
         if status.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status.value,
                 stderr_output=captured.stderr
@@ -1448,7 +1452,73 @@ def run_atdyn_md(
             - energies: Array of energy terms (nterms x nframes)
             - final_coords: Final coordinates (3 x natom)
             - energy_labels: Tuple of energy term names
+
+    Raises:
+        GenesisValidationError: If input validation fails
+        GenesisFortranError: If Fortran code returns an error
     """
+    # === INPUT VALIDATION ===
+    from .file_validators import (
+        validate_file_exists,
+        validate_topology_combination,
+    )
+    from .param_validators import (
+        validate_enum,
+        validate_positive,
+        validate_distance_ordering,
+        validate_pme_params,
+        validate_shake_params,
+        validate_ensemble_params,
+        validate_pbc_params,
+        FORCEFIELDS,
+        ELECTROSTATICS,
+        INTEGRATORS,
+        BOUNDARY_TYPES,
+        IMPLICIT_SOLVENTS,
+    )
+
+    # Validate topology - at least one format required
+    validate_topology_combination(psffile, prmtopfile, grotopfile)
+
+    # Validate input files exist
+    validate_file_exists(psffile, "psffile", required=False)
+    validate_file_exists(prmtopfile, "prmtopfile", required=False)
+    validate_file_exists(ambcrdfile, "ambcrdfile", required=False)
+    validate_file_exists(pdbfile, "pdbfile", required=False)
+    validate_file_exists(rstfile, "rstfile", required=False)
+    validate_file_exists(topfile, "topfile", required=False)
+    validate_file_exists(parfile, "parfile", required=False)
+    validate_file_exists(strfile, "strfile", required=False)
+    validate_file_exists(grotopfile, "grotopfile", required=False)
+    validate_file_exists(grocrdfile, "grocrdfile", required=False)
+
+    # Validate enum parameters
+    validate_enum(forcefield, FORCEFIELDS, "forcefield")
+    validate_enum(electrostatic, ELECTROSTATICS, "electrostatic")
+    validate_enum(integrator, INTEGRATORS, "integrator")
+    validate_enum(boundary_type, BOUNDARY_TYPES, "boundary_type")
+    validate_enum(implicit_solvent, IMPLICIT_SOLVENTS, "implicit_solvent")
+
+    # Validate numeric parameters
+    validate_positive(nsteps, "nsteps", allow_none=False)
+    validate_positive(timestep, "timestep")
+    validate_positive(eneout_period, "eneout_period")
+    validate_positive(crdout_period, "crdout_period")
+    validate_positive(rstout_period, "rstout_period")
+    validate_positive(nbupdate_period, "nbupdate_period")
+
+    # Validate distance ordering
+    validate_distance_ordering(switchdist, cutoffdist, pairlistdist)
+
+    # Validate conditional parameters
+    validate_pme_params(
+        electrostatic, pme_alpha, pme_ngrid_x, pme_ngrid_y, pme_ngrid_z, pme_nspline
+    )
+    validate_shake_params(rigid_bond, shake_iteration, shake_tolerance)
+    validate_ensemble_params(ensemble, temperature, pressure, tpcontrol)
+    validate_pbc_params(boundary_type, box_size_x, box_size_y, box_size_z)
+    # === END VALIDATION ===
+
     result_energies_c = ctypes.c_void_p(None)
     result_nframes_c = ctypes.c_int(0)
     result_nterms_c = ctypes.c_int(0)
@@ -1548,7 +1618,7 @@ def run_atdyn_md(
 
         if status_c.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status_c.value,
                 stderr_output=captured.stderr
@@ -1676,7 +1746,72 @@ def run_atdyn_min(
             - converged: Whether minimization converged
             - final_gradient: Final RMS gradient
             - energy_labels: Tuple of energy term names
+
+    Raises:
+        GenesisValidationError: If input validation fails
+        GenesisFortranError: If Fortran code returns an error
     """
+    # === INPUT VALIDATION ===
+    from .file_validators import (
+        validate_file_exists,
+        validate_topology_combination,
+    )
+    from .param_validators import (
+        validate_enum,
+        validate_positive,
+        validate_distance_ordering,
+        validate_pme_params,
+        validate_pbc_params,
+        FORCEFIELDS,
+        ELECTROSTATICS,
+        MINIMIZERS,
+        BOUNDARY_TYPES,
+        IMPLICIT_SOLVENTS,
+    )
+
+    # Validate topology - at least one format required
+    validate_topology_combination(psffile, prmtopfile, grotopfile)
+
+    # Validate input files exist
+    validate_file_exists(psffile, "psffile", required=False)
+    validate_file_exists(prmtopfile, "prmtopfile", required=False)
+    validate_file_exists(ambcrdfile, "ambcrdfile", required=False)
+    validate_file_exists(pdbfile, "pdbfile", required=False)
+    validate_file_exists(rstfile, "rstfile", required=False)
+    validate_file_exists(topfile, "topfile", required=False)
+    validate_file_exists(parfile, "parfile", required=False)
+    validate_file_exists(strfile, "strfile", required=False)
+    validate_file_exists(grotopfile, "grotopfile", required=False)
+    validate_file_exists(grocrdfile, "grocrdfile", required=False)
+
+    # Validate enum parameters
+    validate_enum(forcefield, FORCEFIELDS, "forcefield")
+    validate_enum(electrostatic, ELECTROSTATICS, "electrostatic")
+    validate_enum(method, MINIMIZERS, "method")
+    validate_enum(boundary_type, BOUNDARY_TYPES, "boundary_type")
+    validate_enum(implicit_solvent, IMPLICIT_SOLVENTS, "implicit_solvent")
+
+    # Validate numeric parameters
+    validate_positive(nsteps, "nsteps", allow_none=False)
+    validate_positive(eneout_period, "eneout_period")
+    validate_positive(crdout_period, "crdout_period")
+    validate_positive(rstout_period, "rstout_period")
+    validate_positive(nbupdate_period, "nbupdate_period")
+    validate_positive(force_scale_init, "force_scale_init")
+    validate_positive(force_scale_max, "force_scale_max")
+    validate_positive(tol_rmsg, "tol_rmsg")
+    validate_positive(tol_maxg, "tol_maxg")
+
+    # Validate distance ordering
+    validate_distance_ordering(switchdist, cutoffdist, pairlistdist)
+
+    # Validate conditional parameters
+    validate_pme_params(
+        electrostatic, pme_alpha, pme_ngrid_x, pme_ngrid_y, pme_ngrid_z, pme_nspline
+    )
+    validate_pbc_params(boundary_type, box_size_x, box_size_y, box_size_z)
+    # === END VALIDATION ===
+
     result_energies_c = ctypes.c_void_p(None)
     result_nsteps_c = ctypes.c_int(0)
     result_nterms_c = ctypes.c_int(0)
@@ -1771,7 +1906,7 @@ def run_atdyn_min(
 
         if status_c.value != 0:
             error_msg = msgbuf.value.decode("utf-8", "replace")
-            raise GenesisFortranError(
+            raise_fortran_error(
                 error_msg,
                 code=status_c.value,
                 stderr_output=captured.stderr
@@ -1798,3 +1933,256 @@ def run_atdyn_min(
     finally:
         # Deallocate results
         LibGenesis().lib.deallocate_atdyn_results_c()
+
+
+# =============================================================================
+# Subprocess Isolation API
+# =============================================================================
+
+def run_atdyn_md_isolated(
+    timeout: Optional[float] = None,
+    **kwargs
+) -> AtdynMDResult:
+    """
+    Run atdyn MD simulation in an isolated subprocess.
+
+    This function runs the MD simulation in a separate Python subprocess,
+    providing maximum isolation from Fortran errors or crashes. Use this
+    when running multiple sequential simulations or when reliability is
+    more important than performance.
+
+    Args:
+        timeout: Maximum time in seconds to wait for completion (None = no limit)
+        **kwargs: All arguments passed to run_atdyn_md()
+
+    Returns:
+        AtdynMDResult containing energies, final coordinates, and labels
+
+    Raises:
+        GenesisValidationError: If input validation fails
+        GenesisFortranError: If Fortran code returns an error
+        TimeoutError: If simulation exceeds timeout
+        RuntimeError: If subprocess fails unexpectedly
+
+    Example:
+        >>> # Run multiple simulations safely
+        >>> for i in range(10):
+        ...     result = run_atdyn_md_isolated(
+        ...         prmtopfile="system.prmtop",
+        ...         ambcrdfile=f"frame_{i}.rst",
+        ...         nsteps=1000,
+        ...         timeout=300,  # 5 minute timeout
+        ...     )
+    """
+    import subprocess
+    import sys
+    import pickle
+    import base64
+
+    # Serialize kwargs to base64
+    kwargs_bytes = base64.b64encode(pickle.dumps(kwargs)).decode('ascii')
+
+    # Python script to run in subprocess
+    script = f'''
+import sys
+import pickle
+import base64
+import numpy as np
+
+# Ensure genepie is importable
+try:
+    from genepie import genesis_exe
+except ImportError:
+    sys.path.insert(0, "{os.path.dirname(os.path.dirname(__file__))}")
+    from genepie import genesis_exe
+
+# Decode kwargs
+kwargs = pickle.loads(base64.b64decode("{kwargs_bytes}"))
+
+try:
+    result = genesis_exe.run_atdyn_md(**kwargs)
+    output = {{
+        "success": True,
+        "energies": result.energies.tolist(),
+        "final_coords": result.final_coords.tolist(),
+        "energy_labels": result.energy_labels,
+    }}
+except Exception as e:
+    import traceback
+    output = {{
+        "success": False,
+        "error": str(e),
+        "error_type": type(e).__name__,
+        "traceback": traceback.format_exc(),
+    }}
+
+# Output as base64-encoded pickle
+import sys
+sys.stdout.buffer.write(base64.b64encode(pickle.dumps(output)))
+'''
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, '-c', script],
+            capture_output=True,
+            timeout=timeout,
+            env={**os.environ, 'OMP_NUM_THREADS': os.environ.get('OMP_NUM_THREADS', '1')},
+        )
+    except subprocess.TimeoutExpired as e:
+        raise TimeoutError(f"atdyn MD simulation timed out after {timeout} seconds") from e
+
+    if proc.returncode != 0:
+        stderr_text = proc.stderr.decode('utf-8', errors='replace')
+        raise RuntimeError(
+            f"atdyn subprocess failed with code {proc.returncode}:\n{stderr_text}"
+        )
+
+    # Decode result
+    try:
+        output = pickle.loads(base64.b64decode(proc.stdout))
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to decode subprocess output: {e}\n"
+            f"stdout: {proc.stdout[:500]}\n"
+            f"stderr: {proc.stderr.decode('utf-8', errors='replace')}"
+        )
+
+    if not output["success"]:
+        # Re-raise the original exception type if possible
+        from .exceptions import (
+            GenesisFortranError,
+            GenesisValidationError,
+        )
+        error_type = output.get("error_type", "")
+        error_msg = output.get("error", "Unknown error")
+
+        if "GenesisFortran" in error_type:
+            raise GenesisFortranError(error_msg)
+        elif error_type == "GenesisValidationError":
+            raise GenesisValidationError(error_msg)
+        else:
+            raise RuntimeError(f"{error_type}: {error_msg}\n{output.get('traceback', '')}")
+
+    return AtdynMDResult(
+        energies=np.array(output["energies"]),
+        final_coords=np.array(output["final_coords"]),
+        energy_labels=output["energy_labels"],
+    )
+
+
+def run_atdyn_min_isolated(
+    timeout: Optional[float] = None,
+    **kwargs
+) -> AtdynMinResult:
+    """
+    Run atdyn energy minimization in an isolated subprocess.
+
+    This function runs the minimization in a separate Python subprocess,
+    providing maximum isolation from Fortran errors or crashes.
+
+    Args:
+        timeout: Maximum time in seconds to wait for completion (None = no limit)
+        **kwargs: All arguments passed to run_atdyn_min()
+
+    Returns:
+        AtdynMinResult containing energies, final coordinates, convergence info
+
+    Raises:
+        GenesisValidationError: If input validation fails
+        GenesisFortranError: If Fortran code returns an error
+        TimeoutError: If minimization exceeds timeout
+        RuntimeError: If subprocess fails unexpectedly
+    """
+    import subprocess
+    import sys
+    import pickle
+    import base64
+
+    # Serialize kwargs to base64
+    kwargs_bytes = base64.b64encode(pickle.dumps(kwargs)).decode('ascii')
+
+    # Python script to run in subprocess
+    script = f'''
+import sys
+import pickle
+import base64
+import numpy as np
+
+try:
+    from genepie import genesis_exe
+except ImportError:
+    sys.path.insert(0, "{os.path.dirname(os.path.dirname(__file__))}")
+    from genepie import genesis_exe
+
+kwargs = pickle.loads(base64.b64decode("{kwargs_bytes}"))
+
+try:
+    result = genesis_exe.run_atdyn_min(**kwargs)
+    output = {{
+        "success": True,
+        "energies": result.energies.tolist(),
+        "final_coords": result.final_coords.tolist(),
+        "converged": result.converged,
+        "final_gradient": result.final_gradient,
+        "energy_labels": result.energy_labels,
+    }}
+except Exception as e:
+    import traceback
+    output = {{
+        "success": False,
+        "error": str(e),
+        "error_type": type(e).__name__,
+        "traceback": traceback.format_exc(),
+    }}
+
+import sys
+sys.stdout.buffer.write(base64.b64encode(pickle.dumps(output)))
+'''
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, '-c', script],
+            capture_output=True,
+            timeout=timeout,
+            env={**os.environ, 'OMP_NUM_THREADS': os.environ.get('OMP_NUM_THREADS', '1')},
+        )
+    except subprocess.TimeoutExpired as e:
+        raise TimeoutError(f"atdyn minimization timed out after {timeout} seconds") from e
+
+    if proc.returncode != 0:
+        stderr_text = proc.stderr.decode('utf-8', errors='replace')
+        raise RuntimeError(
+            f"atdyn subprocess failed with code {proc.returncode}:\n{stderr_text}"
+        )
+
+    try:
+        output = pickle.loads(base64.b64decode(proc.stdout))
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to decode subprocess output: {e}\n"
+            f"stdout: {proc.stdout[:500]}\n"
+            f"stderr: {proc.stderr.decode('utf-8', errors='replace')}"
+        )
+
+    if not output["success"]:
+        from .exceptions import (
+            GenesisFortranError,
+            GenesisValidationError,
+        )
+        error_type = output.get("error_type", "")
+        error_msg = output.get("error", "Unknown error")
+
+        if "GenesisFortran" in error_type:
+            raise GenesisFortranError(error_msg)
+        elif error_type == "GenesisValidationError":
+            raise GenesisValidationError(error_msg)
+        else:
+            raise RuntimeError(f"{error_type}: {error_msg}\n{output.get('traceback', '')}")
+
+    return AtdynMinResult(
+        energies=np.array(output["energies"]),
+        final_coords=np.array(output["final_coords"]),
+        converged=output["converged"],
+        final_gradient=output["final_gradient"],
+        energy_labels=output["energy_labels"],
+    )
