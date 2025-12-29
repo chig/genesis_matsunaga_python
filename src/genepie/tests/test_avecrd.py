@@ -58,7 +58,12 @@ def test_avecrd_analysis():
 def main():
     if os.path.exists("dummy.trj"):
         os.remove("dummy.trj")
-    test_avecrd_analysis()
+    try:
+        test_avecrd_analysis()
+        print("\n✓ test_avecrd: PASSED")
+    except Exception as e:
+        print(f"\n✗ test_avecrd: FAILED - {e}")
+        raise
 
 
 if __name__ == "__main__":

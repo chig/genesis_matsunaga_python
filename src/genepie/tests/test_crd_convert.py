@@ -54,7 +54,12 @@ def test_crd():
 def main():
     if os.path.exists("dummy.trj"):
         os.remove("dummy.trj")
-    test_crd()
+    try:
+        test_crd()
+        print("\n✓ test_crd_convert: PASSED")
+    except Exception as e:
+        print(f"\n✗ test_crd_convert: FAILED - {e}")
+        raise
 
 
 if __name__ == "__main__":

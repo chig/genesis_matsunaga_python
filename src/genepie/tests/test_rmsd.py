@@ -63,7 +63,12 @@ def test_rmsd_analysis():
 def main():
     if os.path.exists("dummy.trj"):
         os.remove("dummy.trj")
-    test_rmsd_analysis()
+    try:
+        test_rmsd_analysis()
+        print("\n✓ test_rmsd: PASSED")
+    except Exception as e:
+        print(f"\n✗ test_rmsd: FAILED - {e}")
+        raise
 
 
 if __name__ == "__main__":

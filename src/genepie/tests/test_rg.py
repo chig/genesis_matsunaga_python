@@ -59,7 +59,12 @@ def test_rg_analysis():
 def main():
     if os.path.exists("dummy.trj"):
         os.remove("dummy.trj")
-    test_rg_analysis()
+    try:
+        test_rg_analysis()
+        print("\n✓ test_rg: PASSED")
+    except Exception as e:
+        print(f"\n✗ test_rg: FAILED - {e}")
+        raise
 
 
 if __name__ == "__main__":

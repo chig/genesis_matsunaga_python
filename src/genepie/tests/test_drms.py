@@ -62,7 +62,12 @@ def test_drms_analysis():
 def main():
     if os.path.exists("dummy.trj"):
         os.remove("dummy.trj")
-    test_drms_analysis()
+    try:
+        test_drms_analysis()
+        print("\n✓ test_drms: PASSED")
+    except Exception as e:
+        print(f"\n✗ test_drms: FAILED - {e}")
+        raise
 
 
 if __name__ == "__main__":
