@@ -9,23 +9,22 @@ on:
 jobs:
   build-and-test-linux:
     runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux_2_28_x86_64
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install system dependencies
+      - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gfortran liblapack-dev libblas-dev
+          yum install -y gcc-gfortran lapack-devel blas-devel autoconf automake libtool
+          # Use Python 3.11 from manylinux
+          ln -sf /opt/python/cp311-cp311/bin/python /usr/local/bin/python
+          ln -sf /opt/python/cp311-cp311/bin/pip /usr/local/bin/pip
 
       - name: Build GENESIS
         run: |
           autoreconf -fi
-          ./configure --disable-mpi LAPACK_LIBS="-llapack -lblas"
+          ./configure --disable-mpi CC=gcc FC=gfortran LAPACK_LIBS="-llapack -lblas"
           make -j$(nproc)
           make install
 
