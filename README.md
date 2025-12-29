@@ -252,13 +252,18 @@ git push origin v0.1.x
 
 #### 6. CI/CD Pipeline Overview
 
-| Trigger | Action | Result |
-|---------|--------|--------|
-| PR to main | Build all platforms | Verify builds succeed |
-| `workflow_dispatch` | Build + publish | TestPyPI release |
-| Push tag `v*` | Build + publish | PyPI release |
+| Workflow | Trigger | Action |
+|----------|---------|--------|
+| `tests.yml` | Push/PR to main | Run test suite on Linux & macOS |
+| `build-wheels.yml` | Push/PR to main | Build wheels for all platforms |
+| `build-wheels.yml` | `workflow_dispatch` | Build + publish to TestPyPI |
+| `build-wheels.yml` | Push tag `v*` | Build + publish to PyPI |
 
-**Build Platforms:**
+**Test Platforms (`tests.yml`):**
+- Linux x86_64 (manylinux_2_28 container)
+- macOS arm64 (Apple Silicon)
+
+**Build Platforms (`build-wheels.yml`):**
 - Linux x86_64 (manylinux_2_28)
 - macOS arm64 (Apple Silicon)
 - macOS x86_64 (Intel)

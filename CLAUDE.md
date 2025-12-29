@@ -116,6 +116,23 @@ git push origin v0.1.0
 
 Use "Run workflow" button on GitHub Actions page to trigger `publish-testpypi`.
 
+### Workflow: `.github/workflows/tests.yml`
+
+Automated test suite that runs on every push and pull request to main:
+
+| Job | Platform | Tests |
+|-----|----------|-------|
+| `build-and-test-linux` | Linux x86_64 (manylinux_2_28 container) | All tests |
+| `build-and-test-macos` | macOS arm64 (Apple Silicon) | All tests |
+
+**Tests executed:**
+- Basic tests: test_rmsd, test_rg, test_drms, test_crd_convert, test_avecrd
+- Regression tests: test_trj, test_wham, test_mbar_1d, test_mbar_block, test_hb_atom, test_hb_snap, test_kmeans
+- Error handling tests: test_error_handling
+- ATDYN tests: test_atdyn
+
+**Note**: test_msd and test_diffusion are skipped in CI due to high memory usage. They can be run locally.
+
 ## Python Interface Architecture
 
 ### Directory: `src/genepie/`
