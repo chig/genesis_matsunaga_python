@@ -24,7 +24,11 @@ jobs:
       - name: Build GENESIS
         run: |
           autoreconf -fi
-          # Link libmvec explicitly to resolve vectorized math symbols (_ZGVbN2v_exp, etc.)
+          # Note: LDFLAGS="-lmvec -lm" is needed here for CI testing only.
+          # This differs from build-wheels.yml which relies on configure.ac's
+          # AC_CHECK_LIB auto-detection and produces libraries WITHOUT libmvec
+          # dependency (compatible with glibc 2.14+). Here we explicitly link
+          # libmvec because manylinux_2_28 guarantees its availability.
           ./configure --disable-mpi CC=gcc FC=gfortran \
             LAPACK_LIBS="-llapack -lblas" \
             LDFLAGS="-lmvec -lm"
