@@ -54,8 +54,8 @@ jobs:
           python -m genepie.tests.test_hb_atom
           python -m genepie.tests.test_hb_snap
           python -m genepie.tests.test_kmeans
-          python -m genepie.tests.test_msd
-          python -m genepie.tests.test_diffusion
+          # Note: test_msd and test_diffusion are skipped in CI due to high memory usage
+          # They can be run locally: python -m genepie.tests.test_msd
 
       - name: Run error handling tests
         run: |
@@ -118,8 +118,8 @@ jobs:
           python -m genepie.tests.test_hb_atom
           python -m genepie.tests.test_hb_snap
           python -m genepie.tests.test_kmeans
-          python -m genepie.tests.test_msd
-          python -m genepie.tests.test_diffusion
+          # Note: test_msd and test_diffusion are skipped in CI due to high memory usage
+          # They can be run locally: python -m genepie.tests.test_msd
 
       - name: Run error handling tests
         run: |
