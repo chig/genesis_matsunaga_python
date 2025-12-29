@@ -11,7 +11,7 @@ from .. import genesis_exe
 
 def test_mbar_analysis():
     fene = genesis_exe.mbar_analysis(
-            cvfile = '../../../../tests/regression_test/test_analysis/trajectories/umbrella_1d/{}.dat',
+            cvfile = '../../../tests/regression_test/test_analysis/trajectories/umbrella_1d/{}.dat',
             nreplica           = 61,
             input_type         = "US",
             dimension          = 1,

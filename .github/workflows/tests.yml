@@ -1,0 +1,134 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test-linux:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux_2_28_x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          yum install -y gcc-gfortran lapack-devel blas-devel autoconf automake libtool
+          # Use Python 3.11 from manylinux
+          ln -sf /opt/python/cp311-cp311/bin/python /usr/local/bin/python
+          ln -sf /opt/python/cp311-cp311/bin/pip /usr/local/bin/pip
+
+      - name: Build GENESIS
+        run: |
+          autoreconf -fi
+          # Note: LDFLAGS="-lmvec -lm" is needed here for CI testing only.
+          # This differs from build-wheels.yml which relies on configure.ac's
+          # AC_CHECK_LIB auto-detection and produces libraries WITHOUT libmvec
+          # dependency (compatible with glibc 2.14+). Here we explicitly link
+          # libmvec because manylinux_2_28 guarantees its availability.
+          ./configure --disable-mpi CC=gcc FC=gfortran \
+            LAPACK_LIBS="-llapack -lblas" \
+            LDFLAGS="-lmvec -lm"
+          make -j$(nproc)
+          make install
+
+      - name: Install Python package
+        run: |
+          pip install -e .
+
+      - name: Run basic tests
+        run: |
+          python -m genepie.tests.test_rmsd
+          python -m genepie.tests.test_rg
+          python -m genepie.tests.test_drms
+          python -m genepie.tests.test_crd_convert
+          python -m genepie.tests.test_avecrd
+
+      - name: Run regression tests
+        working-directory: src/genepie/tests
+        run: |
+          # Regression tests use relative paths that expect CWD to be src/genepie/tests/
+          python -m genepie.tests.test_trj
+          python -m genepie.tests.test_wham
+          python -m genepie.tests.test_mbar_1d
+          python -m genepie.tests.test_mbar_block
+          python -m genepie.tests.test_hb_atom
+          python -m genepie.tests.test_hb_snap
+          python -m genepie.tests.test_kmeans
+          # Note: test_msd and test_diffusion are skipped in CI due to high memory usage
+          # They can be run locally: python -m genepie.tests.test_msd
+
+      - name: Run error handling tests
+        run: |
+          python -m genepie.tests.test_error_handling
+
+      - name: Run ATDYN tests
+        run: |
+          python -m genepie.tests.test_atdyn
+
+  build-and-test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          brew install gcc lapack autoconf automake libtool
+          # Create symlink for gfortran (Homebrew installs versioned, e.g., gfortran-14 or gfortran-15)
+          GFORTRAN=$(ls $(brew --prefix)/bin/gfortran-* 2>/dev/null | sort -V | tail -1)
+          if [ -n "$GFORTRAN" ]; then
+            sudo ln -sf "$GFORTRAN" /usr/local/bin/gfortran
+            echo "Linked gfortran: $GFORTRAN"
+          fi
+          gfortran --version
+
+      - name: Build GENESIS
+        run: |
+          autoreconf -fi
+          GCC=$(ls $(brew --prefix)/bin/gcc-* | grep -E 'gcc-[0-9]+$' | sort -V | tail -1)
+          ./configure --disable-mpi CC="$GCC" FC=gfortran \
+            LAPACK_LIBS="-L$(brew --prefix lapack)/lib -llapack -lblas"
+          make -j$(sysctl -n hw.ncpu)
+          make install
+
+      - name: Install Python package
+        run: |
+          pip install -e .
+
+      - name: Run basic tests
+        run: |
+          python -m genepie.tests.test_rmsd
+          python -m genepie.tests.test_rg
+          python -m genepie.tests.test_drms
+          python -m genepie.tests.test_crd_convert
+          python -m genepie.tests.test_avecrd
+
+      - name: Run regression tests
+        working-directory: src/genepie/tests
+        run: |
+          # Regression tests use relative paths that expect CWD to be src/genepie/tests/
+          python -m genepie.tests.test_trj
+          python -m genepie.tests.test_wham
+          python -m genepie.tests.test_mbar_1d
+          python -m genepie.tests.test_mbar_block
+          python -m genepie.tests.test_hb_atom
+          python -m genepie.tests.test_hb_snap
+          python -m genepie.tests.test_kmeans
+          # Note: test_msd and test_diffusion are skipped in CI due to high memory usage
+          # They can be run locally: python -m genepie.tests.test_msd
+
+      - name: Run error handling tests
+        run: |
+          python -m genepie.tests.test_error_handling
+
+      - name: Run ATDYN tests
+        run: |
+          python -m genepie.tests.test_atdyn

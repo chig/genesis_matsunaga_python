@@ -11,7 +11,7 @@ from .. import genesis_exe
 
 def test_wham_analysis():
     pmf = genesis_exe.wham_analysis(
-            cvfile = '../../../../tests/regression_test/test_analysis/trajectories/triala_cv/{}.dis',
+            cvfile = '../../../tests/regression_test/test_analysis/trajectories/triala_cv/{}.dis',
             dimension     = 1,
             nblocks       = 1,
             temperature   = 300.0,

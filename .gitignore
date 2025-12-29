@@ -167,3 +167,21 @@ __pycache__/
 
 # Test data (downloaded from Google Drive)
 src/genepie/tests/data/chignolin/
+
+# Autotools generated files
+config.guess
+config.sub
+m4/
+
+# Build artifacts
+lib/
+src/analysis/*/.deps/
+src/analysis/*/*/.deps/
+
+# Test output files
+src/genepie/tests/fene.dat
+src/genepie/tests/dummy.trj
+
+# genepie package build
+src/genepie/*.so
+src/genepie/*.dylib
