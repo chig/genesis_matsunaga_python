@@ -21,7 +21,7 @@ source .venv/bin/activate
 uv pip install genepie
 
 # Currently available from TestPyPI:
-uv pip install -i https://test.pypi.org/simple/ genepie
+uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ genepie
 ```
 
 **Requirements:**
