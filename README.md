@@ -32,20 +32,20 @@ uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https
 ### Testing Your Installation
 
 ```bash
-# Run individual tests
+# Run individual tests (no additional data required)
 python -m genepie.tests.test_rmsd
 python -m genepie.tests.test_crd_convert
-python -m genepie.tests.test_trj
-
-# Run all basic tests (18 tests)
-cd $(python -c "import genepie; from pathlib import Path; print(Path(genepie.__file__).parent / 'tests')")
-./all_run.sh
+python -m genepie.tests.test_rg
+python -m genepie.tests.test_drms
+python -m genepie.tests.test_avecrd
 
 # Integration tests (requires ~500 MB download)
 uv pip install gdown mdtraj MDAnalysis
 python -m genepie.tests.download_test_data
 python -m genepie.tests.test_integration
 ```
+
+Note: Some tests (test_trj, test_wham, test_mbar_*, test_atdyn) require the full source repository and are intended for developers only.
 
 ### Quick Start
 
