@@ -29,6 +29,7 @@ module diffusion_impl_mod
   ! subroutines
   public  :: analyze
   public  :: analyze_zerocopy
+  public  :: analyze_zerocopy_full
   private :: fit_least_squares
   private :: get_column_count
   private :: get_line_count
@@ -327,6 +328,116 @@ contains
     return
 
   end subroutine analyze_zerocopy
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    analyze_zerocopy_full
+  !> @brief        Diffusion analysis with full zero-copy (pre-allocated results)
+  !! @authors      Claude Code
+  !! @param[in]    msd_data       : MSD data array (ncols, ndata)
+  !! @param[in]    ndata          : number of data points
+  !! @param[in]    ncols          : number of columns
+  !! @param[in]    time_step      : time step in ps
+  !! @param[in]    distance_unit  : distance unit conversion factor
+  !! @param[in]    ndofs          : number of degrees of freedom
+  !! @param[in]    start_step     : start step for fitting
+  !! @param[in]    stop_step      : stop step for fitting
+  !! @param[inout] out_data       : pre-allocated output data (out_ncols, ndata)
+  !! @param[inout] diffusion_coeff: pre-allocated diffusion coefficients (n_sets)
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine analyze_zerocopy_full(msd_data, ndata, ncols, &
+                                   time_step, distance_unit, ndofs, &
+                                   start_step, stop_step, &
+                                   out_data, diffusion_coeff)
+
+    ! formal arguments
+    real(wp), intent(in)    :: msd_data(:,:)
+    integer,  intent(in)    :: ndata
+    integer,  intent(in)    :: ncols
+    real(wp), intent(in)    :: time_step
+    real(wp), intent(in)    :: distance_unit
+    integer,  intent(in)    :: ndofs
+    integer,  intent(in)    :: start_step
+    integer,  intent(in)    :: stop_step
+    real(wp), intent(inout) :: out_data(:,:)      ! pre-allocated
+    real(wp), intent(inout) :: diffusion_coeff(:) ! pre-allocated
+
+    ! local variables
+    integer                                :: n_sets
+    integer                                :: iset, idata
+    integer                                :: idx_start_fit, idx_stop_fit
+    real(wp)                               :: d_coeff
+    real(wp), allocatable, dimension(:, :) :: xydata
+    character(*), parameter                :: format_float = "es25.16e3"
+    type(s_fitting_result), dimension(:), allocatable :: fittings
+
+
+    ! Number of MSD sets (columns minus time column)
+    n_sets = ncols - 1
+
+    allocate(fittings(n_sets))
+    allocate(xydata(ncols, ndata))
+
+    ! Copy and convert data
+    xydata = msd_data
+
+    ! Convert to ps and angstroms
+    xydata(1, :)  = xydata(1, :)  * time_step
+    xydata(2:, :) = xydata(2:, :) * distance_unit ** 2
+    do iset = 2, ncols
+      xydata(iset, :) = xydata(iset, :) / (2.0_wp * ndofs)
+    end do
+
+    ! Determine fitting range
+    idx_start_fit = max(start_step, 1)
+    idx_stop_fit = min(stop_step, ndata)
+
+    ! Analyze
+    write(MsgOut, '()')
+    write(MsgOut, '("Analyze_zerocopy_full> Starting fit at",es9.2e2," ps")') &
+      xydata(1, idx_start_fit)
+    write(MsgOut, '("Analyze_zerocopy_full> Ending fit at  ",es9.2e2," ps")') &
+      xydata(1, idx_stop_fit)
+    write(MsgOut, '()')
+
+    ! Perform least squares fitting for each MSD set
+    do iset = 1, n_sets
+      fittings(iset) = fit_least_squares(xydata(1, idx_start_fit:idx_stop_fit), &
+                                         xydata(iset+1, idx_start_fit:idx_stop_fit), .true.)
+
+      ! Convert diffusion coefficient to cm^2/s
+      d_coeff = fittings(iset)%coeff(2) * 1e-4_wp
+      diffusion_coeff(iset) = d_coeff
+
+      write(MsgOut, '("Analyze_zerocopy_full> Diffusion coefficient",i4," =",&
+                      &'//format_float//'," cm^2/s, (corr.",f9.6,")")') &
+        iset, d_coeff, fittings(iset)%corr
+    end do
+
+    write(MsgOut, '()')
+
+    ! Copy data to output
+    ! Column 1: time
+    out_data(1, :) = xydata(1, :)
+    ! Columns 2, 4, 6, ...: MSD data
+    ! Columns 3, 5, 7, ...: fit data
+    do iset = 1, n_sets
+      out_data(2*iset, :) = xydata(iset+1, :)
+      do idata = 1, ndata
+        out_data(2*iset+1, idata) = &
+            fittings(iset)%coeff(1)+fittings(iset)%coeff(2)*xydata(1, idata)
+      end do
+    end do
+
+    ! Cleanup
+    deallocate(xydata)
+    deallocate(fittings)
+
+    return
+
+  end subroutine analyze_zerocopy_full
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !

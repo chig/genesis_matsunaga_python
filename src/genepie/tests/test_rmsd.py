@@ -254,6 +254,136 @@ def test_rmsd_zerocopy_with_fitting():
             trajs.close()
 
 
+def test_rmsd_zerocopy_full():
+    """Test RMSD zerocopy_full analysis (no fitting, pre-allocated result)."""
+    import numpy as np
+
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
+    trajs, subset_mol = genesis_exe.crd_convert(
+            mol,
+            traj_params=[
+                TrajectoryParameters(
+                    trjfile=str(BPTI_DCD),
+                    md_step=10,
+                    mdout_period=1,
+                    ana_period=1,
+                    repeat=1,
+                ),
+            ],
+            trj_format="DCD",
+            trj_type="COOR+BOX",
+            trj_natom=0,
+            selection_group=["all"],
+            fitting_method="NO",
+            fitting_atom=1,
+            check_only=False,
+            pbc_correct="NO",
+    )
+    _ = subset_mol
+
+    try:
+        for t in trajs:
+            # Test zerocopy_full (no fitting)
+            result_full = genesis_exe.rmsd_analysis_zerocopy_full(
+                mol, t,
+                analysis_selection="an:CA",
+                ana_period=1,
+                mass_weighted=False,
+            )
+
+            # Test zerocopy for comparison
+            result_zerocopy = genesis_exe.rmsd_analysis_zerocopy(
+                mol, t,
+                analysis_selection="an:CA",
+                ana_period=1,
+                mass_weighted=False,
+            )
+
+            # Validate results
+            assert result_full.rmsd is not None, "zerocopy_full result should not be None"
+            assert len(result_full.rmsd) > 0, "zerocopy_full result should have frames"
+            assert len(result_full.rmsd) == len(result_zerocopy.rmsd), "Result lengths should match"
+
+            # Check values match exactly
+            diff = np.abs(np.array(result_full.rmsd) - np.array(result_zerocopy.rmsd))
+            max_diff = np.max(diff)
+            assert max_diff < 1e-10, f"Results should match exactly, got max diff {max_diff}"
+
+            print(f"Zerocopy_full RMSD (n={len(result_full.rmsd)}): "
+                  f"min={min(result_full.rmsd):.5f}, max={max(result_full.rmsd):.5f}")
+
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
+
+
+def test_rmsd_zerocopy_full_with_fitting():
+    """Test RMSD zerocopy_full with fitting (pre-allocated result)."""
+    import numpy as np
+
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
+    trajs, subset_mol = genesis_exe.crd_convert(
+            mol,
+            traj_params=[
+                TrajectoryParameters(
+                    trjfile=str(BPTI_DCD),
+                    md_step=10,
+                    mdout_period=1,
+                    ana_period=1,
+                    repeat=1,
+                ),
+            ],
+            trj_format="DCD",
+            trj_type="COOR+BOX",
+            trj_natom=0,
+            selection_group=["all"],
+            fitting_method="NO",
+            fitting_atom=1,
+            check_only=False,
+            pbc_correct="NO",
+    )
+    _ = subset_mol
+
+    try:
+        for t in trajs:
+            # Test zerocopy_full with fitting
+            result_full = genesis_exe.rmsd_analysis_zerocopy_full_with_fitting(
+                mol, t,
+                fitting_selection="sid:BPTI and an:CA",
+                analysis_selection="sid:BPTI and an:CA",
+                fitting_method="TR+ROT",
+                ana_period=1,
+                mass_weighted=False,
+            )
+
+            # Test zerocopy with fitting for comparison
+            result_zerocopy = genesis_exe.rmsd_analysis_zerocopy_with_fitting(
+                mol, t,
+                fitting_selection="sid:BPTI and an:CA",
+                analysis_selection="sid:BPTI and an:CA",
+                fitting_method="TR+ROT",
+                ana_period=1,
+                mass_weighted=False,
+            )
+
+            # Validate results
+            assert result_full.rmsd is not None, "zerocopy_full result should not be None"
+            assert len(result_full.rmsd) > 0, "zerocopy_full result should have frames"
+            assert len(result_full.rmsd) == len(result_zerocopy.rmsd), "Result lengths should match"
+
+            # Check values match exactly
+            diff = np.abs(np.array(result_full.rmsd) - np.array(result_zerocopy.rmsd))
+            max_diff = np.max(diff)
+            assert max_diff < 1e-10, f"Results should match exactly, got max diff {max_diff}"
+
+            print(f"Zerocopy_full with fitting RMSD (n={len(result_full.rmsd)}): "
+                  f"min={min(result_full.rmsd):.5f}, max={max(result_full.rmsd):.5f}")
+
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
+
+
 def _run_test_in_subprocess(test_name: str) -> bool:
     """Run a single test function in isolated subprocess to avoid Fortran state issues."""
     import subprocess
@@ -294,6 +424,8 @@ def main():
     # Run each test in separate subprocess to avoid Fortran global state accumulation
     # This prevents crashes on macOS ARM64 when multiple tests run in same process
     tests = [
+        "test_rmsd_zerocopy_full",
+        "test_rmsd_zerocopy_full_with_fitting",
         "test_rmsd_zerocopy",
         "test_rmsd_zerocopy_with_fitting",
         "test_rmsd_analysis",

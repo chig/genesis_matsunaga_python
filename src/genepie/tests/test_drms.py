@@ -229,11 +229,90 @@ def test_drms_zerocopy_vs_legacy():
             trajs.close()
 
 
+def test_drms_zerocopy_full():
+    """Test zerocopy_full DRMS analysis (pre-allocated result)."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
+    trajs, subset_mol = genesis_exe.crd_convert(
+            mol,
+            traj_params=[
+                TrajectoryParameters(
+                    trjfile=str(BPTI_DCD),
+                    md_step=10,
+                    mdout_period=1,
+                    ana_period=1,
+                    repeat=1,
+                ),
+            ],
+            trj_format="DCD",
+            trj_type="COOR+BOX",
+            trj_natom=0,
+            selection_group=["all"],
+            fitting_method="NO",
+            fitting_atom=1,
+            check_only=False,
+            pbc_correct="NO",
+    )
+    _ = subset_mol
+
+    try:
+        for t in trajs:
+            # Get CA atom indices and compute contacts
+            ca_indices = genesis_exe.selection(mol, "an: CA")
+            contact_list, contact_dist = compute_contact_list_from_refcoord(
+                mol, ca_indices,
+                min_dist=1.0, max_dist=6.0, exclude_residues=4
+            )
+
+            # Run zerocopy version
+            result_zerocopy = genesis_exe.drms_analysis_zerocopy(
+                t,
+                contact_list=contact_list,
+                contact_dist=contact_dist,
+                ana_period=1,
+                pbc_correct=False,
+            )
+
+            # Run zerocopy_full version
+            result_full = genesis_exe.drms_analysis_zerocopy_full(
+                t,
+                contact_list=contact_list,
+                contact_dist=contact_dist,
+                ana_period=1,
+                pbc_correct=False,
+            )
+
+            # Validate results
+            assert result_full.drms is not None, "zerocopy_full DRMS should not be None"
+            assert len(result_full.drms) > 0, "zerocopy_full should have values"
+            assert len(result_full.drms) == len(result_zerocopy.drms), \
+                f"Lengths should match: {len(result_full.drms)} vs {len(result_zerocopy.drms)}"
+
+            # Check values match exactly
+            diff = np.abs(np.array(result_full.drms) - np.array(result_zerocopy.drms))
+            max_diff = np.max(diff)
+            assert max_diff < 1e-10, f"Results should match exactly, got max diff {max_diff}"
+
+            print(f"Zerocopy_full DRMS (n={len(result_full.drms)}): "
+                  f"min={min(result_full.drms):.5f}, max={max(result_full.drms):.5f}")
+            print(f"Max difference from zerocopy: {max_diff:.2e}")
+
+    finally:
+        if hasattr(trajs, "close"):
+            trajs.close()
+
+
 def main():
     if os.path.exists("dummy.trj"):
         os.remove("dummy.trj")
     # Run zerocopy tests first to avoid Fortran global state issues
     # Legacy -> zerocopy sequence crashes, but zerocopy -> legacy works
+    try:
+        test_drms_zerocopy_full()
+        print("\n✓ test_drms_zerocopy_full: PASSED")
+    except Exception as e:
+        print(f"\n✗ test_drms_zerocopy_full: FAILED - {e}")
+        raise
+
     try:
         test_drms_zerocopy()
         print("\n✓ test_drms_zerocopy: PASSED")

@@ -32,6 +32,7 @@ module trj_c_mod
 
   public :: trj_analysis_c
   public :: trj_analysis_zerocopy_c
+  public :: trj_analysis_zerocopy_full_c
   public :: trj_analysis_zerocopy_com_c
   public :: deallocate_trj_results_c
 
@@ -280,6 +281,150 @@ contains
     deallocate(tors_list_copy)
 
   end subroutine trj_analysis_zerocopy_c
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    trj_analysis_zerocopy_full_c
+  !> @brief        Trajectory analysis with full zerocopy (pre-allocated results)
+  !! @authors      Claude Code
+  !! @param[in]    s_trajes_c   : trajectories C structure
+  !! @param[in]    ana_period   : analysis period
+  !! @param[in]    dist_list_ptr: pointer to distance atom pairs (2, n_dist)
+  !! @param[in]    n_dist       : number of distance measurements
+  !! @param[in]    angl_list_ptr: pointer to angle atom triplets (3, n_angl)
+  !! @param[in]    n_angl       : number of angle measurements
+  !! @param[in]    tors_list_ptr: pointer to torsion atom quadruplets (4, n_tors)
+  !! @param[in]    n_tors       : number of torsion measurements
+  !! @param[in]    dist_ptr     : pre-allocated distance results (n_dist, n_frames)
+  !! @param[in]    dist_size    : total size of dist array (n_dist * n_frames)
+  !! @param[in]    angl_ptr     : pre-allocated angle results (n_angl, n_frames)
+  !! @param[in]    angl_size    : total size of angl array
+  !! @param[in]    tors_ptr     : pre-allocated torsion results (n_tors, n_frames)
+  !! @param[in]    tors_size    : total size of tors array
+  !! @param[out]   nstru_out    : actual number of structures analyzed
+  !! @param[out]   status       : error status
+  !! @param[out]   msg          : error message
+  !! @param[in]    msglen       : max length of error message
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine trj_analysis_zerocopy_full_c(s_trajes_c, ana_period, &
+                                          dist_list_ptr, n_dist, &
+                                          angl_list_ptr, n_angl, &
+                                          tors_list_ptr, n_tors, &
+                                          dist_ptr, dist_size, &
+                                          angl_ptr, angl_size, &
+                                          tors_ptr, tors_size, &
+                                          nstru_out, status, msg, msglen) &
+        bind(C, name="trj_analysis_zerocopy_full_c")
+    implicit none
+
+    ! Arguments
+    type(s_trajectories_c), intent(in) :: s_trajes_c
+    integer(c_int), value :: ana_period
+    type(c_ptr), value :: dist_list_ptr
+    integer(c_int), value :: n_dist
+    type(c_ptr), value :: angl_list_ptr
+    integer(c_int), value :: n_angl
+    type(c_ptr), value :: tors_list_ptr
+    integer(c_int), value :: n_tors
+    type(c_ptr), value :: dist_ptr
+    integer(c_int), value :: dist_size
+    type(c_ptr), value :: angl_ptr
+    integer(c_int), value :: angl_size
+    type(c_ptr), value :: tors_ptr
+    integer(c_int), value :: tors_size
+    integer(c_int), intent(out) :: nstru_out
+    integer(c_int), intent(out) :: status
+    character(kind=c_char), intent(out) :: msg(*)
+    integer(c_int), value :: msglen
+
+    ! Local variables
+    type(s_error) :: err
+    integer, pointer :: dist_list_f(:,:)
+    integer, pointer :: angl_list_f(:,:)
+    integer, pointer :: tors_list_f(:,:)
+    real(wp), pointer :: dist_f(:,:)
+    real(wp), pointer :: angl_f(:,:)
+    real(wp), pointer :: tors_f(:,:)
+    integer, allocatable :: dist_list_copy(:,:)
+    integer, allocatable :: angl_list_copy(:,:)
+    integer, allocatable :: tors_list_copy(:,:)
+    integer :: n_frames, nstru_local
+
+    ! Initialize
+    call error_init(err)
+    status = 0
+    nstru_out = 0
+    n_frames = s_trajes_c%nframe / ana_period
+
+    ! Set MPI variables for analysis
+    my_city_rank = 0
+    nproc_city   = 1
+    main_rank    = .true.
+
+    write(MsgOut,'(A)') '[STEP1] Trajectory Analysis (full zerocopy interface)'
+    write(MsgOut,'(A)') ' '
+
+    ! Convert C pointers to Fortran arrays (input lists)
+    if (n_dist > 0 .and. c_associated(dist_list_ptr)) then
+      call C_F_POINTER(dist_list_ptr, dist_list_f, [2, n_dist])
+      allocate(dist_list_copy(2, n_dist))
+      dist_list_copy = dist_list_f
+    else
+      allocate(dist_list_copy(2, 0))
+    end if
+
+    if (n_angl > 0 .and. c_associated(angl_list_ptr)) then
+      call C_F_POINTER(angl_list_ptr, angl_list_f, [3, n_angl])
+      allocate(angl_list_copy(3, n_angl))
+      angl_list_copy = angl_list_f
+    else
+      allocate(angl_list_copy(3, 0))
+    end if
+
+    if (n_tors > 0 .and. c_associated(tors_list_ptr)) then
+      call C_F_POINTER(tors_list_ptr, tors_list_f, [4, n_tors])
+      allocate(tors_list_copy(4, n_tors))
+      tors_list_copy = tors_list_f
+    else
+      allocate(tors_list_copy(4, 0))
+    end if
+
+    ! Create views of pre-allocated result arrays
+    if (n_dist > 0 .and. c_associated(dist_ptr) .and. dist_size > 0) then
+      call C_F_POINTER(dist_ptr, dist_f, [n_dist, n_frames])
+    else
+      nullify(dist_f)
+    end if
+
+    if (n_angl > 0 .and. c_associated(angl_ptr) .and. angl_size > 0) then
+      call C_F_POINTER(angl_ptr, angl_f, [n_angl, n_frames])
+    else
+      nullify(angl_f)
+    end if
+
+    if (n_tors > 0 .and. c_associated(tors_ptr) .and. tors_size > 0) then
+      call C_F_POINTER(tors_ptr, tors_f, [n_tors, n_frames])
+    else
+      nullify(tors_f)
+    end if
+
+    ! Run analysis with pre-allocated arrays
+    call analyze_zerocopy_full(s_trajes_c, ana_period, &
+                               dist_list_copy, n_dist, &
+                               angl_list_copy, n_angl, &
+                               tors_list_copy, n_tors, &
+                               dist_f, angl_f, tors_f, nstru_local)
+
+    nstru_out = nstru_local
+
+    ! Cleanup local arrays
+    deallocate(dist_list_copy)
+    deallocate(angl_list_copy)
+    deallocate(tors_list_copy)
+
+  end subroutine trj_analysis_zerocopy_full_c
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
