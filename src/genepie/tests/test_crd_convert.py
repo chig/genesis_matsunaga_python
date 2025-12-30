@@ -7,59 +7,135 @@ if __name__ == "__main__" and __package__ is None:
 # --------------------------------------------
 
 import os
+import numpy as np
 from .conftest import BPTI_PDB, BPTI_PSF, BPTI_DCD
-from ..ctrl_files import TrajectoryParameters
 from ..s_molecule import SMolecule
 from .. import genesis_exe
 
 
-def test_crd():
+def test_crd_convert_basic():
+    """Test basic trajectory loading without fitting."""
     mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
-    trajs, subset_mol =  genesis_exe.crd_convert(
-            mol,
-            traj_params = [
-                TrajectoryParameters(
-                    trjfile = str(BPTI_DCD),
-                    md_step = 10,
-                    mdout_period = 1,
-                    ana_period = 1,
-                    repeat = 1,
-                    ),
-            ],
-            trj_format = "DCD",
-            trj_type = "COOR+BOX",
-            trj_natom = 0,
-            selection_group = ["an:CA", ],
-            fitting_method = "TR+ROT",
-            fitting_atom = 1,
-            check_only = False,
-            centering = True,
-            centering_atom = 1,
-            center_coord = (0.0, 0.0, 0.0),
-            pbc_correct = "molecule",
-            rename_res = ["HSE HIS", "HSE HIS"],
-        )
+    trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+    )
 
-    _ = subset_mol
+    assert len(trajs) == 1
+    traj = trajs[0]
+    assert traj.nframe > 0
+    assert traj.natom == mol.num_atoms
+    assert traj.coords.shape == (traj.nframe, traj.natom, 3)
+    print(f"  Loaded {traj.nframe} frames, {traj.natom} atoms")
 
-    try:
-        for t in trajs:
-           pass
 
-    finally:
-        if hasattr(trajs, "close"):
-            trajs.close()
+def test_crd_convert_with_selection():
+    """Test trajectory loading with atom selection."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+    trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="an:CA",
+    )
+
+    assert len(trajs) == 1
+    traj = trajs[0]
+    assert traj.nframe > 0
+    # Subset should have fewer atoms
+    assert traj.natom == subset_mol.num_atoms
+    assert traj.natom < mol.num_atoms
+    print(f"  Selected {traj.natom} CA atoms from {mol.num_atoms} total atoms")
+
+
+def test_crd_convert_with_fitting():
+    """Test trajectory loading with TR+ROT fitting."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+    trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="an:CA",
+        fitting_selection="an:CA",
+        fitting_method="TR+ROT",
+    )
+
+    assert len(trajs) == 1
+    traj = trajs[0]
+    assert traj.nframe > 0
+    assert traj.natom == subset_mol.num_atoms
+    # Check coordinates are reasonable (not NaN/Inf)
+    assert np.all(np.isfinite(traj.coords))
+    print(f"  Fitted trajectory with {traj.nframe} frames")
+
+
+def test_crd_convert_with_centering():
+    """Test trajectory loading with centering."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+    trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="an:CA",
+        centering=True,
+        center_coord=(0.0, 0.0, 0.0),
+    )
+
+    assert len(trajs) == 1
+    traj = trajs[0]
+    # Check that coordinates are centered (COM near origin)
+    com = np.mean(traj.coords, axis=1)  # COM per frame
+    # COM should be near (0, 0, 0) for each frame
+    assert np.allclose(com, 0.0, atol=5.0)  # Allow 5 Angstrom tolerance
+    print(f"  Centered trajectory with {traj.nframe} frames")
+
+
+def test_crd_convert_info():
+    """Test crd_convert_info function."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+    info = genesis_exe.crd_convert_info(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+    )
+
+    assert len(info.frame_counts) == 1
+    assert info.frame_counts[0] > 0
+    print(f"  Trajectory info: {info.frame_counts[0]} frames")
 
 
 def main():
-    if os.path.exists("dummy.trj"):
-        os.remove("dummy.trj")
-    try:
-        test_crd()
-        print("\n✓ test_crd_convert: PASSED")
-    except Exception as e:
-        print(f"\n✗ test_crd_convert: FAILED - {e}")
-        raise
+    tests = [
+        ("test_crd_convert_info", test_crd_convert_info),
+        ("test_crd_convert_basic", test_crd_convert_basic),
+        ("test_crd_convert_with_selection", test_crd_convert_with_selection),
+        ("test_crd_convert_with_fitting", test_crd_convert_with_fitting),
+        ("test_crd_convert_with_centering", test_crd_convert_with_centering),
+    ]
+
+    passed = 0
+    failed = 0
+
+    for name, test_func in tests:
+        try:
+            test_func()
+            print(f"✓ {name}: PASSED")
+            passed += 1
+        except Exception as e:
+            print(f"✗ {name}: FAILED - {e}")
+            import traceback
+            traceback.print_exc()
+            failed += 1
+
+    print(f"\n{passed}/{passed + failed} tests passed")
+    if failed > 0:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

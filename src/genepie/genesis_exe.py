@@ -24,6 +24,199 @@ from .validation import validate_positive, validate_non_negative, validate_traje
 _DEFAULT_MSG_LEN = 2048
 
 
+# Trajectory format constants (from trajectory_str.fpp)
+class TrjFormat:
+    PDB = 1
+    AMBER = 2
+    DCD = 3
+    GROMACS = 4
+    CHARMM_RST = 5
+    NAMD_RST = 6
+
+
+# Trajectory type constants
+class TrjType:
+    COOR = 1
+    COOR_BOX = 2
+
+
+# Fitting method constants (from fitting_str.fpp)
+class FittingMethod:
+    NO = 1
+    TR_ROT = 2
+    TR = 3
+    TR_ZROT = 4
+    XYTR = 5
+    XYTR_ZROT = 6
+
+
+# PBC correction mode constants (from pbc_correct.fpp)
+class PBCCMode:
+    NO = 1
+    MOLECULE = 2
+
+
+# Map string names to constants
+_TRJ_FORMAT_MAP = {
+    "PDB": TrjFormat.PDB,
+    "AMBER": TrjFormat.AMBER,
+    "DCD": TrjFormat.DCD,
+    "GROMACS": TrjFormat.GROMACS,
+    "CHARMM_RST": TrjFormat.CHARMM_RST,
+    "NAMD_RST": TrjFormat.NAMD_RST,
+}
+
+_TRJ_TYPE_MAP = {
+    "COOR": TrjType.COOR,
+    "COOR+BOX": TrjType.COOR_BOX,
+}
+
+_FITTING_METHOD_MAP = {
+    "NO": FittingMethod.NO,
+    "TR+ROT": FittingMethod.TR_ROT,
+    "TR": FittingMethod.TR,
+    "TR+ZROT": FittingMethod.TR_ZROT,
+    "XYTR": FittingMethod.XYTR,
+    "XYTR+ZROT": FittingMethod.XYTR_ZROT,
+}
+
+_PBCC_MODE_MAP = {
+    "NO": PBCCMode.NO,
+    "MOLECULE": PBCCMode.MOLECULE,
+}
+
+
+CrdConvertInfo = namedtuple('CrdConvertInfo', [
+    'frame_counts',           # List[int] - frame counts per trajectory file
+    'selected_atom_indices',  # np.ndarray - selected atom indices (1-indexed)
+    'num_selected_atoms',     # int - number of selected atoms
+])
+
+
+def _pack_filenames(filenames: List[str]) -> Tuple[bytes, int, int]:
+    """Pack list of filenames into fixed-width byte buffer for Fortran.
+
+    Args:
+        filenames: List of file path strings
+
+    Returns:
+        Tuple of (packed_bytes, n_files, max_filename_len)
+    """
+    if not filenames:
+        return b'', 0, 0
+    max_len = max(len(f) for f in filenames)
+    # Pad each filename to max_len with null bytes
+    packed = b''.join(f.encode('utf-8').ljust(max_len, b'\x00') for f in filenames)
+    return packed, len(filenames), max_len
+
+
+def crd_convert_info(
+    molecule: SMolecule,
+    trj_files: List[str],
+    trj_format: str = "DCD",
+    trj_type: str = "COOR+BOX",
+) -> CrdConvertInfo:
+    """Get trajectory info (frame counts) for zerocopy crd_convert.
+
+    This is Phase 1 of the zerocopy crd_convert pattern. It reads trajectory
+    headers to determine frame counts, allowing Python to pre-allocate arrays.
+
+    Args:
+        molecule: SMolecule object containing molecular structure
+        trj_files: List of trajectory file paths
+        trj_format: Trajectory format ("DCD", "AMBER", "PDB", etc.)
+        trj_type: Trajectory type ("COOR" or "COOR+BOX")
+
+    Returns:
+        CrdConvertInfo namedtuple with:
+            - frame_counts: List[int] of frame counts per trajectory file
+            - selected_atom_indices: np.ndarray (empty, for API compatibility)
+            - num_selected_atoms: 0 (selection is deferred to crd_convert)
+
+    Raises:
+        GenesisValidationError: If parameters are invalid
+        GenesisFortranError: If Fortran returns an error
+
+    Note:
+        Frame count auto-detection only works for DCD format. For other formats,
+        frame counts are estimated and may not be exact.
+    """
+    lib = LibGenesis().lib
+    mol_c = molecule.to_SMoleculeC()
+
+    # Validate and convert format/type strings to constants
+    fmt_upper = trj_format.upper()
+    if fmt_upper not in _TRJ_FORMAT_MAP:
+        raise GenesisValidationError(
+            f"Invalid trajectory format: {trj_format}. "
+            f"Valid formats: {list(_TRJ_FORMAT_MAP.keys())}"
+        )
+    trj_format_c = _TRJ_FORMAT_MAP[fmt_upper]
+
+    type_upper = trj_type.upper()
+    if type_upper not in _TRJ_TYPE_MAP:
+        raise GenesisValidationError(
+            f"Invalid trajectory type: {trj_type}. "
+            f"Valid types: {list(_TRJ_TYPE_MAP.keys())}"
+        )
+    trj_type_c = _TRJ_TYPE_MAP[type_upper]
+
+    # Pack filenames
+    packed_names, n_files, max_len = _pack_filenames(trj_files)
+
+    # Prepare output variables
+    frame_counts_ptr = ctypes.c_void_p()
+    n_trajs = ctypes.c_int()
+    status = ctypes.c_int()
+    msglen = _DEFAULT_MSG_LEN
+    msg = ctypes.create_string_buffer(msglen)
+
+    try:
+        with suppress_stdout_capture_stderr() as captured:
+            lib.crd_convert_info_c(
+                ctypes.byref(mol_c),
+                packed_names,
+                ctypes.c_int(n_files),
+                ctypes.c_int(max_len),
+                ctypes.c_int(trj_format_c),
+                ctypes.c_int(trj_type_c),
+                ctypes.byref(frame_counts_ptr),
+                ctypes.byref(n_trajs),
+                ctypes.byref(status),
+                msg,
+                ctypes.c_int(msglen)
+            )
+
+        if status.value != 0:
+            error_msg = msg.value.decode('utf-8', errors='replace').strip()
+            raise_fortran_error(
+                status.value,
+                error_msg,
+                stderr_output=captured.stderr
+            )
+
+        # Convert frame counts to Python list
+        if n_trajs.value > 0 and frame_counts_ptr.value:
+            arr_ptr = ctypes.cast(
+                frame_counts_ptr.value,
+                ctypes.POINTER(ctypes.c_int)
+            )
+            frame_counts = [arr_ptr[i] for i in range(n_trajs.value)]
+            # Deallocate Fortran-allocated memory
+            lib.deallocate_frame_counts_c(frame_counts_ptr)
+        else:
+            frame_counts = []
+
+        return CrdConvertInfo(
+            frame_counts=frame_counts,
+            selected_atom_indices=np.array([], dtype=np.int32),
+            num_selected_atoms=0,
+        )
+
+    finally:
+        lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
+
+
 def selection(molecule: SMolecule, selection_str: str) -> npt.NDArray[np.int32]:
     """Select atoms using GENESIS selection syntax.
 
@@ -90,154 +283,269 @@ def selection(molecule: SMolecule, selection_str: str) -> npt.NDArray[np.int32]:
         lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
 
+# Alias for selection function to avoid name collision with parameter
+selection_func = selection
+
+
 def crd_convert(
-        molecule: SMolecule,
-        traj_params: Optional[
-            Iterable[ctrl_files.TrajectoryParameters]] = None,
-        trj_format: Optional[str] = None,
-        trj_type: Optional[str] = None,
-        trj_natom: Optional[int] = None,
-        selection_group: Optional[Iterable[str]] = None,
-        selection_mole_name: Optional[Iterable[str]] = None,
-        fitting_method: Optional[str] = None,
-        fitting_atom: Optional[int] = None,
-        zrot_ngrid: Optional[int] = None,
-        zrot_grid_size: Optional[float] = None,
-        mass_weight: Optional[bool] = None,
-        check_only: Optional[bool] = None,
-        allow_backup: Optional[bool] = None,
-        centering: Optional[bool] = None,
-        centering_atom: Optional[int] = None,
-        center_coord: Optional[tuple[float, float, float]] = None,
-        pbc_correct: Optional[str] = None,
-        rename_res: Optional[Iterable[str]] = None,
-        ) -> tuple[STrajectoriesArray, SMolecule]:
-    """
-    Executes crd_convert.
+    molecule: SMolecule,
+    trj_files: List[str],
+    trj_format: str = "DCD",
+    trj_type: str = "COOR+BOX",
+    selection: str = "all",
+    fitting_selection: Optional[str] = None,
+    fitting_method: str = "NO",
+    mass_weighted: bool = False,
+    centering: bool = False,
+    centering_selection: Optional[str] = None,
+    center_coord: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+    pbc_correct: str = "NO",
+    ana_period: int = 1,
+    rename_res: Optional[List[str]] = None,
+) -> Tuple[List[STrajectories], SMolecule]:
+    """Load and convert trajectory files using zerocopy pattern.
+
+    This function reads trajectory files and converts them into STrajectories
+    objects that can be used for analysis. It uses zerocopy to avoid unnecessary
+    memory copies between Python and Fortran.
 
     Args:
         molecule: SMolecule object containing molecular structure
-        traj_params: List of trajectory parameters
-        trj_format: Trajectory format (e.g., "DCD")
-        trj_type: Trajectory type (e.g., "COOR")
-        trj_natom: Number of atoms in trajectory
-        selection_group: List of atom selection groups
-        selection_mole_name: List of molecule names for selection
-        fitting_method: Fitting method (e.g., "TR+ROT")
-        fitting_atom: Fitting atom selection
-        zrot_ngrid: Z-rotation grid size
-        zrot_grid_size: Z-rotation grid size
-        mass_weight: Whether to use mass weighting
-        check_only: Whether to only check parameters
-        allow_backup: Whether to allow backup files
-        centering: Whether to center coordinates
-        centering_atom: Centering atom selection
-        center_coord: Center coordinates
-        pbc_correct: PBC correction method
-        rename_res: List of residue names to rename
+        trj_files: List of trajectory file paths
+        trj_format: Trajectory format ("DCD", "AMBER", "PDB", "GROMACS", etc.)
+        trj_type: Trajectory type ("COOR" or "COOR+BOX")
+        selection: Atom selection string (e.g., "all", "an:CA", "rno:1-10")
+        fitting_selection: Selection for fitting atoms (None for no fitting)
+        fitting_method: Fitting method ("NO", "TR+ROT", "TR", "TR+ZROT", etc.)
+        mass_weighted: Use mass weighting for fitting
+        centering: Enable coordinate centering
+        centering_selection: Selection for centering atoms (default: same as selection)
+        center_coord: Target center coordinates as (x, y, z)
+        pbc_correct: PBC correction mode ("NO", "MOLECULE")
+        ana_period: Analysis period (process every Nth frame)
+        rename_res: List of residue name mappings (e.g., ["HSE HIS", "HSD HIS"])
+                    Each string should be "FROM TO" format
 
     Returns:
-        Tuple of (STrajectoriesArray, SMolecule) where the SMolecule contains
-        only the atoms selected by selection_group, or the original molecule
-        if no selection_group is specified.
+        Tuple of (List[STrajectories], SMolecule) where:
+            - List[STrajectories]: One STrajectories per input trajectory file
+            - SMolecule: Subset molecule containing only selected atoms
 
-    Notes:
-        When md_step is None in TrajectoryParameters, frame count is
-        auto-detected from the DCD header. This only works for DCD format.
+    Raises:
+        GenesisValidationError: If parameters are invalid
+        GenesisFortranError: If trajectory reading fails
+
+    Examples:
+        >>> trajs, mol = crd_convert(mol, ["traj.dcd"])
+        >>> trajs, mol = crd_convert(mol, ["traj.dcd"], selection="an:CA")
+        >>> trajs, mol = crd_convert(mol, ["traj.dcd"],
+        ...                          fitting_selection="an:CA",
+        ...                          fitting_method="TR+ROT")
+        >>> trajs, mol = crd_convert(mol, ["traj.dcd"],
+        ...                          rename_res=["HSE HIS", "HSD HIS"])
     """
-    # Warn if auto-detection is used with non-DCD format
-    if traj_params is not None:
-        import warnings
-        for traj in traj_params:
-            if traj.md_step is None and trj_format is not None:
-                fmt_upper = trj_format.upper()
-                if fmt_upper != "DCD":
-                    warnings.warn(
-                        f"Auto-detection of frame count (md_step=None) is only "
-                        f"supported for DCD format, not {fmt_upper}. "
-                        f"Please specify md_step explicitly.",
-                        UserWarning
-                    )
+    lib = LibGenesis().lib
 
-    buf = ctypes.c_void_p(None)
-    num_trajs_c = ctypes.c_int(0)
-    selected_atom_indices_c = ctypes.c_void_p(None)
-    num_selected_atoms_c = ctypes.c_int(0)
+    # Apply residue name renaming if specified
+    if rename_res:
+        for rename_spec in rename_res:
+            parts = rename_spec.split()
+            if len(parts) != 2:
+                raise GenesisValidationError(
+                    f"Invalid rename_res format: '{rename_spec}'. "
+                    f"Expected 'FROM TO' format (e.g., 'HSE HIS')"
+                )
+            from_name, to_name = parts
+            # Rename matching residues in the molecule
+            mask = molecule.residue_name == from_name
+            if np.any(mask):
+                molecule.residue_name[mask] = to_name
+
+    # Validate and convert format/type strings to constants
+    fmt_upper = trj_format.upper()
+    if fmt_upper not in _TRJ_FORMAT_MAP:
+        raise GenesisValidationError(
+            f"Invalid trajectory format: {trj_format}. "
+            f"Valid formats: {list(_TRJ_FORMAT_MAP.keys())}"
+        )
+    trj_format_c = _TRJ_FORMAT_MAP[fmt_upper]
+
+    type_upper = trj_type.upper()
+    if type_upper not in _TRJ_TYPE_MAP:
+        raise GenesisValidationError(
+            f"Invalid trajectory type: {trj_type}. "
+            f"Valid types: {list(_TRJ_TYPE_MAP.keys())}"
+        )
+    trj_type_c = _TRJ_TYPE_MAP[type_upper]
+
+    fit_method_upper = fitting_method.upper()
+    if fit_method_upper not in _FITTING_METHOD_MAP:
+        raise GenesisValidationError(
+            f"Invalid fitting method: {fitting_method}. "
+            f"Valid methods: {list(_FITTING_METHOD_MAP.keys())}"
+        )
+    fitting_method_c = _FITTING_METHOD_MAP[fit_method_upper]
+
+    pbcc_upper = pbc_correct.upper()
+    if pbcc_upper not in _PBCC_MODE_MAP:
+        raise GenesisValidationError(
+            f"Invalid PBC correction mode: {pbc_correct}. "
+            f"Valid modes: {list(_PBCC_MODE_MAP.keys())}"
+        )
+    pbcc_mode_c = _PBCC_MODE_MAP[pbcc_upper]
+
+    # Phase 1: Get trajectory info (frame counts)
+    info = crd_convert_info(molecule, trj_files, trj_format, trj_type)
+    frame_counts = info.frame_counts
+
+    if not frame_counts or all(fc == 0 for fc in frame_counts):
+        raise GenesisValidationError("No frames found in trajectory files")
+
+    # Get selected atom indices
+    selected_indices = selection_func(molecule, selection)
+    n_selected = len(selected_indices)
+
+    if n_selected == 0:
+        raise GenesisValidationError(
+            f"Selection '{selection}' returned no atoms"
+        )
+
+    # Get fitting atom indices if fitting is requested
+    if fitting_selection is not None and fitting_method_c != FittingMethod.NO:
+        fitting_indices = selection_func(molecule, fitting_selection)
+        n_fitting = len(fitting_indices)
+    else:
+        fitting_indices = np.array([], dtype=np.int32)
+        n_fitting = 0
+
+    # Get centering atom indices if centering is requested
+    if centering and centering_selection is not None:
+        centering_indices = selection_func(molecule, centering_selection)
+        n_centering = len(centering_indices)
+    elif centering:
+        # Default: use same atoms as selection
+        centering_indices = selected_indices.copy()
+        n_centering = len(centering_indices)
+    else:
+        centering_indices = np.array([], dtype=np.int32)
+        n_centering = 0
+
+    # Phase 2: Pre-allocate numpy arrays for trajectory data
+    n_trajs = len(frame_counts)
+
+    # Calculate actual frame counts after applying ana_period
+    actual_frame_counts = [
+        (fc + ana_period - 1) // ana_period for fc in frame_counts
+    ]
+
+    # Allocate coordinate arrays in Fortran order (column-major)
+    # Fortran expects shape (3, n_selected, n_frames) with column-major layout
+    coords_list = []
+    pbc_box_list = []
+    for i, n_frames in enumerate(actual_frame_counts):
+        # Allocate as Fortran-contiguous (3, n_selected, n_frames)
+        coords = np.zeros((3, n_selected, n_frames), dtype=np.float64, order='F')
+        coords_list.append(coords)
+        if trj_type_c == TrjType.COOR_BOX:
+            # PBC box: (3, 3, n_frames) in Fortran order
+            pbc_box = np.zeros((3, 3, n_frames), dtype=np.float64, order='F')
+        else:
+            pbc_box = np.zeros((0, 0, 0), dtype=np.float64, order='F')
+        pbc_box_list.append(pbc_box)
+
+    # Create array of pointers for Fortran
+    coords_ptrs = (ctypes.c_void_p * n_trajs)()
+    pbc_box_ptrs = (ctypes.c_void_p * n_trajs)()
+    for i in range(n_trajs):
+        coords_ptrs[i] = coords_list[i].ctypes.data
+        pbc_box_ptrs[i] = pbc_box_list[i].ctypes.data if pbc_box_list[i].size > 0 else None
+
+    # Pack filenames and prepare data for Fortran call
+    packed_names, n_files, max_len = _pack_filenames(trj_files)
+
+    # Prepare frame counts array
+    frame_counts_arr = np.array(frame_counts, dtype=np.int32)
+
+    # Prepare center coordinate
+    center_coord_arr = np.array(center_coord, dtype=np.float64)
+
+    # Prepare molecule C structure
     mol_c = molecule.to_SMoleculeC()
 
+    # Prepare output variables
+    status = ctypes.c_int()
+    msglen = _DEFAULT_MSG_LEN
+    msg = ctypes.create_string_buffer(msglen)
+
     try:
-        ctrl = io.BytesIO()
-        ctrl_files.write_ctrl_output(
-                ctrl,
-                trjfile="dummy.trj",
-                )
-        ctrl_files.write_trajectory_info(
-                ctrl, traj_params, trj_format, trj_type, trj_natom,)
-        # Use "all" as default selection when no selection is specified
-        # This ensures that group1 is available for fitting and output
-        selection_group_to_use = selection_group if selection_group else ["all"]
-        ctrl_files.write_ctrl_selection(
-                ctrl, selection_group_to_use, selection_mole_name)
-        # Only specify fitting_atom if selection_group is provided
-        # When no selection is specified, don't specify fitting_atom
-        fitting_atom_to_use = fitting_atom if selection_group else None
-        ctrl_files.write_ctrl_fitting(
-                ctrl, fitting_method, fitting_atom_to_use,
-                zrot_ngrid, zrot_grid_size, mass_weight)
-        ctrl.write(b"[OPTION]\n")
-        ctrl_files.write_kwargs(
-                ctrl,
-                check_only=check_only,
-                allow_backup=allow_backup,
-                centering=centering,
-                centering_atom=centering_atom,
-                center_coord=center_coord,
-                pbc_correct=pbc_correct,
-                rename_res=ctrl_files.NumberingData(rename_res),
-                )
-
-        ctrl_bytes = ctrl.getvalue()
-        ctrl_len = len(ctrl_bytes)
-
-        msgbuf, MSG_LEN = make_msgbuf()
-        status = ctypes.c_int(0)
-
         with suppress_stdout_capture_stderr() as captured:
-            LibGenesis().lib.crd_convert_c(
-                    ctypes.byref(mol_c),
-                    ctrl_bytes,
-                    ctypes.c_int(ctrl_len),
-                    ctypes.byref(buf),
-                    ctypes.byref(num_trajs_c),
-                    ctypes.byref(selected_atom_indices_c),
-                    ctypes.byref(num_selected_atoms_c),
-                    ctypes.byref(status),
-                    msgbuf,
-                    ctypes.c_int(MSG_LEN),
-                    )
+            lib.crd_convert_zerocopy_c(
+                ctypes.byref(mol_c),
+                packed_names,
+                ctypes.c_int(n_files),
+                ctypes.c_int(max_len),
+                ctypes.c_int(trj_format_c),
+                ctypes.c_int(trj_type_c),
+                selected_indices.ctypes.data,
+                ctypes.c_int(n_selected),
+                ctypes.c_int(fitting_method_c),
+                fitting_indices.ctypes.data if n_fitting > 0 else None,
+                ctypes.c_int(n_fitting),
+                ctypes.c_int(1 if mass_weighted else 0),
+                ctypes.c_int(1 if centering else 0),
+                centering_indices.ctypes.data if n_centering > 0 else None,
+                ctypes.c_int(n_centering),
+                center_coord_arr.ctypes.data,
+                ctypes.c_int(pbcc_mode_c),
+                ctypes.c_int(ana_period),
+                frame_counts_arr.ctypes.data,
+                ctypes.cast(coords_ptrs, ctypes.c_void_p),
+                ctypes.cast(pbc_box_ptrs, ctypes.c_void_p),
+                ctypes.byref(status),
+                msg,
+                ctypes.c_int(msglen)
+            )
+
         if status.value != 0:
-            error_msg = msgbuf.value.decode("utf-8", "replace")
+            error_msg = msg.value.decode('utf-8', errors='replace').strip()
             raise_fortran_error(
+                status.value,
                 error_msg,
-                code=status.value,
                 stderr_output=captured.stderr
             )
 
+        # Create STrajectories objects from filled arrays
+        # Transpose from Fortran order (3, n_selected, n_frames) to
+        # Python order (n_frames, n_selected, 3)
+        trajectories = []
+        for i, n_frames in enumerate(actual_frame_counts):
+            # Transpose coords: (3, n_sel, n_frame) -> (n_frame, n_sel, 3)
+            coords_py = np.ascontiguousarray(
+                np.transpose(coords_list[i], (2, 1, 0))
+            )
+            if trj_type_c == TrjType.COOR_BOX and pbc_box_list[i].size > 0:
+                # Transpose pbc_box: (3, 3, n_frame) -> (n_frame, 3)
+                # Extract diagonal (box dimensions)
+                pbc_box_py = np.ascontiguousarray(
+                    np.transpose(pbc_box_list[i], (2, 0, 1))[:, np.diag_indices(3)[0], np.diag_indices(3)[1]]
+                )
+            else:
+                pbc_box_py = None
+            traj = STrajectories.from_numpy(
+                coords_py,
+                pbc_box=pbc_box_py,
+                mem_owner=True
+            )
+            trajectories.append(traj)
+
+        # Create subset molecule
+        # selected_indices is 1-indexed from Fortran, convert to 0-indexed
+        subset_mol = molecule.subset_atoms(selected_indices - 1)
+
+        return trajectories, subset_mol
+
     finally:
-        if mol_c:
-            LibGenesis().lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
-    
-    # Create subset molecule based on selected atom indices
-    if num_selected_atoms_c.value > 0 and selected_atom_indices_c:
-        atom_indices = c2py_util.conv_int_ndarray(
-            selected_atom_indices_c, num_selected_atoms_c.value)
-        # Convert from 1-based (FORTRAN) to 0-based (Python) indexing
-        subset_mol = molecule.subset_atoms(atom_indices - 1)
-    else:
-        # No selection or no atoms selected, return original molecule
-        subset_mol = molecule
-    
-    return (STrajectoriesArray(buf, num_trajs_c.value), subset_mol)
+        lib.deallocate_s_molecule_c(ctypes.byref(mol_c))
 
 
 TrjAnalysisResult = namedtuple(

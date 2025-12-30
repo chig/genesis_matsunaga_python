@@ -100,6 +100,54 @@ class LibGenesis:
                 ]
         self.lib.crd_convert_c.restype = None
 
+        # crd_convert info (zerocopy phase 1: get trajectory metadata)
+        self.lib.crd_convert_info_c.argtypes = [
+                ctypes.POINTER(SMoleculeC),       # molecule_c
+                ctypes.c_char_p,                  # trj_filenames (packed)
+                ctypes.c_int,                     # n_trj_files
+                ctypes.c_int,                     # filename_len
+                ctypes.c_int,                     # trj_format
+                ctypes.c_int,                     # trj_type
+                ctypes.POINTER(ctypes.c_void_p),  # frame_counts_ptr (output)
+                ctypes.POINTER(ctypes.c_int),     # n_trajs (output)
+                ctypes.POINTER(ctypes.c_int),     # status (output)
+                ctypes.c_char_p,                  # msg (output)
+                ctypes.c_int,                     # msglen
+                ]
+        self.lib.crd_convert_info_c.restype = None
+
+        # crd_convert zerocopy (phase 2: fill pre-allocated arrays)
+        self.lib.crd_convert_zerocopy_c.argtypes = [
+                ctypes.POINTER(SMoleculeC),       # molecule_c
+                ctypes.c_char_p,                  # trj_filenames (packed)
+                ctypes.c_int,                     # n_trj_files
+                ctypes.c_int,                     # filename_len
+                ctypes.c_int,                     # trj_format
+                ctypes.c_int,                     # trj_type
+                ctypes.c_void_p,                  # selected_indices
+                ctypes.c_int,                     # n_selected
+                ctypes.c_int,                     # fitting_method
+                ctypes.c_void_p,                  # fitting_indices
+                ctypes.c_int,                     # n_fitting
+                ctypes.c_int,                     # mass_weighted
+                ctypes.c_int,                     # do_centering
+                ctypes.c_void_p,                  # centering_indices
+                ctypes.c_int,                     # n_centering
+                ctypes.c_void_p,                  # center_coord (double[3])
+                ctypes.c_int,                     # pbcc_mode
+                ctypes.c_int,                     # ana_period
+                ctypes.c_void_p,                  # frame_counts
+                ctypes.c_void_p,                  # coords_ptrs
+                ctypes.c_void_p,                  # pbc_box_ptrs
+                ctypes.POINTER(ctypes.c_int),     # status (output)
+                ctypes.c_char_p,                  # msg (output)
+                ctypes.c_int,                     # msglen
+                ]
+        self.lib.crd_convert_zerocopy_c.restype = None
+
+        self.lib.deallocate_frame_counts_c.argtypes = [ctypes.c_void_p]
+        self.lib.deallocate_frame_counts_c.restype = None
+
         # TRJ analysis (zerocopy, pre-allocated result arrays)
         self.lib.trj_analysis_c.argtypes = [
                 ctypes.POINTER(STrajectoriesC),   # s_trajes_c

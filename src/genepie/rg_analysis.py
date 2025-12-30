@@ -3,11 +3,10 @@ if __name__ == "__main__" and __package__ is None:
     import sys, pathlib
     pkg_dir = pathlib.Path(__file__).resolve().parent
     sys.path.insert(0, str(pkg_dir.parent))
-    __package__ = "python_interface"
+    __package__ = "genepie"
 # --------------------------------------------
 import os
 import pathlib
-from .ctrl_files import TrajectoryParameters
 from .s_molecule import SMolecule
 from . import genesis_exe
 
@@ -17,41 +16,23 @@ def test_rg_analysis():
     psf_path = pathlib.Path("BPTI_ionize.psf")
 
     mol = SMolecule.from_file(pdb=pdb_path, psf=psf_path)
-    trajs, subset_mol =  genesis_exe.crd_convert(
-            mol,
-            traj_params = [
-                TrajectoryParameters(
-                    trjfile = "BPTI_run.dcd",
-                    md_step = 10,
-                    mdout_period = 1,
-                    ana_period = 1,
-                    repeat = 1,
-                    ),
-                ],
-            trj_format = "DCD",
-            trj_type = "COOR+BOX",
-            trj_natom = 0,
-            selection_group = ["all", ],
-            fitting_method = "NO",
-            fitting_atom = 1,
-            check_only = False,
-            pbc_correct = "NO",
+    trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=["BPTI_run.dcd"],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
     )
     _ = subset_mol
 
-    try: 
-
-        for t in trajs:
-            d = genesis_exe.rg_analysis(
-                    mol, t,
-                    selection_group = ["all", ],
-                    analysis_atom  = 1,
-                    mass_weighted  = True,
-                    )
-            print(d.rg)
-    finally:
-        if hasattr(trajs, "close"):
-            trajs.close()
+    for t in trajs:
+        d = genesis_exe.rg_analysis(
+            mol, t,
+            selection_group=["all"],
+            analysis_atom=1,
+            mass_weighted=True,
+        )
+        print(d.rg)
 
 
 def main():

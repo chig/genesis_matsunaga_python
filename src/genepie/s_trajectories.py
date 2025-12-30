@@ -158,6 +158,79 @@ class STrajectories:
     def from_trajectories_c(trajs_c: STrajectoriesC, mem_owner=True) -> Self:
         return STrajectories(trajs_c=trajs_c, mem_owner=mem_owner)
 
+    @classmethod
+    def from_numpy(cls, coords: npt.NDArray[np.float64],
+                   pbc_box: npt.NDArray[np.float64] = None,
+                   mem_owner: bool = True) -> Self:
+        """Create STrajectories from numpy arrays (zerocopy pattern).
+
+        This creates an STrajectories where the coordinate data is owned by
+        numpy arrays rather than Fortran. This is used by zerocopy functions
+        where Python pre-allocates memory and Fortran writes directly to it.
+
+        Args:
+            coords: Coordinate array of shape (nframe, natom, 3)
+            pbc_box: Optional PBC box array of shape (nframe, 3)
+                     If None, a zero-filled (nframe, 3, 3) array is used
+            mem_owner: If True, this object manages the numpy array lifetime
+
+        Returns:
+            STrajectories instance with numpy-owned memory
+
+        Note:
+            This differs from the standard constructor which creates
+            Fortran-allocated memory. With from_numpy, the arrays are
+            managed by Python/numpy, and no Fortran deallocation is needed.
+        """
+        if coords.ndim != 3 or coords.shape[2] != 3:
+            raise GenesisValidationError(
+                f"coords must have shape (nframe, natom, 3), got {coords.shape}"
+            )
+
+        nframe, natom, _ = coords.shape
+
+        # Create instance without Fortran allocation
+        obj = object.__new__(cls)
+        obj.natom = natom
+        obj.nframe = nframe
+        obj.coords = coords
+        obj._mem_owner = False  # Don't try to deallocate Fortran memory
+
+        # Handle pbc_box
+        if pbc_box is not None:
+            if pbc_box.ndim == 2 and pbc_box.shape == (nframe, 3):
+                # Expand (nframe, 3) to (nframe, 3, 3) diagonal matrix
+                pbc_boxes = np.zeros((nframe, 3, 3), dtype=np.float64)
+                for i in range(nframe):
+                    np.fill_diagonal(pbc_boxes[i], pbc_box[i])
+                obj.pbc_boxes = pbc_boxes
+            elif pbc_box.ndim == 3 and pbc_box.shape == (nframe, 3, 3):
+                obj.pbc_boxes = pbc_box
+            else:
+                raise GenesisValidationError(
+                    f"pbc_box must have shape (nframe, 3) or (nframe, 3, 3), "
+                    f"got {pbc_box.shape}"
+                )
+        else:
+            obj.pbc_boxes = np.zeros((nframe, 3, 3), dtype=np.float64)
+
+        # Keep reference to numpy arrays to prevent garbage collection
+        if mem_owner:
+            obj._numpy_coords = coords
+            obj._numpy_pbc_boxes = obj.pbc_boxes
+
+        # Create C structure that wraps the numpy arrays
+        # This allows using the trajectory with Fortran analysis functions
+        c_obj = STrajectoriesC()
+        c_obj.natom = natom
+        c_obj.nframe = nframe
+        # Point to numpy array data (no copy)
+        c_obj.coords = obj.coords.ctypes.data_as(ctypes.c_void_p).value
+        c_obj.pbc_boxes = obj.pbc_boxes.ctypes.data_as(ctypes.c_void_p).value
+        obj.c_obj = c_obj
+
+        return obj
+
 
 try:
     import mdtraj as md

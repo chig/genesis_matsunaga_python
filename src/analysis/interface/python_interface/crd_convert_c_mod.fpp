@@ -128,16 +128,7 @@ contains
     if (error_has(err)) return
 
     ! Extract selected atom indices from option%trjout_atom
-    write(MsgOut,'(A)') 'About to extract selected atom indices...'
-    write(MsgOut,'(A,I8)') 'Extract_Selected_Atom_Indices> Number of selected atoms: ', &
-         size(option%trjout_atom%idx)
-    if (size(option%trjout_atom%idx) > 0) then
-      write(MsgOut,'(A,10I8)') 'Extract_Selected_Atom_Indices> First 10 indices: ', &
-           option%trjout_atom%idx(1:min(10, size(option%trjout_atom%idx)))
-    end if
-    write(MsgOut,'(A)') 'Calling extract_selected_atom_indices...'
     call extract_selected_atom_indices(option%trjout_atom, selected_atom_indices, num_selected_atoms)
-    write(MsgOut,'(A)') 'extract_selected_atom_indices completed.'
 
 
     ! [Step4] Deallocate memory
@@ -271,23 +262,233 @@ contains
 
     nsel = size(selatoms%idx)
     num_selected_atoms = nsel
-    
-    write(MsgOut,'(A,I8)') 'Extract_Selected_Atom_Indices> Called with nsel = ', nsel
 
     if (nsel > 0) then
-      write(MsgOut,'(A)') 'Extract_Selected_Atom_Indices> Allocating C array'
       ! Allocate C array using conv_f_c_util
       selected_atom_indices = allocate_c_int_array(int(nsel, c_int))
       call c_f_pointer(selected_atom_indices, c_array, [nsel])
       do i = 1, nsel
         c_array(i) = int(selatoms%idx(i), c_int)
       end do
-      write(MsgOut,'(A)') 'Extract_Selected_Atom_Indices> C array allocated and filled'
     else
-      write(MsgOut,'(A)') 'Extract_Selected_Atom_Indices> No atoms selected, returning null'
       selected_atom_indices = c_null_ptr
     end if
 
   end subroutine extract_selected_atom_indices
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    crd_convert_info_c
+  !> @brief        C interface to get trajectory info (frame counts)
+  !! @param[in]    molecule_c       : molecule structure (C)
+  !! @param[in]    trj_filenames    : packed trajectory filenames
+  !! @param[in]    n_trj_files      : number of trajectory files
+  !! @param[in]    filename_len     : max length per filename
+  !! @param[in]    trj_format       : trajectory format
+  !! @param[in]    trj_type         : trajectory type
+  !! @param[out]   frame_counts_ptr : pointer to frame counts array
+  !! @param[out]   n_trajs          : number of trajectories
+  !! @param[out]   status           : error status
+  !! @param[out]   msg              : error message
+  !! @param[in]    msglen           : max message length
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine crd_convert_info_c( &
+          molecule_c, &
+          trj_filenames, n_trj_files, filename_len, &
+          trj_format, trj_type, &
+          frame_counts_ptr, n_trajs, &
+          status, msg, msglen) &
+          bind(C, name="crd_convert_info_c")
+    implicit none
+
+    type(s_molecule_c), intent(in) :: molecule_c
+    character(kind=c_char), intent(in) :: trj_filenames(*)
+    integer(c_int), value :: n_trj_files
+    integer(c_int), value :: filename_len
+    integer(c_int), value :: trj_format
+    integer(c_int), value :: trj_type
+    type(c_ptr), intent(out) :: frame_counts_ptr
+    integer(c_int), intent(out) :: n_trajs
+    integer(c_int), intent(out) :: status
+    character(kind=c_char), intent(out) :: msg(*)
+    integer(c_int), value :: msglen
+
+    type(s_molecule) :: f_molecule
+    type(s_error) :: err
+    integer(c_int), pointer :: frame_counts(:)
+
+    call error_init(err)
+    call c2f_s_molecule(molecule_c, f_molecule)
+
+    ! Allocate frame counts array
+    allocate(frame_counts(n_trj_files))
+
+    ! Get trajectory info
+    call get_info(f_molecule, trj_filenames, n_trj_files, filename_len, &
+                  trj_format, trj_type, frame_counts, n_trajs, err)
+
+    if (error_has(err)) then
+      deallocate(frame_counts)
+      frame_counts_ptr = c_null_ptr
+      call error_to_c(err, status, msg, msglen)
+      call dealloc_molecules_all(f_molecule)
+      return
+    end if
+
+    frame_counts_ptr = c_loc(frame_counts(1))
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
+    call dealloc_molecules_all(f_molecule)
+
+  end subroutine crd_convert_info_c
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    crd_convert_zerocopy_c
+  !> @brief        C interface for zerocopy trajectory conversion
+  !! @param[in]    molecule_c         : molecule structure (C)
+  !! @param[in]    trj_filenames      : packed trajectory filenames
+  !! @param[in]    n_trj_files        : number of trajectory files
+  !! @param[in]    filename_len       : max length per filename
+  !! @param[in]    trj_format         : trajectory format
+  !! @param[in]    trj_type           : trajectory type
+  !! @param[in]    selected_indices   : selected atom indices (1-indexed)
+  !! @param[in]    n_selected         : number of selected atoms
+  !! @param[in]    fitting_method     : fitting method
+  !! @param[in]    fitting_indices    : fitting atom indices
+  !! @param[in]    n_fitting          : number of fitting atoms
+  !! @param[in]    mass_weighted      : use mass weighting
+  !! @param[in]    do_centering       : enable centering
+  !! @param[in]    centering_indices  : centering atom indices
+  !! @param[in]    n_centering        : number of centering atoms
+  !! @param[in]    center_coord       : target center coordinates
+  !! @param[in]    pbcc_mode          : PBC correction mode
+  !! @param[in]    ana_period         : analysis period
+  !! @param[in]    frame_counts       : frame counts per trajectory
+  !! @param[in]    coords_ptrs        : pre-allocated coords arrays
+  !! @param[in]    pbc_box_ptrs       : pre-allocated pbc_box arrays
+  !! @param[out]   status             : error status
+  !! @param[out]   msg                : error message
+  !! @param[in]    msglen             : max message length
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine crd_convert_zerocopy_c( &
+          molecule_c, &
+          trj_filenames, n_trj_files, filename_len, &
+          trj_format, trj_type, &
+          selected_indices, n_selected, &
+          fitting_method, fitting_indices, n_fitting, mass_weighted, &
+          do_centering, centering_indices, n_centering, center_coord, &
+          pbcc_mode, ana_period, &
+          frame_counts, &
+          coords_ptrs, pbc_box_ptrs, &
+          status, msg, msglen) &
+          bind(C, name="crd_convert_zerocopy_c")
+    implicit none
+
+    type(s_molecule_c), intent(in) :: molecule_c
+    character(kind=c_char), intent(in) :: trj_filenames(*)
+    integer(c_int), value :: n_trj_files
+    integer(c_int), value :: filename_len
+    integer(c_int), value :: trj_format
+    integer(c_int), value :: trj_type
+    type(c_ptr), value :: selected_indices
+    integer(c_int), value :: n_selected
+    integer(c_int), value :: fitting_method
+    type(c_ptr), value :: fitting_indices
+    integer(c_int), value :: n_fitting
+    integer(c_int), value :: mass_weighted
+    integer(c_int), value :: do_centering
+    type(c_ptr), value :: centering_indices
+    integer(c_int), value :: n_centering
+    type(c_ptr), value :: center_coord
+    integer(c_int), value :: pbcc_mode
+    integer(c_int), value :: ana_period
+    type(c_ptr), value :: frame_counts
+    type(c_ptr), value :: coords_ptrs
+    type(c_ptr), value :: pbc_box_ptrs
+    integer(c_int), intent(out) :: status
+    character(kind=c_char), intent(out) :: msg(*)
+    integer(c_int), value :: msglen
+
+    type(s_molecule) :: f_molecule
+    type(s_error) :: err
+    integer(c_int), pointer :: sel_idx_f(:), fit_idx_f(:), cen_idx_f(:)
+    integer(c_int), pointer :: frame_counts_f(:)
+    real(c_double), pointer :: center_coord_f(:)
+    type(c_ptr), pointer :: coords_ptrs_f(:), pbc_box_ptrs_f(:)
+
+    call error_init(err)
+    call c2f_s_molecule(molecule_c, f_molecule)
+
+    ! Get Fortran pointers to C arrays
+    call c_f_pointer(selected_indices, sel_idx_f, [n_selected])
+    call c_f_pointer(frame_counts, frame_counts_f, [n_trj_files])
+    call c_f_pointer(coords_ptrs, coords_ptrs_f, [n_trj_files])
+    call c_f_pointer(pbc_box_ptrs, pbc_box_ptrs_f, [n_trj_files])
+    call c_f_pointer(center_coord, center_coord_f, [3])
+
+    if (n_fitting > 0) then
+      call c_f_pointer(fitting_indices, fit_idx_f, [n_fitting])
+    else
+      nullify(fit_idx_f)
+    end if
+
+    if (n_centering > 0) then
+      call c_f_pointer(centering_indices, cen_idx_f, [n_centering])
+    else
+      nullify(cen_idx_f)
+    end if
+
+    ! Call the implementation
+    call convert_zerocopy(f_molecule, &
+                          trj_filenames, n_trj_files, filename_len, &
+                          trj_format, trj_type, &
+                          sel_idx_f, n_selected, &
+                          fitting_method, fit_idx_f, n_fitting, mass_weighted, &
+                          do_centering, cen_idx_f, n_centering, center_coord_f, &
+                          pbcc_mode, ana_period, &
+                          frame_counts_f, &
+                          coords_ptrs_f, pbc_box_ptrs_f, &
+                          err)
+
+    if (error_has(err)) then
+      call error_to_c(err, status, msg, msglen)
+      call dealloc_molecules_all(f_molecule)
+      return
+    end if
+
+    status = 0
+    if (msglen > 0) msg(1) = c_null_char
+
+    call dealloc_molecules_all(f_molecule)
+
+  end subroutine crd_convert_zerocopy_c
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    deallocate_frame_counts_c
+  !> @brief        Deallocate frame counts array
+  !! @param[in]    frame_counts_ptr : pointer to frame counts array
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine deallocate_frame_counts_c(frame_counts_ptr) &
+          bind(C, name="deallocate_frame_counts_c")
+    implicit none
+
+    type(c_ptr), value :: frame_counts_ptr
+    integer(c_int), pointer :: frame_counts(:)
+
+    if (c_associated(frame_counts_ptr)) then
+      call c_f_pointer(frame_counts_ptr, frame_counts, [1])
+      deallocate(frame_counts)
+    end if
+
+  end subroutine deallocate_frame_counts_c
 
 end module crd_convert_c_mod
