@@ -87,7 +87,7 @@ libpython_interface_la_LIBADD = \
 		../../libana/libana.a ../../../lib/lib.a ../../../ \
 		$(INT_LAPACK_LIB) \
 		$(LAPACK_LIBS) \
-		-lgfortran \
+		-lgfortran $(LIBS) \
 		$(MPI_FORTRAN_LIBS)
 
 libpython_interface_la_FCFLAGS = $(FCFLAGS) $(PYTHON_CPPFLAGS)

@@ -1439,6 +1439,19 @@ CFLAGS+=" -fPIC"
 ## Python interface
 AM_PATH_PYTHON([3.9])
 
+# Link libmvec/libm on Linux for gfortran (outside LDFLAGS block to ensure execution)
+if test x"${FC_ACT}" = x"gfortran"; then
+  case "$host_os" in
+    linux*)
+      AC_CHECK_LIB([mvec], [sincos],
+        [LIBS="$LIBS -lmvec"
+         AC_MSG_NOTICE([libmvec found, linking with -lmvec])],
+        [AC_MSG_NOTICE([libmvec not found, not linking -lmvec])])
+      LIBS="$LIBS -lm"
+      ;;
+  esac
+fi
+
 # LDFLAGS
 if test -z "${LDFLAGS}"; then
   if test x"${FC_ACT}" = x"ifort" -o x"${FC_ACT}" = x"ifx"; then
@@ -1448,19 +1461,8 @@ if test -z "${LDFLAGS}"; then
     LDFLAGS+="-Msmartalloc=huge"
 
   elif test x"${FC_ACT}" = x"gfortran"; then
-    # Link libmvec on Linux for vectorized math functions (glibc-specific)
-    # Check if libmvec exists (not available on musl/Alpine Linux)
-    case "$host_os" in
-      linux*)
-        AC_CHECK_LIB([mvec], [sincos],
-          [LDFLAGS+="-lmvec -lm"
-           AC_MSG_NOTICE([libmvec found, linking with -lmvec -lm])],
-          [LDFLAGS+="-lm"
-           AC_MSG_NOTICE([libmvec not found (musl?), linking with -lm only])],
-          [-lm])
-        ;;
-    esac
     #LDFLAGS="-march=native -fuse-linker-plugin"
+    :
 
   elif test x"${FC_ACT}" = x"frtpx"; then
     LDFLAGS+="-SSL2 -Kparallel -Nfjomplib"
