@@ -39,6 +39,8 @@ module crd_convert_impl_mod
 
   ! subroutines
   public  :: convert
+  public  :: get_info
+  public  :: convert_zerocopy
   private :: centering
   private :: output_split_trjpdb
   private :: get_filename
@@ -354,5 +356,274 @@ contains
     return
 
   end function get_filename
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    get_info
+  !> @brief        Get trajectory info without loading data
+  !! @authors      YS
+  !! @param[in]    molecule       : molecule information
+  !! @param[in]    trj_filenames  : trajectory file paths (packed)
+  !! @param[in]    n_trj_files    : number of trajectory files
+  !! @param[in]    filename_len   : max length per filename
+  !! @param[in]    trj_format     : trajectory format (TrjFormatDCD etc)
+  !! @param[in]    trj_type       : trajectory type (TrjTypeCoor etc)
+  !! @param[out]   frame_counts   : frame counts per trajectory
+  !! @param[out]   n_trajs        : number of trajectories
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine get_info(molecule, trj_filenames, n_trj_files, filename_len, &
+                      trj_format, trj_type, frame_counts, n_trajs, err)
+    use, intrinsic :: iso_c_binding
+
+    ! formal arguments
+    type(s_molecule),   intent(in)    :: molecule
+    character(kind=c_char), intent(in) :: trj_filenames(*)
+    integer(c_int), value, intent(in) :: n_trj_files
+    integer(c_int), value, intent(in) :: filename_len
+    integer(c_int), value, intent(in) :: trj_format
+    integer(c_int), value, intent(in) :: trj_type
+    integer(c_int), intent(out)       :: frame_counts(n_trj_files)
+    integer(c_int), intent(out)       :: n_trajs
+    type(s_error),        intent(inout) :: err
+
+    ! local variables
+    integer :: i, offset
+    character(len=MaxFilename) :: filename_f
+
+    n_trajs = n_trj_files
+
+    ! Loop through trajectory files to get frame counts
+    do i = 1, n_trj_files
+      ! Extract filename from packed string
+      offset = (i - 1) * filename_len
+      call c2f_string_at_offset(trj_filenames, offset, filename_len, filename_f)
+
+      ! Get number of frames from trajectory header
+      frame_counts(i) = get_num_steps_trj(trim(filename_f), trj_format, trj_type)
+
+      if (frame_counts(i) <= 0) then
+        call error_set(err, ERROR_FILE_FORMAT, &
+                       'get_info> Cannot read frame count from: ' // trim(filename_f))
+        return
+      end if
+    end do
+
+  end subroutine get_info
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    convert_zerocopy
+  !> @brief        Convert trajectory files with zerocopy pattern
+  !! @authors      YS
+  !! @param[in]    molecule           : molecule information
+  !! @param[in]    trj_filenames      : trajectory file paths (packed)
+  !! @param[in]    n_trj_files        : number of trajectory files
+  !! @param[in]    filename_len       : max length per filename
+  !! @param[in]    trj_format         : trajectory format
+  !! @param[in]    trj_type           : trajectory type
+  !! @param[in]    selected_indices   : selected atom indices (1-indexed)
+  !! @param[in]    n_selected         : number of selected atoms
+  !! @param[in]    fitting_method     : fitting method
+  !! @param[in]    fitting_indices    : fitting atom indices (1-indexed)
+  !! @param[in]    n_fitting          : number of fitting atoms
+  !! @param[in]    mass_weighted      : use mass weighting for fitting
+  !! @param[in]    do_centering       : enable centering
+  !! @param[in]    centering_indices  : centering atom indices
+  !! @param[in]    n_centering        : number of centering atoms
+  !! @param[in]    center_coord       : target center coordinates
+  !! @param[in]    pbcc_mode          : PBC correction mode
+  !! @param[in]    ana_period         : analysis period
+  !! @param[in]    frame_counts       : frame counts per trajectory
+  !! @param[inout] coords_ptrs        : pre-allocated coords arrays
+  !! @param[inout] pbc_box_ptrs       : pre-allocated pbc_box arrays
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine convert_zerocopy(molecule, &
+                              trj_filenames, n_trj_files, filename_len, &
+                              trj_format, trj_type, &
+                              selected_indices, n_selected, &
+                              fitting_method, fitting_indices, n_fitting, mass_weighted, &
+                              do_centering, centering_indices, n_centering, center_coord, &
+                              pbcc_mode, ana_period, &
+                              frame_counts, &
+                              coords_ptrs, pbc_box_ptrs, &
+                              err)
+    use, intrinsic :: iso_c_binding
+    use fitting_mod
+    use fitting_str_mod
+    use select_atoms_str_mod
+
+    ! formal arguments
+    type(s_molecule),   intent(inout) :: molecule
+    character(kind=c_char), intent(in) :: trj_filenames(*)
+    integer(c_int), value, intent(in) :: n_trj_files
+    integer(c_int), value, intent(in) :: filename_len
+    integer(c_int), value, intent(in) :: trj_format
+    integer(c_int), value, intent(in) :: trj_type
+    integer(c_int), intent(in)        :: selected_indices(*)
+    integer(c_int), value, intent(in) :: n_selected
+    integer(c_int), value, intent(in) :: fitting_method
+    integer(c_int), intent(in)        :: fitting_indices(*)
+    integer(c_int), value, intent(in) :: n_fitting
+    integer(c_int), value, intent(in) :: mass_weighted
+    integer(c_int), value, intent(in) :: do_centering
+    integer(c_int), intent(in)        :: centering_indices(*)
+    integer(c_int), value, intent(in) :: n_centering
+    real(c_double), intent(in)        :: center_coord(3)
+    integer(c_int), value, intent(in) :: pbcc_mode
+    integer(c_int), value, intent(in) :: ana_period
+    integer(c_int), intent(in)        :: frame_counts(n_trj_files)
+    type(c_ptr), intent(in)           :: coords_ptrs(n_trj_files)
+    type(c_ptr), intent(in)           :: pbc_box_ptrs(n_trj_files)
+    type(s_error),        intent(inout) :: err
+
+    ! local variables
+    type(s_trj_file)    :: trj_in
+    type(s_trajectory)  :: trajectory
+    type(s_fitting)     :: fitting
+    integer :: i, j, k, irun, itrj, frame_idx, offset
+    integer :: natom_full
+    character(len=MaxFilename) :: filename_f
+    real(wp), pointer :: coords_f(:,:,:)   ! (3, n_selected, nframes)
+    real(wp), pointer :: pbc_box_f(:,:,:)  ! (3, 3, nframes)
+    real(wp) :: com(3)
+    integer, allocatable :: sel_idx(:), fit_idx(:), cen_idx(:)
+
+    ! Allocate temporary arrays for indices
+    allocate(sel_idx(n_selected))
+    do i = 1, n_selected
+      sel_idx(i) = selected_indices(i)
+    end do
+
+    if (n_fitting > 0) then
+      allocate(fit_idx(n_fitting))
+      do i = 1, n_fitting
+        fit_idx(i) = fitting_indices(i)
+      end do
+    end if
+
+    if (n_centering > 0) then
+      allocate(cen_idx(n_centering))
+      do i = 1, n_centering
+        cen_idx(i) = centering_indices(i)
+      end do
+    end if
+
+    ! Allocate trajectory structure for reading (uses full molecule atom count)
+    natom_full = molecule%num_atoms
+    call alloc_trajectory(trajectory, natom_full)
+
+    ! Setup fitting structure if needed
+    if (fitting_method /= FittingMethodNO .and. n_fitting > 0) then
+      call alloc_selatoms(fitting%fitting_atom, n_fitting)
+      fitting%fitting_method = fitting_method
+      fitting%fitting_atom%idx(1:n_fitting) = fit_idx(1:n_fitting)
+      fitting%mass_weight = (mass_weighted /= 0)
+    end if
+
+    ! Process each trajectory file
+    do irun = 1, n_trj_files
+      ! Extract filename
+      offset = (irun - 1) * filename_len
+      call c2f_string_at_offset(trj_filenames, offset, filename_len, filename_f)
+
+      ! Open trajectory file
+      call open_trj(trj_in, trim(filename_f), trj_format, trj_type, IOFileInput)
+
+      ! Get Fortran pointers to pre-allocated Python arrays
+      call c_f_pointer(coords_ptrs(irun), coords_f, [3, n_selected, frame_counts(irun)])
+      call c_f_pointer(pbc_box_ptrs(irun), pbc_box_f, [3, 3, frame_counts(irun)])
+
+      frame_idx = 0
+
+      ! Read frames
+      do itrj = 1, frame_counts(irun)
+        call read_trj(trj_in, trajectory)
+
+        ! Apply ana_period filter
+        if (mod(itrj, ana_period) /= 0) cycle
+
+        frame_idx = frame_idx + 1
+
+        ! Centering
+        if (do_centering /= 0 .and. n_centering > 0) then
+          natom_full = size(trajectory%coord, dim=2)
+          com = compute_com(trajectory%coord, molecule%mass, cen_idx)
+          do i = 1, natom_full
+            trajectory%coord(:,i) = trajectory%coord(:,i) - com(:) + center_coord(:)
+          end do
+        end if
+
+        ! PBC correction
+        if (pbcc_mode /= PBCCModeNO) then
+          call run_pbc_correct(pbcc_mode, molecule, trajectory)
+        end if
+
+        ! Fitting
+        if (fitting_method /= FittingMethodNO .and. n_fitting > 0) then
+          if (fitting%mass_weight) then
+            call run_fitting(fitting, molecule%atom_coord, trajectory%coord, &
+                           trajectory%coord, molecule%mass)
+          else
+            call run_fitting(fitting, molecule%atom_coord, trajectory%coord, &
+                           trajectory%coord)
+          end if
+        end if
+
+        ! Copy selected atoms to output buffer
+        do j = 1, n_selected
+          k = sel_idx(j)
+          coords_f(:, j, frame_idx) = trajectory%coord(:, k)
+        end do
+
+        ! Copy PBC box
+        pbc_box_f(:, :, frame_idx) = trajectory%pbc_box(:, :)
+      end do
+
+      call close_trj(trj_in)
+    end do
+
+    ! Cleanup
+    if (allocated(sel_idx)) deallocate(sel_idx)
+    if (allocated(fit_idx)) deallocate(fit_idx)
+    if (allocated(cen_idx)) deallocate(cen_idx)
+    if (fitting_method /= FittingMethodNO .and. n_fitting > 0) then
+      call dealloc_fitting(fitting)
+    end if
+    call dealloc_trajectory(trajectory)
+
+  end subroutine convert_zerocopy
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    c2f_string_at_offset
+  !> @brief        Convert C string at offset in packed array to Fortran string
+  !! @param[in]    c_str_array  : packed C string array
+  !! @param[in]    offset       : byte offset into array
+  !! @param[in]    max_len      : max length of each string
+  !! @param[out]   f_str        : output Fortran string
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine c2f_string_at_offset(c_str_array, offset, max_len, f_str)
+    use, intrinsic :: iso_c_binding
+
+    character(kind=c_char), intent(in) :: c_str_array(*)
+    integer, intent(in) :: offset, max_len
+    character(len=*), intent(out) :: f_str
+
+    integer :: i, pos
+
+    f_str = ''
+    do i = 1, min(max_len, len(f_str))
+      pos = offset + i
+      if (c_str_array(pos) == c_null_char) exit
+      f_str(i:i) = c_str_array(pos)
+    end do
+
+  end subroutine c2f_string_at_offset
 
 end module crd_convert_impl_mod

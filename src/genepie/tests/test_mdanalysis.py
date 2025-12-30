@@ -19,19 +19,17 @@ class TestMdAnalysis(CustomTestCase):
         trj, mol = STrajectories.from_mdanalysis_universe(uni)
         gtrajs, gmol = self.create_traj_by_genesis(
                 self.TRJ_PATH, pdb=self.PDB_PATH, psf=self.PSF_PATH)
-        with trj, gtrajs:
-            self.assertAlmostEqual(gtrajs[0], trj)
-            # self.assertAlmostEqual(gmol, mol)
+        # New API returns List[STrajectories], not context manager
+        self.assertAlmostEqual(gtrajs[0], trj)
 
     def test_to_mdanalysis_universe(self):
         gtrajs, gmol = self.create_traj_by_genesis(
                 self.TRJ_PATH, pdb=self.PDB_PATH, psf=self.PSF_PATH)
+        # New API returns List[STrajectories], iterate directly
         for t in gtrajs:
             uni = t.to_mdanalysis_universe(gmol)
             gt, gm = STrajectories.from_mdanalysis_universe(uni)
-            with gt:
-                self.assertAlmostEqual(t, gt)
-                # self.assertAlmostEqual(gmol, gm)
+            self.assertAlmostEqual(t, gt)
 
 
 if __name__ == "__main__":

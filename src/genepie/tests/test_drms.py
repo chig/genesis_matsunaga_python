@@ -8,7 +8,6 @@ if __name__ == "__main__" and __package__ is None:
 import os
 import numpy as np
 from .conftest import BPTI_PDB, BPTI_PSF, BPTI_DCD
-from ..ctrl_files import TrajectoryParameters
 from ..s_molecule import SMolecule
 from .. import genesis_exe
 
@@ -52,62 +51,44 @@ def test_drms_analysis():
     """Test DRMS analysis with zerocopy interface."""
     mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
     trajs, subset_mol = genesis_exe.crd_convert(
-            mol,
-            traj_params=[
-                TrajectoryParameters(
-                    trjfile=str(BPTI_DCD),
-                    md_step=10,
-                    mdout_period=1,
-                    ana_period=1,
-                    repeat=1,
-                ),
-            ],
-            trj_format="DCD",
-            trj_type="COOR+BOX",
-            trj_natom=0,
-            selection_group=["all"],
-            fitting_method="NO",
-            fitting_atom=1,
-            check_only=False,
-            pbc_correct="NO",
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
     )
     _ = subset_mol
 
-    try:
-        for t in trajs:
-            # Get CA atom indices for contact computation
-            ca_indices = genesis_exe.selection(mol, "an: CA")
-            print(f"Number of CA atoms: {len(ca_indices)}")
+    for t in trajs:
+        # Get CA atom indices for contact computation
+        ca_indices = genesis_exe.selection(mol, "an: CA")
+        print(f"Number of CA atoms: {len(ca_indices)}")
 
-            # Compute contact list using Python
-            contact_list, contact_dist = compute_contact_list_from_refcoord(
-                mol, ca_indices,
-                min_dist=1.0, max_dist=6.0, exclude_residues=4
-            )
-            print(f"Number of contacts: {contact_list.shape[1]}")
-            print(f"contact_list shape: {contact_list.shape}")
-            print(f"contact_dist shape: {contact_dist.shape}")
+        # Compute contact list using Python
+        contact_list, contact_dist = compute_contact_list_from_refcoord(
+            mol, ca_indices,
+            min_dist=1.0, max_dist=6.0, exclude_residues=4
+        )
+        print(f"Number of contacts: {contact_list.shape[1]}")
+        print(f"contact_list shape: {contact_list.shape}")
+        print(f"contact_dist shape: {contact_dist.shape}")
 
-            # Run DRMS analysis
-            result = genesis_exe.drms_analysis(
-                t,
-                contact_list=contact_list,
-                contact_dist=contact_dist,
-                ana_period=1,
-                pbc_correct=False,
-            )
+        # Run DRMS analysis
+        result = genesis_exe.drms_analysis(
+            t,
+            contact_list=contact_list,
+            contact_dist=contact_dist,
+            ana_period=1,
+            pbc_correct=False,
+        )
 
-            # Validate results
-            assert result.drms is not None, "DRMS result should not be None"
-            assert len(result.drms) > 0, "DRMS result should have values"
-            assert all(d >= 0 for d in result.drms), "DRMS values should be non-negative"
+        # Validate results
+        assert result.drms is not None, "DRMS result should not be None"
+        assert len(result.drms) > 0, "DRMS result should have values"
+        assert all(d >= 0 for d in result.drms), "DRMS values should be non-negative"
 
-            print(f"DRMS (n={len(result.drms)}): "
-                  f"min={min(result.drms):.5f}, max={max(result.drms):.5f}")
-
-    finally:
-        if hasattr(trajs, "close"):
-            trajs.close()
+        print(f"DRMS (n={len(result.drms)}): "
+              f"min={min(result.drms):.5f}, max={max(result.drms):.5f}")
 
 
 def main():

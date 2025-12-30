@@ -19,20 +19,17 @@ class TestMDTraj(CustomTestCase):
         trj, mol = STrajectories.from_mdtraj_trajectory(mdt)
         gtrajs, gmol = self.create_traj_by_genesis(
                 self.TRJ_PATH, pdb=self.PDB_PATH)
-        with trj, gtrajs:
-            self.assertAlmostEqual(gtrajs[0], trj)
-            # self.assertAlmostEqual(gmol, mol)
+        # New API returns List[STrajectories], not context manager
+        self.assertAlmostEqual(gtrajs[0], trj)
 
     def test_to_mdtraj_trajectory(self):
         strajs, smol = self.create_traj_by_genesis(
                 self.TRJ_PATH, pdb=self.PDB_PATH, psf=self.PSF_PATH)
-        with strajs:
-            for t in strajs:
-                mdt = t.to_mdtraj_trajectory(smol)
-                gt, gm = STrajectories.from_mdtraj_trajectory(mdt)
-                with gt:
-                    self.assertAlmostEqual(t, gt)
-                    # self.assertAlmostEqual(smol, gm)
+        # New API returns List[STrajectories], iterate directly
+        for t in strajs:
+            mdt = t.to_mdtraj_trajectory(smol)
+            gt, gm = STrajectories.from_mdtraj_trajectory(mdt)
+            self.assertAlmostEqual(t, gt)
 
 
 if __name__ == "__main__":

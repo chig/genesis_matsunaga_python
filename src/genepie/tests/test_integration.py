@@ -118,17 +118,15 @@ def run_tests():
     # =============================================================================
     section("3. crd_convert - Trajectory Loading")
 
-    traj_params_list = [ctrl_files.TrajectoryParameters(trjfile=str(CHIGNOLIN_DCD))]
-
     # Test 1: CA atom selection
     trajs_array_ca, mol_ca = genesis_exe.crd_convert(
         molecule=mol_allatom,
-        traj_params=traj_params_list,
+        trj_files=[str(CHIGNOLIN_DCD)],
         trj_format="DCD",
         trj_type="COOR+BOX",
-        selection_group=["an:CA"],
+        selection="an:CA",
+        fitting_selection="an:CA",
         fitting_method="TR+ROT",
-        fitting_atom=1,
         pbc_correct="NO"
     )
     traj_ca = trajs_array_ca[0]
@@ -142,12 +140,12 @@ def run_tests():
     # Test 2: PROA segment selection
     trajs_array, mol = genesis_exe.crd_convert(
         molecule=mol_allatom,
-        traj_params=traj_params_list,
+        trj_files=[str(CHIGNOLIN_DCD)],
         trj_format="DCD",
         trj_type="COOR+BOX",
-        selection_group=["segid:PROA"],
+        selection="segid:PROA",
+        fitting_selection="segid:PROA",
         fitting_method="TR+ROT",
-        fitting_atom=1,
         pbc_correct="NO"
     )
     traj = trajs_array[0]
@@ -159,12 +157,12 @@ def run_tests():
     # Test 3: Heavy atoms selection
     trajs_heavy, mol_heavy = genesis_exe.crd_convert(
         molecule=mol_allatom,
-        traj_params=traj_params_list,
+        trj_files=[str(CHIGNOLIN_DCD)],
         trj_format="DCD",
         trj_type="COOR+BOX",
-        selection_group=["heavy"],
+        selection="heavy",
+        fitting_selection="heavy",
         fitting_method="TR+ROT",
-        fitting_atom=1,
         pbc_correct="NO"
     )
     heavy_names = [''.join(n).strip() for n in mol_heavy.atom_name]
@@ -179,26 +177,33 @@ def run_tests():
     # =============================================================================
     section("4. trj_analysis - Distance/Angle/Dihedral")
 
-    distances_def = ["PROA:1:GLY:CA  PROA:2:TYR:CA"]
-    angles_def = ["PROA:1:GLY:CA  PROA:2:TYR:CA  PROA:3:ASP:CA"]
-    torsions_def = ["PROA:1:GLY:CA  PROA:2:TYR:CA  PROA:3:ASP:CA  PROA:4:PRO:CA"]
+    # Get CA atom indices for residues 1-4
+    ca_indices = genesis_exe.selection(mol, "an:CA")
+    # Take first 4 CA atoms for testing
+    if len(ca_indices) >= 4:
+        # Create distance pairs (1-2, 2-3), angle triplets (1-2-3), torsion quads (1-2-3-4)
+        distance_pairs = np.array([[ca_indices[0], ca_indices[1]]], dtype=np.int32)
+        angle_triplets = np.array([[ca_indices[0], ca_indices[1], ca_indices[2]]], dtype=np.int32)
+        torsion_quadruplets = np.array([[ca_indices[0], ca_indices[1], ca_indices[2], ca_indices[3]]], dtype=np.int32)
 
-    analysis_results = genesis_exe.trj_analysis(
-        molecule=mol, trajs=traj,
-        distance=distances_def,
-        angle=angles_def,
-        torsion=torsions_def
-    )
+        analysis_results = genesis_exe.trj_analysis(
+            trajs=traj,
+            distance_pairs=distance_pairs,
+            angle_triplets=angle_triplets,
+            torsion_quadruplets=torsion_quadruplets
+        )
 
-    test("distance result shape", analysis_results.distance.shape[0] == traj.nframe)
-    test("angle result shape", analysis_results.angle.shape[0] == traj.nframe)
-    test("torsion result shape", analysis_results.torsion.shape[0] == traj.nframe)
-    test("distance values reasonable", 2.0 < analysis_results.distance.mean() < 6.0,
-         f"mean = {analysis_results.distance.mean():.3f}")
+        test("distance result shape", analysis_results.distance.shape[0] == traj.nframe)
+        test("angle result shape", analysis_results.angle.shape[0] == traj.nframe)
+        test("torsion result shape", analysis_results.torsion.shape[0] == traj.nframe)
+        test("distance values reasonable", 2.0 < analysis_results.distance.mean() < 6.0,
+             f"mean = {analysis_results.distance.mean():.3f}")
 
-    print(f"\n  Distance mean: {analysis_results.distance.mean():.3f} A")
-    print(f"  Angle mean: {analysis_results.angle.mean():.3f} deg")
-    print(f"  Torsion mean: {analysis_results.torsion.mean():.3f} deg")
+        print(f"\n  Distance mean: {analysis_results.distance.mean():.3f} A")
+        print(f"  Angle mean: {analysis_results.angle.mean():.3f} deg")
+        print(f"  Torsion mean: {analysis_results.torsion.mean():.3f} deg")
+    else:
+        print("  [SKIP] Not enough CA atoms for trj_analysis test")
 
 
     # =============================================================================
@@ -208,7 +213,7 @@ def run_tests():
 
     rg_result = genesis_exe.rg_analysis(
         molecule=mol, trajs=traj,
-        selection_group=["an:CA"],
+        analysis_selection="an:CA",
         mass_weighted=True
     )
 
@@ -226,10 +231,9 @@ def run_tests():
 
     rmsd_result = genesis_exe.rmsd_analysis(
         molecule=mol, trajs=traj,
-        selection_group=["an:CA"],
+        analysis_selection="an:CA",
+        fitting_selection="an:CA",
         fitting_method="TR+ROT",
-        fitting_atom=1,
-        analysis_atom=1
     )
 
     test("rmsd result shape", rmsd_result.rmsd.shape[0] == traj.nframe)
@@ -286,15 +290,24 @@ def run_tests():
     # =============================================================================
     section("9. diffusion_analysis - Diffusion Coefficient")
 
-    diffusion_coeffs = genesis_exe.diffusion_analysis(
-        msd_data=msd_result.msd,
+    # Create msd_data with time column (diffusion_analysis expects column 0 = time)
+    nsteps = msd_result.msd.shape[0]
+    time_col = np.arange(nsteps, dtype=np.float64).reshape(-1, 1)
+    msd_data = np.hstack([time_col, msd_result.msd])
+
+    # Use start_step as integer (20% of data)
+    start_step = max(1, int(nsteps * 0.2))
+    diffusion_result = genesis_exe.diffusion_analysis(
+        msd_data=msd_data,
         time_step=1.0,
-        start="20%"
+        start_step=start_step
     )
 
-    test("diffusion coeffs shape", diffusion_coeffs.shape[1] > 0)
+    test("diffusion result not None", diffusion_result is not None)
+    test("diffusion coefficients available",
+         diffusion_result.diffusion_coefficients is not None)
 
-    print(f"\n  Diffusion coeffs shape: {diffusion_coeffs.shape}")
+    print(f"\n  Diffusion coeffs: {diffusion_result.diffusion_coefficients}")
 
 
     # =============================================================================

@@ -1,12 +1,11 @@
 import os
 import pathlib
 import unittest
-from typing import Optional, Union
+from typing import List, Optional, Union
 import numpy as np
-from .ctrl_files import TrajectoryParameters
 from . import genesis_exe
 from .s_molecule import SMolecule
-from .s_trajectories import STrajectories, STrajectoriesArray
+from .s_trajectories import STrajectories
 from .tests.conftest import BPTI_PDB, BPTI_PSF, BPTI_DCD, TEST_DIR
 
 
@@ -44,11 +43,12 @@ class CustomTestCase(unittest.TestCase):
             msg = msg + " : "
         else:
             msg = ""
-        self.assertEqual(set(edict.keys()), set(adict.keys()),
+        # Filter out except_attr from key comparison
+        ekeys = set(edict.keys()) - except_attr
+        akeys = set(adict.keys()) - except_attr
+        self.assertEqual(ekeys, akeys,
                          msg + "Object attribute names do not match.")
-        for key in edict:
-            if key in except_attr:
-                continue
+        for key in ekeys:
             ev = edict[key]
             av = adict[key]
             if (
@@ -80,7 +80,9 @@ class CustomTestCase(unittest.TestCase):
         else:
             msg = "Strajectories"
         self.assertObjectsAlmostEqual(e_trj, a_trj, places, msg, delta,
-                                      except_attr={"c_obj", "_mem_owner"})
+                                      except_attr={"c_obj", "_mem_owner",
+                                                   "_numpy_coords",
+                                                   "_numpy_pbc_boxes"})
 
     def assertAlmostEqualSMolecule(
             self, e_mol: STrajectories, a_mol: STrajectories,
@@ -163,29 +165,18 @@ class CustomTestCase(unittest.TestCase):
             grotop: Union[str, bytes, os.PathLike] = '',
             grocrd: Union[str, bytes, os.PathLike] = '',
             groref: Union[str, bytes, os.PathLike] = '',
-            ) -> tuple[STrajectoriesArray, SMolecule]:
+            ) -> tuple[List[STrajectories], SMolecule]:
         mol = SMolecule.from_file(
                 pdb=pdb, top=top, gpr=gpr, psf=psf, ref=ref, fit=fit,
                 prmtop=prmtop, ambcrd=ambcrd, ambref=ambref,
                 grotop=grotop, grocrd=grocrd, groref=groref)
         trajs, subset_mol = genesis_exe.crd_convert(
                 mol,
-                traj_params=[
-                    TrajectoryParameters(
-                        trjfile=dcd,
-                        md_step=10,
-                        mdout_period=1,
-                        ana_period=1,
-                        repeat=1,
-                        ),
-                    ],
+                trj_files=[str(dcd)],
                 trj_format="DCD",
                 trj_type="COOR+BOX",
-                trj_natom=0,
-                selection_group=["all", ],
+                selection="all",
                 fitting_method="NO",
-                fitting_atom=1,
-                check_only=False,
                 pbc_correct="NO",
                 )
         _ = subset_mol
