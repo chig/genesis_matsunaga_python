@@ -35,6 +35,57 @@ class TestTrjAnalysis(CustomTestCase):
             ref_tor = np.loadtxt(ta_test_root / "Dihedral/ref")
             self.assertAlmostEqual(ref_tor[:,1:], r.torsion, places=3)
 
+    def test_a_trj_analysis_zerocopy_full(self):
+        """Test trj_analysis_zerocopy_full (pre-allocated result arrays)."""
+        trajs, mol = self.create_traj_by_genesis(
+                self.TRJ_PATH, pdb=self.PDB_PATH, psf=self.PSF_PATH)
+        for t in trajs:
+            # Test with same atom pairs as zerocopy
+            ca1_idx = genesis_exe.selection(mol, "rno:1 and an:CA")
+            ca2_idx = genesis_exe.selection(mol, "rno:2 and an:CA")
+            ca3_idx = genesis_exe.selection(mol, "rno:3 and an:CA")
+            ca4_idx = genesis_exe.selection(mol, "rno:4 and an:CA")
+
+            dist_pairs = np.array([
+                [ca1_idx[0], ca2_idx[0]],
+                [ca2_idx[0], ca3_idx[0]],
+            ], dtype=np.int32)
+            angle_triplets = np.array([
+                [ca1_idx[0], ca2_idx[0], ca3_idx[0]],
+            ], dtype=np.int32)
+            torsion_quads = np.array([
+                [ca1_idx[0], ca2_idx[0], ca3_idx[0], ca4_idx[0]],
+            ], dtype=np.int32)
+
+            # Run zerocopy version (for comparison)
+            result_zerocopy = genesis_exe.trj_analysis_zerocopy(
+                t,
+                distance_pairs=dist_pairs,
+                angle_triplets=angle_triplets,
+                torsion_quadruplets=torsion_quads,
+            )
+
+            # Run zerocopy_full version
+            result_full = genesis_exe.trj_analysis_zerocopy_full(
+                t,
+                distance_pairs=dist_pairs,
+                angle_triplets=angle_triplets,
+                torsion_quadruplets=torsion_quads,
+            )
+
+            # Verify shapes match
+            self.assertEqual(result_full.distance.shape, result_zerocopy.distance.shape)
+            self.assertEqual(result_full.angle.shape, result_zerocopy.angle.shape)
+            self.assertEqual(result_full.torsion.shape, result_zerocopy.torsion.shape)
+
+            # Verify values match exactly
+            np.testing.assert_allclose(result_full.distance, result_zerocopy.distance,
+                                       rtol=1e-10, atol=1e-10)
+            np.testing.assert_allclose(result_full.angle, result_zerocopy.angle,
+                                       rtol=1e-10, atol=1e-10)
+            np.testing.assert_allclose(result_full.torsion, result_zerocopy.torsion,
+                                       rtol=1e-10, atol=1e-10)
+
     def test_a_trj_analysis_zerocopy_com(self):
         """Test trj_analysis_zerocopy_com with COM calculations."""
         trajs, mol = self.create_traj_by_genesis(

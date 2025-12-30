@@ -30,6 +30,7 @@ module trj_impl_mod
   ! subroutines
   public  :: analyze
   public  :: analyze_zerocopy
+  public  :: analyze_zerocopy_full
   public  :: analyze_zerocopy_com
   private :: analyze_dis
   private :: analyze_ang
@@ -281,6 +282,115 @@ contains
     return
 
   end subroutine analyze_zerocopy
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    analyze_zerocopy_full
+  !> @brief        Trajectory analysis with full zero-copy (pre-allocated results)
+  !! @authors      Claude Code
+  !! @param[in]    trajes_c     : trajectories C structure
+  !! @param[in]    ana_period   : analysis period
+  !! @param[in]    dist_list    : distance atom pairs (2, n_dist)
+  !! @param[in]    n_dist       : number of distance measurements
+  !! @param[in]    angl_list    : angle atom triplets (3, n_angl)
+  !! @param[in]    n_angl       : number of angle measurements
+  !! @param[in]    tors_list    : torsion atom quadruplets (4, n_tors)
+  !! @param[in]    n_tors       : number of torsion measurements
+  !! @param[inout] distance     : pre-allocated distance results (n_dist, nframe)
+  !! @param[inout] angle        : pre-allocated angle results (n_angl, nframe)
+  !! @param[inout] torsion      : pre-allocated torsion results (n_tors, nframe)
+  !! @param[out]   nstru_out    : actual number of structures analyzed
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine analyze_zerocopy_full(trajes_c, ana_period, &
+                                   dist_list, n_dist, &
+                                   angl_list, n_angl, &
+                                   tors_list, n_tors, &
+                                   distance, angle, torsion, nstru_out)
+    use s_trajectories_c_mod
+
+    ! formal arguments
+    type(s_trajectories_c),  intent(in)    :: trajes_c
+    integer,                 intent(in)    :: ana_period
+    integer,                 intent(in)    :: dist_list(:,:)  ! (2, n_dist)
+    integer,                 intent(in)    :: n_dist
+    integer,                 intent(in)    :: angl_list(:,:)  ! (3, n_angl)
+    integer,                 intent(in)    :: n_angl
+    integer,                 intent(in)    :: tors_list(:,:)  ! (4, n_tors)
+    integer,                 intent(in)    :: n_tors
+    real(wp),                intent(inout) :: distance(:,:)  ! pre-allocated
+    real(wp),                intent(inout) :: angle(:,:)     ! pre-allocated
+    real(wp),                intent(inout) :: torsion(:,:)   ! pre-allocated
+    integer,                 intent(out)   :: nstru_out
+
+    ! local variables
+    type(s_trajectory) :: trajectory
+    integer            :: nstru, istep, i
+    integer            :: idx1, idx2, idx3, idx4
+
+    ! Analysis loop (NO allocation - arrays are pre-allocated)
+    nstru = 0
+
+    do istep = 1, trajes_c%nframe
+
+      ! Get trajectory frame
+      call get_frame(trajes_c, istep, trajectory)
+
+      if (mod(istep, ana_period) == 0) then
+
+        nstru = nstru + 1
+        write(MsgOut,*) '      number of structures = ', nstru
+
+        ! Compute distances
+        if (n_dist > 0) then
+          do i = 1, n_dist
+            idx1 = dist_list(1, i)
+            idx2 = dist_list(2, i)
+            distance(i, nstru) = compute_dis(trajectory%coord(:, idx1), &
+                                             trajectory%coord(:, idx2))
+          end do
+        end if
+
+        ! Compute angles
+        if (n_angl > 0) then
+          do i = 1, n_angl
+            idx1 = angl_list(1, i)
+            idx2 = angl_list(2, i)
+            idx3 = angl_list(3, i)
+            angle(i, nstru) = compute_ang(trajectory%coord(:, idx1), &
+                                          trajectory%coord(:, idx2), &
+                                          trajectory%coord(:, idx3))
+          end do
+        end if
+
+        ! Compute torsions
+        if (n_tors > 0) then
+          do i = 1, n_tors
+            idx1 = tors_list(1, i)
+            idx2 = tors_list(2, i)
+            idx3 = tors_list(3, i)
+            idx4 = tors_list(4, i)
+            torsion(i, nstru) = compute_dih(trajectory%coord(:, idx1), &
+                                            trajectory%coord(:, idx2), &
+                                            trajectory%coord(:, idx3), &
+                                            trajectory%coord(:, idx4))
+          end do
+        end if
+
+      end if
+
+    end do
+
+    nstru_out = nstru
+
+    write(MsgOut,'(A)') ''
+    write(MsgOut,'(A)') 'Analyze_zerocopy_full> Trajectory analysis completed (full zero-copy)'
+    write(MsgOut,'(A)') ''
+
+    return
+
+  end subroutine analyze_zerocopy_full
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
