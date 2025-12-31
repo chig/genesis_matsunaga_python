@@ -16,11 +16,12 @@ module drms_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use drms_impl_mod
+  use dr_analyze_mod           ! Use unified analysis from CLI module
+  use trj_source_mod
+  use result_sink_mod
 
   use trajectory_str_mod
   use molecules_str_mod
-  use trj_source_mod
   use string_mod
   use error_mod
   use messages_mod
@@ -76,11 +77,13 @@ contains
 
     ! Local variables
     type(s_error) :: err
+    type(s_trj_source) :: source
+    type(s_result_sink) :: sink
     integer, pointer :: contact_list_f(:,:)
     real(wp), pointer :: contact_dist_f(:)
     real(wp), pointer :: result_f(:)
     logical :: pbc_flag
-    integer :: nstru_local
+    integer :: nstru
 
     ! Initialize
     call error_init(err)
@@ -136,15 +139,23 @@ contains
     nproc_city   = 1
     main_rank    = .true.
 
-    ! Run analysis
-    write(MsgOut,'(A)') '[STEP1] DRMS Analysis'
+    ! Initialize source (memory mode) and sink (array mode)
+    call init_source_memory(source, s_trajes_c%coords, s_trajes_c%pbc_boxes, &
+                            s_trajes_c%natom, s_trajes_c%nframe, ana_period)
+    call init_sink_array(sink, result_f, result_size)
+
+    ! Run unified DRMS analysis
+    write(MsgOut,'(A)') '[STEP1] DRMS Analysis (unified)'
     write(MsgOut,'(A)') ' '
 
-    call analyze(contact_list_f, contact_dist_f, n_contact, &
-                 s_trajes_c, ana_period, pbc_flag, &
-                 result_f, nstru_local)
+    call analyze_drms_unified(source, sink, contact_list_f, contact_dist_f, &
+                              n_contact, pbc_flag, nstru)
 
-    nstru_out = nstru_local
+    nstru_out = nstru
+
+    ! Cleanup
+    call finalize_sink(sink)
+    call finalize_source(source)
 
   end subroutine drms_analysis_c
 
@@ -204,16 +215,14 @@ contains
     ! Local variables
     type(s_error) :: err
     type(s_trj_source) :: source
-    type(s_trajectory) :: trajectory
+    type(s_result_sink) :: sink
     character(MaxFilename) :: filename_f
     integer, pointer :: contact_list_f(:,:)
     real(wp), pointer :: contact_dist_f(:)
     real(wp), pointer :: result_f(:)
     logical :: pbc_flag
-    integer :: nstru, frame_status
-    integer :: i, i1, i2
-    real(wp) :: d12(3), r12, tmp, dn, drms
-    real(wp) :: box(3)
+    integer :: nstru
+    integer :: i
 
     ! Initialize
     call error_init(err)
@@ -297,68 +306,21 @@ contains
       return
     end if
 
-    ! Main analysis loop
-    write(MsgOut,'(A)') '[STEP2] DRMS Analysis (lazy loading)'
+    ! Initialize sink (array mode)
+    call init_sink_array(sink, result_f, result_size)
+
+    ! Run unified DRMS analysis (lazy loading via source abstraction)
+    write(MsgOut,'(A)') '[STEP2] DRMS Analysis (lazy loading, unified)'
     write(MsgOut,'(A)') ' '
 
-    nstru = 0
-    dn = real(n_contact, wp)
-
-    do while (has_more_frames(source))
-
-      ! Get next frame via lazy loading
-      call get_next_frame(source, trajectory, frame_status)
-      if (frame_status /= 0) exit
-
-      nstru = nstru + 1
-      write(MsgOut,*) '      number of structures = ', nstru
-
-      ! Get box size for PBC
-      box(1) = trajectory%pbc_box(1,1)
-      box(2) = trajectory%pbc_box(2,2)
-      box(3) = trajectory%pbc_box(3,3)
-
-      ! Compute DRMS
-      drms = 0.0_wp
-
-      !$omp parallel do default(none)                          &
-      !$omp private(i, d12, r12, tmp, i1, i2)                  &
-      !$omp shared(trajectory, contact_list_f, contact_dist_f, n_contact, box, pbc_flag) &
-      !$omp reduction(+:drms)
-      do i = 1, n_contact
-        i1 = contact_list_f(1, i)
-        i2 = contact_list_f(2, i)
-        d12(1:3) = trajectory%coord(1:3, i1) - trajectory%coord(1:3, i2)
-        if (pbc_flag) &
-          d12(1:3) = d12(1:3) - anint(d12(1:3) / box(1:3)) * box(1:3)
-        r12 = sqrt(d12(1)*d12(1) + d12(2)*d12(2) + d12(3)*d12(3))
-        tmp = r12 - contact_dist_f(i)
-        drms = drms + tmp * tmp
-      end do
-      !$omp end parallel do
-
-      if (dn > EPS) drms = sqrt(drms / dn)
-
-      ! Write result to zerocopy array
-      if (nstru <= result_size) then
-        result_f(nstru) = drms
-      end if
-
-      write(MsgOut,'(a,f10.5)') '              DRMS = ', drms
-      write(MsgOut,*) ''
-
-    end do
+    call analyze_drms_unified(source, sink, contact_list_f, contact_dist_f, &
+                              n_contact, pbc_flag, nstru)
 
     nstru_out = nstru
 
-    ! Output summary
-    write(MsgOut,'(A)') ''
-    write(MsgOut,'(A)') 'Analyze> DRMS lazy analysis completed'
-    write(MsgOut,'(A)') ''
-
     ! Cleanup
+    call finalize_sink(sink)
     call finalize_source(source)
-    if (allocated(trajectory%coord)) deallocate(trajectory%coord)
 
   end subroutine drms_analysis_lazy_c
 
