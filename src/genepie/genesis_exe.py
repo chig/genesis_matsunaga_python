@@ -301,6 +301,7 @@ def crd_convert(
     pbc_correct: str = "NO",
     ana_period: int = 1,
     rename_res: Optional[List[str]] = None,
+    lazy: bool = False,
 ) -> Tuple[List[STrajectories], SMolecule]:
     """Load and convert trajectory files using zerocopy pattern.
 
@@ -324,6 +325,10 @@ def crd_convert(
         ana_period: Analysis period (process every Nth frame)
         rename_res: List of residue name mappings (e.g., ["HSE HIS", "HSD HIS"])
                     Each string should be "FROM TO" format
+        lazy: If True, create lazy STrajectories without loading data.
+              Lazy mode has restrictions: single DCD file, no fitting,
+              no centering, no PBC correction. Analysis functions read
+              directly from the file.
 
     Returns:
         Tuple of (List[STrajectories], SMolecule) where:
@@ -342,6 +347,8 @@ def crd_convert(
         ...                          fitting_method="TR+ROT")
         >>> trajs, mol = crd_convert(mol, ["traj.dcd"],
         ...                          rename_res=["HSE HIS", "HSD HIS"])
+        >>> # Lazy mode: no data loading, analysis reads from file
+        >>> lazy_trajs, mol = crd_convert(mol, ["traj.dcd"], lazy=True)
     """
     lib = LibGenesis().lib
 
@@ -392,6 +399,69 @@ def crd_convert(
             f"Valid modes: {list(_PBCC_MODE_MAP.keys())}"
         )
     pbcc_mode_c = _PBCC_MODE_MAP[pbcc_upper]
+
+    # Handle lazy mode: create STrajectories without loading data
+    if lazy:
+        # Validate lazy mode restrictions
+        if len(trj_files) != 1:
+            raise GenesisValidationError(
+                "lazy=True requires exactly one trajectory file, "
+                f"got {len(trj_files)}"
+            )
+        if fitting_method_c != FittingMethod.NO:
+            raise GenesisValidationError(
+                "lazy=True does not support fitting. "
+                "Fitting requires all coordinates in memory."
+            )
+        if centering:
+            raise GenesisValidationError(
+                "lazy=True does not support centering. "
+                "Centering requires coordinate modification."
+            )
+        if pbcc_mode_c != PBCCMode.NO:
+            raise GenesisValidationError(
+                "lazy=True does not support PBC correction. "
+                "PBC correction requires coordinate modification."
+            )
+        if fmt_upper != "DCD":
+            raise GenesisValidationError(
+                f"lazy=True only supports DCD format, got {trj_format}"
+            )
+
+        # Get trajectory info
+        info = crd_convert_info(molecule, trj_files, trj_format, trj_type)
+        if not info.frame_counts or info.frame_counts[0] == 0:
+            raise GenesisValidationError("No frames found in trajectory file")
+
+        nframe = info.frame_counts[0]
+
+        # Get selected atom indices (1-indexed for Fortran)
+        selected_indices = selection_func(molecule, selection)
+        n_selected = len(selected_indices)
+
+        if n_selected == 0:
+            raise GenesisValidationError(
+                f"Selection '{selection}' returned no atoms"
+            )
+
+        # Create lazy STrajectories
+        # Note: natom is set to molecule.num_atoms (DCD file atom count)
+        # selection_indices tells which atoms to use during analysis
+        from .s_trajectories import TRJ_TYPE_COOR, TRJ_TYPE_COOR_BOX
+        lazy_trj_type = TRJ_TYPE_COOR_BOX if trj_type_c == TrjType.COOR_BOX else TRJ_TYPE_COOR
+
+        lazy_traj = STrajectories.from_lazy(
+            dcd_file=trj_files[0],
+            trj_type=lazy_trj_type,
+            nframe=nframe,
+            natom=molecule.num_atoms,  # Full atom count from DCD
+            selection_indices=selected_indices,
+        )
+
+        # Create subset molecule
+        subset_mol = molecule.subset_atoms(selected_indices - 1)
+
+        return [lazy_traj], subset_mol
 
     # Phase 1: Get trajectory info (frame counts)
     info = crd_convert_info(molecule, trj_files, trj_format, trj_type)
@@ -869,6 +939,86 @@ RgAnalysisResult = namedtuple(
         ['rg'])
 
 
+def _rg_analysis_lazy(
+        molecule: SMolecule,
+        trajs: STrajectories,
+        analysis_selection: str,
+        ana_period: int = 1,
+        mass_weighted: bool = True,
+        ) -> "RgAnalysisResult":
+    """
+    Private implementation: RG analysis with lazy DCD loading.
+
+    Called by rg_analysis() when trajs.is_lazy is True.
+    """
+    lib = LibGenesis().lib
+
+    # Extract lazy DCD info from STrajectories
+    dcd_file = trajs.lazy_dcd_file
+    trj_type = trajs.lazy_trj_type  # 1=COOR, 2=COOR+BOX
+
+    # Validate DCD file exists
+    if not os.path.exists(dcd_file):
+        raise GenesisValidationError(f"DCD file not found: {dcd_file}")
+
+    # Get atom indices using GENESIS selection
+    analysis_indices = selection(molecule, analysis_selection)
+    n_analysis = len(analysis_indices)
+
+    # Ensure mass array is contiguous and correct dtype
+    mass = np.ascontiguousarray(molecule.mass, dtype=np.float64)
+
+    # Get pointer to mass array (zero-copy)
+    mass_ptr = mass.ctypes.data_as(ctypes.c_void_p)
+
+    # Pre-allocate result array using nframe from lazy STrajectories
+    max_frames = trajs.nframe
+    result_rg = np.zeros(max_frames, dtype=np.float64)
+    result_ptr = result_rg.ctypes.data_as(ctypes.c_void_p)
+
+    # Convert filename to C string
+    dcd_filename_bytes = dcd_file.encode('utf-8')
+    filename_len = len(dcd_filename_bytes)
+
+    # Output variables
+    nstru_out = ctypes.c_int()
+    dcd_nframe_out = ctypes.c_int()
+    dcd_natom_out = ctypes.c_int()
+    status = ctypes.c_int()
+    msglen = _DEFAULT_MSG_LEN
+    msg = ctypes.create_string_buffer(msglen)
+
+    with suppress_stdout_capture_stderr() as captured:
+        lib.rg_analysis_lazy_c(
+            dcd_filename_bytes,
+            ctypes.c_int(filename_len),
+            ctypes.c_int(trj_type),
+            mass_ptr,
+            ctypes.c_int(molecule.num_atoms),
+            ctypes.c_int(ana_period),
+            analysis_indices.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(n_analysis),
+            ctypes.c_int(1 if mass_weighted else 0),
+            result_ptr,
+            ctypes.c_int(max_frames),
+            ctypes.byref(nstru_out),
+            ctypes.byref(dcd_nframe_out),
+            ctypes.byref(dcd_natom_out),
+            ctypes.byref(status),
+            msg,
+            ctypes.c_int(msglen),
+        )
+
+    # Check for errors
+    if status.value != 0:
+        error_msg = msg.value.decode('utf-8', errors='replace').strip()
+        stderr_output = captured.stderr if captured else ""
+        raise_fortran_error(status.value, error_msg, stderr_output)
+
+    # Return RgAnalysisResult (same as non-lazy version)
+    return RgAnalysisResult(result_rg[:nstru_out.value])
+
+
 def rg_analysis(
         molecule: SMolecule,
         trajs: STrajectories,
@@ -884,7 +1034,7 @@ def rg_analysis(
 
     Args:
         molecule: Molecular structure
-        trajs: Trajectories to analyze
+        trajs: Trajectories to analyze (memory or lazy)
         analysis_selection: GENESIS selection string (e.g., "an:CA", "heavy")
         ana_period: Analysis period (default: 1)
         mass_weighted: Use mass weighting for RG calculation (default: True)
@@ -892,10 +1042,25 @@ def rg_analysis(
     Returns:
         RgAnalysisResult containing the radius of gyration array
 
-    Example:
+    Examples:
+        >>> # Memory-based (standard)
         >>> result = rg_analysis(mol, trajs, "an:CA")
         >>> print(result.rg)
+
+        >>> # Lazy mode: works with lazy trajectories from crd_convert(lazy=True)
+        >>> lazy_trajs, mol = crd_convert(mol, ["traj.dcd"], lazy=True)
+        >>> result = rg_analysis(mol, lazy_trajs[0], "an:CA")
     """
+    # Handle lazy trajectories
+    if trajs.is_lazy:
+        return _rg_analysis_lazy(
+            molecule=molecule,
+            trajs=trajs,
+            analysis_selection=analysis_selection,
+            ana_period=ana_period,
+            mass_weighted=mass_weighted,
+        )
+
     lib = LibGenesis().lib
 
     # Get atom indices using GENESIS selection
@@ -962,6 +1127,128 @@ class FittingMethod:
     XYTR_ZROT = 6
 
 
+def _rmsd_analysis_lazy(
+        molecule: SMolecule,
+        trajs: STrajectories,
+        analysis_selection: str,
+        fitting_selection: Optional[str] = None,
+        fitting_method: str = "TR+ROT",
+        ana_period: int = 1,
+        mass_weighted: bool = False,
+        ref_coord: Optional[np.ndarray] = None,
+        ) -> "RmsdAnalysisResult":
+    """
+    Private implementation: RMSD analysis with lazy DCD loading.
+
+    Called by rmsd_analysis() when trajs.is_lazy is True.
+    """
+    lib = LibGenesis().lib
+
+    # Extract lazy DCD info from STrajectories
+    dcd_file = trajs.lazy_dcd_file
+    trj_type = trajs.lazy_trj_type  # 1=COOR, 2=COOR+BOX
+
+    # Validate DCD file exists
+    if not os.path.exists(dcd_file):
+        raise GenesisValidationError(f"DCD file not found: {dcd_file}")
+
+    # Get atom indices using GENESIS selection
+    analysis_indices = selection(molecule, analysis_selection)
+    n_analysis = len(analysis_indices)
+
+    # Ensure arrays are contiguous and correct dtype
+    mass = np.ascontiguousarray(molecule.mass, dtype=np.float64)
+
+    # Reference coordinates: Fortran expects (3, n_atoms)
+    if ref_coord is None:
+        ref_coord_arr = molecule.atom_coord
+    else:
+        ref_coord_arr = ref_coord
+    ref_coord_f = np.asfortranarray(ref_coord_arr.T, dtype=np.float64)
+
+    # Get pointers (zero-copy)
+    mass_ptr = mass.ctypes.data_as(ctypes.c_void_p)
+    ref_coord_ptr = ref_coord_f.ctypes.data_as(ctypes.c_void_p)
+
+    # Pre-allocate result array using nframe from lazy STrajectories
+    max_frames = trajs.nframe
+    result_rmsd = np.zeros(max_frames, dtype=np.float64)
+    result_ptr = result_rmsd.ctypes.data_as(ctypes.c_void_p)
+
+    # Convert filename to C string
+    dcd_filename_bytes = dcd_file.encode('utf-8')
+    filename_len = len(dcd_filename_bytes)
+
+    # Output variables
+    nstru_out = ctypes.c_int()
+    dcd_nframe_out = ctypes.c_int()
+    dcd_natom_out = ctypes.c_int()
+    status = ctypes.c_int()
+    msglen = _DEFAULT_MSG_LEN
+    msg = ctypes.create_string_buffer(msglen)
+
+    # Fitting parameters
+    fitting_idx_ptr = ctypes.c_void_p(0)
+    n_fitting = 0
+    method_int = 0
+
+    if fitting_selection is not None:
+        # Fitting method mapping
+        method_map = {
+            "NO": FittingMethod.NO,
+            "TR+ROT": FittingMethod.TR_ROT,
+            "TR": FittingMethod.TR,
+            "TR+ZROT": FittingMethod.TR_ZROT,
+            "XYTR": FittingMethod.XYTR,
+            "XYTR+ZROT": FittingMethod.XYTR_ZROT,
+        }
+        if fitting_method not in method_map:
+            raise GenesisValidationError(
+                f"Invalid fitting_method: {fitting_method}. "
+                f"Valid options: {list(method_map.keys())}"
+            )
+        method_int = method_map[fitting_method]
+
+        # Get fitting indices
+        fitting_indices = selection(molecule, fitting_selection)
+        n_fitting = len(fitting_indices)
+        fitting_idx_ptr = fitting_indices.ctypes.data_as(ctypes.c_void_p)
+
+    with suppress_stdout_capture_stderr() as captured:
+        lib.rmsd_analysis_lazy_c(
+            dcd_filename_bytes,
+            ctypes.c_int(filename_len),
+            ctypes.c_int(trj_type),
+            mass_ptr,
+            ref_coord_ptr,
+            ctypes.c_int(molecule.num_atoms),
+            ctypes.c_int(ana_period),
+            fitting_idx_ptr,
+            ctypes.c_int(n_fitting),
+            analysis_indices.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(n_analysis),
+            ctypes.c_int(method_int),
+            ctypes.c_int(1 if mass_weighted else 0),
+            result_ptr,
+            ctypes.c_int(max_frames),
+            ctypes.byref(nstru_out),
+            ctypes.byref(dcd_nframe_out),
+            ctypes.byref(dcd_natom_out),
+            ctypes.byref(status),
+            msg,
+            ctypes.c_int(msglen),
+        )
+
+    # Check for errors
+    if status.value != 0:
+        error_msg = msg.value.decode('utf-8', errors='replace').strip()
+        stderr_output = captured.stderr if captured else ""
+        raise_fortran_error(status.value, error_msg, stderr_output)
+
+    # Return RmsdAnalysisResult (same as non-lazy version)
+    return RmsdAnalysisResult(result_rmsd[:nstru_out.value])
+
+
 def rmsd_analysis(
         molecule: SMolecule,
         trajs: STrajectories,
@@ -1021,7 +1308,24 @@ def rmsd_analysis(
         ...     fitting_selection="an:CA",
         ...     fitting_method="TR+ROT"
         ... )
+
+        >>> # Lazy mode: works with lazy trajectories from crd_convert(lazy=True)
+        >>> lazy_trajs, mol = crd_convert(mol, ["traj.dcd"], lazy=True)
+        >>> result = rmsd_analysis(mol, lazy_trajs[0], analysis_selection="an:CA")
     """
+    # Handle lazy trajectories
+    if trajs.is_lazy:
+        return _rmsd_analysis_lazy(
+            molecule=molecule,
+            trajs=trajs,
+            analysis_selection=analysis_selection,
+            fitting_selection=fitting_selection,
+            fitting_method=fitting_method,
+            ana_period=ana_period,
+            mass_weighted=mass_weighted,
+            ref_coord=ref_coord,
+        )
+
     lib = LibGenesis().lib
 
     # Get atom indices using GENESIS selection
@@ -1304,6 +1608,96 @@ DrmsAnalysisResult = namedtuple(
         ['drms'])
 
 
+def _drms_analysis_lazy(
+        trajs: STrajectories,
+        contact_list: np.ndarray,
+        contact_dist: np.ndarray,
+        ana_period: int = 1,
+        pbc_correct: bool = False,
+        ) -> "DrmsAnalysisResult":
+    """
+    Private implementation: DRMS analysis with lazy DCD loading.
+
+    Called by drms_analysis() when trajs.is_lazy is True.
+    """
+    lib = LibGenesis().lib
+
+    # Extract lazy DCD info from STrajectories
+    dcd_file = trajs.lazy_dcd_file
+    trj_type = trajs.lazy_trj_type  # 1=COOR, 2=COOR+BOX
+    n_atoms = trajs.natom
+
+    # Validate DCD file exists
+    if not os.path.exists(dcd_file):
+        raise GenesisValidationError(f"DCD file not found: {dcd_file}")
+
+    # Ensure arrays are contiguous and correct dtype
+    contact_list_f = np.asfortranarray(contact_list, dtype=np.int32)
+    contact_dist_f = np.ascontiguousarray(contact_dist, dtype=np.float64)
+
+    # Validate shapes
+    if contact_list_f.ndim != 2 or contact_list_f.shape[0] != 2:
+        raise GenesisValidationError(
+            f"contact_list must be shape (2, n_contact), got {contact_list.shape}"
+        )
+    n_contact = contact_list_f.shape[1]
+    if contact_dist_f.shape[0] != n_contact:
+        raise GenesisValidationError(
+            f"contact_dist must have {n_contact} elements, got {contact_dist.shape[0]}"
+        )
+
+    # Get pointers (zero-copy input)
+    contact_list_ptr = contact_list_f.ctypes.data_as(ctypes.c_void_p)
+    contact_dist_ptr = contact_dist_f.ctypes.data_as(ctypes.c_void_p)
+
+    # Pre-allocate result array using nframe from lazy STrajectories
+    max_frames = trajs.nframe
+    result_drms = np.zeros(max_frames, dtype=np.float64)
+    result_ptr = result_drms.ctypes.data_as(ctypes.c_void_p)
+
+    # Convert filename to C string
+    dcd_filename_bytes = dcd_file.encode('utf-8')
+    filename_len = len(dcd_filename_bytes)
+
+    # Output variables
+    nstru_out = ctypes.c_int()
+    dcd_nframe_out = ctypes.c_int()
+    dcd_natom_out = ctypes.c_int()
+    status = ctypes.c_int()
+    msglen = _DEFAULT_MSG_LEN
+    msg = ctypes.create_string_buffer(msglen)
+
+    with suppress_stdout_capture_stderr() as captured:
+        lib.drms_analysis_lazy_c(
+            dcd_filename_bytes,
+            ctypes.c_int(filename_len),
+            ctypes.c_int(trj_type),
+            contact_list_ptr,
+            contact_dist_ptr,
+            ctypes.c_int(n_contact),
+            ctypes.c_int(n_atoms),
+            ctypes.c_int(ana_period),
+            ctypes.c_int(1 if pbc_correct else 0),
+            result_ptr,
+            ctypes.c_int(max_frames),
+            ctypes.byref(nstru_out),
+            ctypes.byref(dcd_nframe_out),
+            ctypes.byref(dcd_natom_out),
+            ctypes.byref(status),
+            msg,
+            ctypes.c_int(msglen),
+        )
+
+    # Check for errors
+    if status.value != 0:
+        error_msg = msg.value.decode('utf-8', errors='replace').strip()
+        stderr_output = captured.stderr if captured else ""
+        raise_fortran_error(status.value, error_msg, stderr_output)
+
+    # Return DrmsAnalysisResult (same as non-lazy version)
+    return DrmsAnalysisResult(result_drms[:nstru_out.value])
+
+
 def drms_analysis(
         trajs: STrajectories,
         contact_list: np.ndarray,
@@ -1318,7 +1712,7 @@ def drms_analysis(
     between predefined atom contact pairs compared to reference distances.
 
     Args:
-        trajs: Trajectories to analyze
+        trajs: Trajectories to analyze (memory or lazy)
         contact_list: Contact atom pairs as (2, n_contact) array with 1-indexed
                       atom indices. Each column is [atom1_idx, atom2_idx].
         contact_dist: Reference distances for each contact pair (n_contact,)
@@ -1328,12 +1722,27 @@ def drms_analysis(
     Returns:
         DrmsAnalysisResult containing the DRMS array
 
-    Example:
+    Examples:
+        >>> # Memory-based (standard)
         >>> contact_list = np.array([[1, 2, 3], [10, 11, 12]], dtype=np.int32)
         >>> contact_dist = np.array([5.0, 6.0, 7.0], dtype=np.float64)
         >>> result = drms_analysis(trajs, contact_list, contact_dist)
         >>> print(result.drms)
+
+        >>> # Lazy mode: works with lazy trajectories from crd_convert(lazy=True)
+        >>> lazy_trajs, mol = crd_convert(mol, ["traj.dcd"], lazy=True)
+        >>> result = drms_analysis(lazy_trajs[0], contact_list, contact_dist)
     """
+    # Handle lazy trajectories
+    if trajs.is_lazy:
+        return _drms_analysis_lazy(
+            trajs=trajs,
+            contact_list=contact_list,
+            contact_dist=contact_dist,
+            ana_period=ana_period,
+            pbc_correct=pbc_correct,
+        )
+
     lib = LibGenesis().lib
 
     # Ensure arrays are contiguous and correct dtype

@@ -78,6 +78,102 @@ def test_rmsd_with_fitting():
               f"min={min(result.rmsd):.5f}, max={max(result.rmsd):.5f}")
 
 
+def test_rmsd_lazy_unified_api():
+    """Test RMSD analysis using unified lazy API (crd_convert(lazy=True) + rmsd_analysis)."""
+    import numpy as np
+
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
+
+    # Create lazy trajectory via crd_convert(lazy=True)
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+
+    lazy_traj = lazy_trajs[0]
+    assert lazy_traj.is_lazy, "Trajectory should be lazy"
+    assert lazy_traj.lazy_dcd_file is not None, "lazy_dcd_file should be set"
+    assert lazy_traj.lazy_trj_type == 2, "lazy_trj_type should be COOR+BOX (2)"
+
+    # Call rmsd_analysis with lazy trajectory (unified API)
+    result = genesis_exe.rmsd_analysis(
+        subset_mol,
+        lazy_traj,
+        analysis_selection="an:CA",
+        fitting_selection=None,
+        ana_period=1,
+        mass_weighted=False,
+    )
+
+    # Validate results
+    assert result.rmsd is not None, "RMSD result should not be None"
+    assert len(result.rmsd) > 0, "RMSD result should have at least one frame"
+    assert all(r >= 0 for r in result.rmsd), "RMSD values should be non-negative"
+    assert all(r < 50.0 for r in result.rmsd), "RMSD values should be reasonable (< 50 A)"
+
+    print(f"RMSD lazy unified API (n={len(result.rmsd)}): "
+          f"min={min(result.rmsd):.5f}, max={max(result.rmsd):.5f}")
+
+
+def test_rmsd_lazy_vs_memory():
+    """Compare lazy and memory-based RMSD to ensure identical results."""
+    import numpy as np
+
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
+
+    # Memory-based RMSD
+    trajs_mem, mol_mem = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=False,
+    )
+    result_mem = genesis_exe.rmsd_analysis(
+        mol_mem,
+        trajs_mem[0],
+        analysis_selection="an:CA",
+        fitting_selection=None,
+        ana_period=1,
+        mass_weighted=False,
+    )
+
+    # Lazy-based RMSD
+    trajs_lazy, mol_lazy = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+    result_lazy = genesis_exe.rmsd_analysis(
+        mol_lazy,
+        trajs_lazy[0],
+        analysis_selection="an:CA",
+        fitting_selection=None,
+        ana_period=1,
+        mass_weighted=False,
+    )
+
+    # Compare results
+    assert len(result_mem.rmsd) == len(result_lazy.rmsd), \
+        f"Frame count mismatch: memory={len(result_mem.rmsd)}, lazy={len(result_lazy.rmsd)}"
+
+    for i, (mem_val, lazy_val) in enumerate(zip(result_mem.rmsd, result_lazy.rmsd)):
+        assert np.isclose(mem_val, lazy_val, rtol=1e-4, atol=1e-6), \
+            f"Frame {i}: memory={mem_val}, lazy={lazy_val}"
+
+    print(f"Memory vs Lazy comparison passed: {len(result_mem.rmsd)} frames")
+    print(f"  Memory: min={min(result_mem.rmsd):.5f}, max={max(result_mem.rmsd):.5f}")
+    print(f"  Lazy:   min={min(result_lazy.rmsd):.5f}, max={max(result_lazy.rmsd):.5f}")
+
+
 def _run_test_in_subprocess(test_name: str) -> bool:
     """Run a single test function in isolated subprocess to avoid Fortran state issues."""
     code = f'''
@@ -117,6 +213,8 @@ def main():
     tests = [
         "test_rmsd_no_fitting",
         "test_rmsd_with_fitting",
+        "test_rmsd_lazy_unified_api",
+        "test_rmsd_lazy_vs_memory",
     ]
 
     failed = []

@@ -15,24 +15,31 @@ from .. import genesis_exe
 
 
 def test_rmsd_lazy_no_fitting():
-    """Test lazy RMSD analysis without fitting."""
+    """Test lazy RMSD analysis without fitting using unified API."""
     mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
 
-    # Run lazy RMSD analysis
-    result = genesis_exe.rmsd_analysis_lazy(
+    # Create lazy trajectory via crd_convert(lazy=True)
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
         mol,
-        str(BPTI_DCD),
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+
+    lazy_traj = lazy_trajs[0]
+    assert lazy_traj.is_lazy, "Trajectory should be lazy"
+
+    # Run RMSD analysis with lazy trajectory
+    result = genesis_exe.rmsd_analysis(
+        subset_mol,
+        lazy_traj,
         analysis_selection="an:CA",
         fitting_selection=None,  # No fitting
         ana_period=1,
         mass_weighted=False,
-        has_box=True,  # BPTI_DCD has box info
     )
-
-    # Validate DCD info
-    assert result.dcd_nframe > 0, "DCD should have at least one frame"
-    assert result.dcd_natom > 0, "DCD should have atoms"
-    assert result.dcd_natom == mol.num_atoms, "DCD atom count should match molecule"
 
     # Validate RMSD results
     assert result.rmsd is not None, "RMSD result should not be None"
@@ -42,23 +49,33 @@ def test_rmsd_lazy_no_fitting():
 
     print(f"Lazy RMSD no fitting (n={len(result.rmsd)}): "
           f"min={min(result.rmsd):.5f}, max={max(result.rmsd):.5f}")
-    print(f"DCD info: nframe={result.dcd_nframe}, natom={result.dcd_natom}")
 
 
 def test_rmsd_lazy_with_fitting():
-    """Test lazy RMSD analysis with TR+ROT fitting."""
+    """Test lazy RMSD analysis with TR+ROT fitting using unified API."""
     mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
 
-    # Run lazy RMSD analysis with fitting
-    result = genesis_exe.rmsd_analysis_lazy(
+    # Create lazy trajectory via crd_convert(lazy=True)
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
         mol,
-        str(BPTI_DCD),
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+
+    lazy_traj = lazy_trajs[0]
+
+    # Run RMSD analysis with fitting
+    result = genesis_exe.rmsd_analysis(
+        subset_mol,
+        lazy_traj,
         analysis_selection="sid:BPTI and an:CA",
         fitting_selection="sid:BPTI and an:CA",
         fitting_method="TR+ROT",
         ana_period=1,
         mass_weighted=False,
-        has_box=True,
     )
 
     # Validate results
@@ -74,22 +91,22 @@ def test_rmsd_lazy_with_fitting():
 def _run_memory_rmsd():
     """Helper function to run memory-based RMSD analysis (for subprocess)."""
     mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
-    trajs, _ = genesis_exe.crd_convert(
+    trajs, subset_mol = genesis_exe.crd_convert(
         mol,
         trj_files=[str(BPTI_DCD)],
         trj_format="DCD",
         trj_type="COOR+BOX",
         selection="all",
+        lazy=False,  # Memory mode
     )
-    for t in trajs:
-        result = genesis_exe.rmsd_analysis(
-            mol, t,
-            analysis_selection="sid:BPTI and an:CA",
-            fitting_selection="sid:BPTI and an:CA",
-            fitting_method="TR+ROT",
-            ana_period=1,
-            mass_weighted=False,
-        )
+    result = genesis_exe.rmsd_analysis(
+        subset_mol, trajs[0],
+        analysis_selection="sid:BPTI and an:CA",
+        fitting_selection="sid:BPTI and an:CA",
+        fitting_method="TR+ROT",
+        ana_period=1,
+        mass_weighted=False,
+    )
     # Print as JSON for parsing
     import json
     print("RMSD_RESULT:" + json.dumps(list(result.rmsd)))
@@ -98,15 +115,21 @@ def _run_memory_rmsd():
 def _run_lazy_rmsd():
     """Helper function to run lazy-based RMSD analysis (for subprocess)."""
     mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
-    result = genesis_exe.rmsd_analysis_lazy(
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
         mol,
-        str(BPTI_DCD),
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,  # Lazy mode
+    )
+    result = genesis_exe.rmsd_analysis(
+        subset_mol, lazy_trajs[0],
         analysis_selection="sid:BPTI and an:CA",
         fitting_selection="sid:BPTI and an:CA",
         fitting_method="TR+ROT",
         ana_period=1,
         mass_weighted=False,
-        has_box=True,
     )
     # Print as JSON for parsing
     import json
@@ -187,30 +210,48 @@ def test_rmsd_lazy_ana_period():
     """Test lazy RMSD analysis with ana_period > 1."""
     mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
 
-    # Run with ana_period=2
-    result_p2 = genesis_exe.rmsd_analysis_lazy(
+    # Create lazy trajectories
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
         mol,
-        str(BPTI_DCD),
-        analysis_selection="an:CA",
-        fitting_selection=None,
-        ana_period=2,
-        mass_weighted=False,
-        has_box=True,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
     )
+    lazy_traj = lazy_trajs[0]
 
     # Run with ana_period=1
-    result_p1 = genesis_exe.rmsd_analysis_lazy(
-        mol,
-        str(BPTI_DCD),
+    result_p1 = genesis_exe.rmsd_analysis(
+        subset_mol,
+        lazy_traj,
         analysis_selection="an:CA",
         fitting_selection=None,
         ana_period=1,
         mass_weighted=False,
-        has_box=True,
+    )
+
+    # For ana_period=2, we need a fresh lazy trajectory (DCD file is read sequentially)
+    lazy_trajs2, subset_mol2 = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+
+    result_p2 = genesis_exe.rmsd_analysis(
+        subset_mol2,
+        lazy_trajs2[0],
+        analysis_selection="an:CA",
+        fitting_selection=None,
+        ana_period=2,
+        mass_weighted=False,
     )
 
     # With ana_period=2, we should have about half the frames
-    expected_frames = result_p1.dcd_nframe // 2
+    expected_frames = lazy_traj.nframe // 2
     assert len(result_p2.rmsd) == expected_frames, \
         f"Expected {expected_frames} frames with ana_period=2, got {len(result_p2.rmsd)}"
 

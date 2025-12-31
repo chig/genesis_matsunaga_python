@@ -1,0 +1,209 @@
+# --------------------------------------------
+if __name__ == "__main__" and __package__ is None:
+    import sys, pathlib
+    pkg_dir = pathlib.Path(__file__).resolve().parent
+    sys.path.insert(0, str(pkg_dir.parent.parent))
+    __package__ = "genepie.tests"
+# --------------------------------------------
+import os
+import subprocess
+import sys
+import numpy as np
+from .conftest import BPTI_PDB, BPTI_PSF, BPTI_DCD
+from ..s_molecule import SMolecule
+from .. import genesis_exe
+
+
+def test_crd_convert_lazy_basic():
+    """Test basic crd_convert with lazy=True."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+
+    # Create lazy trajectory
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+
+    assert len(lazy_trajs) == 1, "Should return one lazy trajectory"
+    lazy_traj = lazy_trajs[0]
+
+    # Check lazy trajectory properties
+    assert lazy_traj.is_lazy, "Trajectory should be lazy"
+    assert lazy_traj.lazy_dcd_file is not None, "lazy_dcd_file should be set"
+    assert lazy_traj.lazy_trj_type is not None, "lazy_trj_type should be set"
+    assert lazy_traj.nframe > 0, "nframe should be positive"
+    assert lazy_traj.natom > 0, "natom should be positive"
+
+    # Lazy trajectory should NOT have coords loaded
+    assert lazy_traj.coords is None, "Lazy trajectory should not have coords loaded"
+
+    print(f"Lazy trajectory: nframe={lazy_traj.nframe}, natom={lazy_traj.natom}")
+    print(f"  lazy_dcd_file: {lazy_traj.lazy_dcd_file}")
+    print(f"  lazy_trj_type: {lazy_traj.lazy_trj_type}")
+
+
+def test_crd_convert_lazy_with_selection():
+    """Test crd_convert lazy with atom selection."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+
+    # Create lazy trajectory with CA selection
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="an:CA",
+        lazy=True,
+    )
+
+    lazy_traj = lazy_trajs[0]
+    assert lazy_traj.is_lazy, "Trajectory should be lazy"
+    assert lazy_traj.selection_indices is not None, "selection_indices should be set"
+
+    # selection_indices should contain CA atoms
+    n_ca = len(lazy_traj.selection_indices)
+    assert n_ca > 0, "Should have CA atoms"
+    assert n_ca < mol.num_atoms, "CA atoms should be subset of all atoms"
+
+    # Check subset molecule
+    assert subset_mol.num_atoms == n_ca, f"Subset molecule should have {n_ca} atoms"
+
+    print(f"Lazy trajectory with selection: natom={lazy_traj.natom}, selected={n_ca}")
+    print(f"  selection_indices (first 5): {lazy_traj.selection_indices[:5]}")
+
+
+def test_crd_convert_lazy_vs_memory_nframe():
+    """Test that lazy and memory crd_convert report same nframe."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+
+    # Memory mode
+    mem_trajs, _ = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=False,
+    )
+
+    # Lazy mode
+    lazy_trajs, _ = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+
+    # Compare frame counts
+    assert mem_trajs[0].nframe == lazy_trajs[0].nframe, \
+        f"Frame count mismatch: memory={mem_trajs[0].nframe}, lazy={lazy_trajs[0].nframe}"
+    assert mem_trajs[0].natom == lazy_trajs[0].natom, \
+        f"Atom count mismatch: memory={mem_trajs[0].natom}, lazy={lazy_trajs[0].natom}"
+
+    print(f"Memory vs Lazy frame count matches: {mem_trajs[0].nframe} frames, {mem_trajs[0].natom} atoms")
+
+
+def test_crd_convert_lazy_single_file_required():
+    """Test that lazy=True requires single DCD file."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+
+    # Lazy mode with multiple files should raise error
+    try:
+        genesis_exe.crd_convert(
+            mol,
+            trj_files=[str(BPTI_DCD), str(BPTI_DCD)],  # Two files
+            trj_format="DCD",
+            trj_type="COOR+BOX",
+            selection="all",
+            lazy=True,
+        )
+        assert False, "Should have raised error for multiple files with lazy=True"
+    except Exception as e:
+        # Should raise an error about single file requirement
+        assert "lazy" in str(e).lower() or "single" in str(e).lower(), \
+            f"Error should mention lazy/single file: {e}"
+        print(f"Correctly raised error for multiple files: {e}")
+
+
+def test_crd_convert_lazy_trj_type_coor():
+    """Test crd_convert lazy with TRJ_TYPE_COOR (no box)."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF)
+
+    # Create lazy trajectory with COOR only
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR",  # No box
+        selection="all",
+        lazy=True,
+    )
+
+    lazy_traj = lazy_trajs[0]
+    assert lazy_traj.is_lazy, "Trajectory should be lazy"
+    # TRJ_TYPE_COOR = 1
+    assert lazy_traj.lazy_trj_type == 1, f"lazy_trj_type should be 1, got {lazy_traj.lazy_trj_type}"
+
+    print(f"Lazy trajectory with COOR: lazy_trj_type={lazy_traj.lazy_trj_type}")
+
+
+def _run_test_in_subprocess(test_name: str) -> bool:
+    """Run a single test function in isolated subprocess to avoid Fortran state issues."""
+    code = f'''
+import sys
+if __name__ == "__main__":
+    import pathlib
+    pkg_dir = pathlib.Path("{__file__}").resolve().parent
+    sys.path.insert(0, str(pkg_dir.parent.parent))
+
+from genepie.tests.test_crd_convert_lazy import {test_name}
+{test_name}()
+'''
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=120
+    )
+
+    if result.returncode == 0:
+        if result.stdout:
+            print(result.stdout, end='')
+        return True
+    else:
+        print(f"stdout: {result.stdout}" if result.stdout else "")
+        print(f"stderr: {result.stderr}" if result.stderr else "")
+        return False
+
+
+def main():
+    tests = [
+        "test_crd_convert_lazy_basic",
+        "test_crd_convert_lazy_with_selection",
+        "test_crd_convert_lazy_vs_memory_nframe",
+        "test_crd_convert_lazy_single_file_required",
+        "test_crd_convert_lazy_trj_type_coor",
+    ]
+
+    failed = []
+    for test_name in tests:
+        if _run_test_in_subprocess(test_name):
+            print(f"\n{test_name}: PASSED")
+        else:
+            print(f"\n{test_name}: FAILED")
+            failed.append(test_name)
+
+    if failed:
+        raise RuntimeError(f"Tests failed: {', '.join(failed)}")
+
+    print("\nAll crd_convert lazy tests passed!")
+
+
+if __name__ == "__main__":
+    main()
