@@ -126,7 +126,7 @@ Automated test suite that runs on every push and pull request to main:
 | `build-and-test-macos` | macOS arm64 (Apple Silicon) | All tests |
 
 **Tests executed:**
-- Basic tests: test_rmsd, test_rg, test_drms, test_crd_convert, test_avecrd
+- Basic tests: test_rmsd, test_rmsd_lazy, test_rg, test_drms, test_crd_convert, test_avecrd
 - Regression tests: test_trj, test_wham, test_mbar_1d, test_mbar_block, test_hb_atom, test_hb_snap, test_kmeans
 - Error handling tests: test_error_handling
 - ATDYN tests: test_atdyn
@@ -185,7 +185,8 @@ The `reset_atdyn_state_c()` function is also exposed to Python for explicit stat
 
 - `crd_convert()` - Coordinate/trajectory conversion
 - `trj_analysis()` - Distance, angle, dihedral analysis
-- `rmsd_analysis()` - RMSD calculation
+- `rmsd_analysis()` - RMSD calculation (memory-based)
+- `rmsd_analysis_lazy()` - RMSD calculation (lazy DCD loading, memory-efficient)
 - `drms_analysis()` - Distance RMSD calculation
 - `rg_analysis()` - Radius of gyration
 - `msd_analysis()` - Mean squared displacement
@@ -598,6 +599,265 @@ finally:
   - `trj_analysis/`, `free_energy/`, `mode_analysis/`, etc.
 - `src/genepie/` - **Main Python package** (PyPI distribution)
   - `tests/` - Test files for genepie
+
+## Abstract Trajectory Source Architecture (Lazy Loading)
+
+This architecture enables unified analysis loops that work with both CLI (file-based) and Python (memory-based) modes, plus lazy DCD loading for memory-efficient processing of large trajectories.
+
+### Architecture Overview
+
+```
+                    s_trj_source (abstract)
+                   /         |          \
+      TRJ_SOURCE_FILE  TRJ_SOURCE_MEMORY  TRJ_SOURCE_LAZY_DCD
+        (CLI mode)      (Python mode)      (lazy loading)
+              |                |                   |
+       open_trj/read_trj   C_F_POINTER()    fseek + direct read
+              \                |                  /
+               \               v                 /
+                +---->  s_trajectory  <---------+
+                             |
+                             v
+                    analyze_xxx_core()
+                             |
+                             v
+                    s_result_sink (abstract)
+                   /                \
+           SINK_FILE            SINK_ARRAY
+        (CLI: write file)    (Python: zerocopy)
+```
+
+### Key Files
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `trj_source_mod.fpp` | `src/analysis/libana/` | Abstract trajectory source (FILE, MEMORY, LAZY_DCD) |
+| `result_sink_mod.fpp` | `src/analysis/libana/` | Abstract result output (FILE, ARRAY) |
+| `rmsd_c_mod.fpp` | `src/analysis/interface/python_interface/` | Example lazy loading implementation |
+
+### trj_source_mod.fpp API
+
+```fortran
+! Source types
+integer, parameter :: TRJ_SOURCE_FILE     = 1  ! CLI file-based
+integer, parameter :: TRJ_SOURCE_MEMORY   = 2  ! Python memory-based
+integer, parameter :: TRJ_SOURCE_LAZY_DCD = 3  ! Lazy DCD (random access)
+
+! Key data structure
+type :: s_trj_source
+  integer :: source_type
+  ! FILE mode: trj_list pointer, trj_file handle
+  ! MEMORY mode: coords_ptr, pbc_boxes_ptr (C pointers to Python arrays)
+  ! LAZY_DCD mode: dcd_unit, header_size, frame_size for byte offset
+  integer :: ana_period, total_frames, analyzed_count
+end type
+
+! Main API
+call init_source_file(source, trj_list, n_atoms)       ! CLI mode
+call init_source_memory(source, coords_ptr, boxes_ptr, natom, nframe, ana_period)  ! Python
+call init_source_lazy_dcd(source, filename, trj_type, ana_period)  ! Lazy
+
+call get_next_frame(source, trajectory, status)        ! Sequential access
+call get_frame_by_index(source, idx, trajectory, status)  ! Random access (MEMORY/LAZY only)
+has_more = has_more_frames(source)
+call finalize_source(source)
+```
+
+### Lazy DCD Byte Offset Calculation
+
+DCD files have fixed frame size, enabling O(1) random access:
+
+```fortran
+! Header size calculation
+header_size = 92 + 12 + 80*ntitle + 12  ! First block + title + atom count
+
+! Frame size calculation (bytes)
+frame_size = 3 * (8 + 4*natom)  ! X, Y, Z blocks
+if (has_box) frame_size = frame_size + 56  ! Box block
+
+! Byte offset for frame N (1-indexed)
+byte_offset = header_size + (N - 1) * frame_size + 1
+
+! Fortran stream access
+read(unit, pos=byte_offset)  ! Seek to frame
+read(unit) rec_size, x(1:natom), rec_size  ! Read X
+read(unit) rec_size, y(1:natom), rec_size  ! Read Y
+read(unit) rec_size, z(1:natom), rec_size  ! Read Z
+```
+
+### Implementing Lazy Loading for New Analysis Tools
+
+#### Step 1: Add C-callable wrapper in `*_c_mod.fpp`
+
+```fortran
+subroutine xxx_analysis_lazy_c(dcd_filename, filename_len, trj_type, &
+                               ! ... other params ...,
+                               result_ptr, result_size, nstru_out, &
+                               dcd_nframe_out, dcd_natom_out, &
+                               status, msg, msglen) bind(C, name="xxx_analysis_lazy_c")
+  use trj_source_mod
+
+  type(s_trj_source) :: source
+  type(s_trajectory) :: trajectory
+
+  ! Initialize lazy source
+  call init_source_lazy_dcd(source, filename_f, trj_type, ana_period)
+
+  ! Return DCD info
+  dcd_nframe_out = source%dcd_nframe
+  dcd_natom_out = source%dcd_natom
+
+  ! Main loop
+  nstru = 0
+  do while (has_more_frames(source))
+    call get_next_frame(source, trajectory, frame_status)
+    if (frame_status /= 0) exit
+    nstru = nstru + 1
+
+    ! Your analysis on trajectory%coord(:,:)
+    result_f(nstru) = computed_value
+  end do
+
+  call finalize_source(source)
+end subroutine
+```
+
+#### Step 2: Add function signature in `libgenesis.py`
+
+```python
+self.lib.xxx_analysis_lazy_c.argtypes = [
+    ctypes.c_char_p,   # dcd_filename
+    ctypes.c_int,      # filename_len
+    ctypes.c_int,      # trj_type (1=COOR, 2=COOR+BOX)
+    ctypes.c_void_p,   # mass_ptr
+    ctypes.c_void_p,   # ref_coord_ptr
+    ctypes.c_int,      # n_atoms
+    ctypes.c_int,      # ana_period
+    # ... analysis-specific params ...
+    ctypes.c_void_p,   # result_ptr (pre-allocated)
+    ctypes.c_int,      # result_size
+    ctypes.POINTER(ctypes.c_int),  # nstru_out
+    ctypes.POINTER(ctypes.c_int),  # dcd_nframe_out
+    ctypes.POINTER(ctypes.c_int),  # dcd_natom_out
+    ctypes.POINTER(ctypes.c_int),  # status
+    ctypes.c_char_p,   # msg
+    ctypes.c_int,      # msglen
+]
+self.lib.xxx_analysis_lazy_c.restype = None
+```
+
+#### Step 3: Add Python wrapper in `genesis_exe.py`
+
+```python
+XxxLazyAnalysisResult = namedtuple('XxxLazyAnalysisResult', ['values', 'dcd_nframe', 'dcd_natom'])
+
+def xxx_analysis_lazy(molecule: SMolecule, dcd_file: str, ...,
+                      has_box: bool = False, max_frames: int = 100000) -> XxxLazyAnalysisResult:
+    lib = LibGenesis().lib
+
+    # Pre-allocate result array (zerocopy)
+    result = np.zeros(max_frames, dtype=np.float64)
+    result_ptr = result.ctypes.data_as(ctypes.c_void_p)
+
+    # DCD filename
+    dcd_bytes = dcd_file.encode('utf-8')
+    trj_type = 2 if has_box else 1  # TrjTypeCoorBox=2, TrjTypeCoor=1
+
+    # Output variables
+    nstru_out = ctypes.c_int()
+    dcd_nframe_out = ctypes.c_int()
+    dcd_natom_out = ctypes.c_int()
+    status = ctypes.c_int()
+    msg = ctypes.create_string_buffer(256)
+
+    lib.xxx_analysis_lazy_c(
+        dcd_bytes, len(dcd_bytes), trj_type,
+        mass_ptr, ref_coord_ptr, molecule.num_atoms, ana_period,
+        # ... params ...,
+        result_ptr, max_frames,
+        ctypes.byref(nstru_out), ctypes.byref(dcd_nframe_out), ctypes.byref(dcd_natom_out),
+        ctypes.byref(status), msg, 256
+    )
+
+    if status.value != 0:
+        raise_fortran_error(status.value, msg.value.decode().strip(), "")
+
+    return XxxLazyAnalysisResult(result[:nstru_out.value], dcd_nframe_out.value, dcd_natom_out.value)
+```
+
+### result_sink_mod.fpp API
+
+```fortran
+! Sink types
+integer, parameter :: SINK_FILE  = 1  ! CLI: write to file
+integer, parameter :: SINK_ARRAY = 2  ! Python: write to zerocopy array
+
+type :: s_result_sink
+  integer :: sink_type
+  integer :: file_unit      ! SINK_FILE mode
+  real(wp), pointer :: results(:)  ! SINK_ARRAY mode (zerocopy)
+  integer :: current_index
+end type
+
+! API
+call init_sink_file(sink, filename)
+call init_sink_array(sink, results_array, array_size)
+call write_result(sink, value)                    ! Auto-increment index
+call write_result_with_index(sink, idx, value)    ! Explicit index
+count = get_result_count(sink)
+call finalize_sink(sink)
+```
+
+### Fitting Integration (for RMSD-like analyses)
+
+```fortran
+use fitting_mod
+use fitting_str_mod
+
+! Inside analysis loop
+if (use_fitting) then
+  select case(fitting_method)
+  case(FittingMethodTR_ROT)
+    call fit_trrot(n_fitting, fitting_idx, ref_coord, mass_fitting, &
+                   coord_work, rot_matrix, com_ref, com_mov, fit_rmsd, ierr)
+    call transform(n_atoms, rot_matrix, com_ref, com_mov, coord_work)
+  case(FittingMethodTR)
+    call fit_trans(n_fitting, fitting_idx, ref_coord, coord_work, mass_fitting, &
+                   .true., rot_matrix, com_ref, com_mov, fit_rmsd, ierr)
+    call transform(n_atoms, rot_matrix, com_ref, com_mov, coord_work)
+  ! ... other methods
+  end select
+end if
+```
+
+### Analysis Tools Suitable for Lazy Loading
+
+| Tool | Status | Notes |
+|------|--------|-------|
+| `rmsd_analysis` | ✅ Implemented | `rmsd_analysis_lazy()` |
+| `rg_analysis` | Candidate | Simple per-frame calculation |
+| `drms_analysis` | Candidate | Contact distance calculation |
+| `trj_analysis` | Candidate | Distance/angle/dihedral |
+| `hb_analysis` | Complex | Needs pair tracking across frames |
+| `msd_analysis` | Not suitable | Requires all frames for autocorrelation |
+
+### Testing Lazy vs Memory Mode
+
+```python
+def test_lazy_vs_memory():
+    """Verify lazy and memory modes produce identical results."""
+    mol = SMolecule.from_file(pdb=PDB, psf=PSF, ref=PDB)
+
+    # Memory mode (loads all frames)
+    trajs = crd_convert(mol, dcd=DCD)
+    memory_result = rmsd_analysis(trajs, mol, ...)
+
+    # Lazy mode (reads frames on demand)
+    lazy_result = rmsd_analysis_lazy(mol, DCD, ...)
+
+    # Results must match
+    np.testing.assert_allclose(memory_result.rmsd, lazy_result.rmsd, rtol=1e-5)
+```
 
 ## Known Issues
 
