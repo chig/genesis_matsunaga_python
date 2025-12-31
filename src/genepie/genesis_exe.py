@@ -189,8 +189,8 @@ def crd_convert_info(
         if status.value != 0:
             error_msg = msg.value.decode('utf-8', errors='replace').strip()
             raise_fortran_error(
-                status.value,
                 error_msg,
+                code=status.value,
                 stderr_output=captured.stderr
             )
 
@@ -261,8 +261,8 @@ def selection(molecule: SMolecule, selection_str: str) -> npt.NDArray[np.int32]:
         if status.value != 0:
             error_msg = msg.value.decode('utf-8', errors='replace').strip()
             raise_fortran_error(
-                status.value,
                 error_msg,
+                code=status.value,
                 stderr_output=captured.stderr
             )
 
@@ -578,8 +578,8 @@ def crd_convert(
         if status.value != 0:
             error_msg = msg.value.decode('utf-8', errors='replace').strip()
             raise_fortran_error(
-                status.value,
                 error_msg,
+                code=status.value,
                 stderr_output=captured.stderr
             )
 
@@ -875,7 +875,7 @@ def trj_analysis(
         if status.value != 0:
             error_msg = msg.value.decode('utf-8', errors='replace').strip()
             stderr_output = captured.stderr if captured else ""
-            raise_fortran_error(status.value, error_msg, stderr_output)
+            raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
         actual_frames = nstru_out.value
 
@@ -919,7 +919,7 @@ def trj_analysis(
         if status.value != 0:
             error_msg = msg.value.decode('utf-8', errors='replace').strip()
             stderr_output = captured.stderr if captured else ""
-            raise_fortran_error(status.value, error_msg, stderr_output)
+            raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
         n_actual = nstru_out.value
 
@@ -1013,7 +1013,7 @@ def _rg_analysis_lazy(
     if status.value != 0:
         error_msg = msg.value.decode('utf-8', errors='replace').strip()
         stderr_output = captured.stderr if captured else ""
-        raise_fortran_error(status.value, error_msg, stderr_output)
+        raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
     # Return RgAnalysisResult (same as non-lazy version)
     return RgAnalysisResult(result_rg[:nstru_out.value])
@@ -1105,7 +1105,7 @@ def rg_analysis(
     if status.value != 0:
         error_msg = msg.value.decode('utf-8', errors='replace').strip()
         stderr_output = captured.stderr if captured else ""
-        raise_fortran_error(status.value, error_msg, stderr_output)
+        raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
     # Return the pre-allocated result array (already filled by Fortran)
     return RgAnalysisResult(result_rg[:nstru_out.value])
@@ -1243,7 +1243,7 @@ def _rmsd_analysis_lazy(
     if status.value != 0:
         error_msg = msg.value.decode('utf-8', errors='replace').strip()
         stderr_output = captured.stderr if captured else ""
-        raise_fortran_error(status.value, error_msg, stderr_output)
+        raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
     # Return RmsdAnalysisResult (same as non-lazy version)
     return RmsdAnalysisResult(result_rmsd[:nstru_out.value])
@@ -1423,7 +1423,7 @@ def rmsd_analysis(
     if status.value != 0:
         error_msg = msg.value.decode('utf-8', errors='replace').strip()
         stderr_output = captured.stderr if captured else ""
-        raise_fortran_error(status.value, error_msg, stderr_output)
+        raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
     # Return the pre-allocated result array (already filled by Fortran)
     return RmsdAnalysisResult(result_rmsd[:nstru_out.value])
@@ -1593,7 +1593,7 @@ def rmsd_analysis_lazy(
     if status.value != 0:
         error_msg = msg.value.decode('utf-8', errors='replace').strip()
         stderr_output = captured.stderr if captured else ""
-        raise_fortran_error(status.value, error_msg, stderr_output)
+        raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
     # Return the result trimmed to actual size
     return RmsdLazyAnalysisResult(
@@ -1692,7 +1692,7 @@ def _drms_analysis_lazy(
     if status.value != 0:
         error_msg = msg.value.decode('utf-8', errors='replace').strip()
         stderr_output = captured.stderr if captured else ""
-        raise_fortran_error(status.value, error_msg, stderr_output)
+        raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
     # Return DrmsAnalysisResult (same as non-lazy version)
     return DrmsAnalysisResult(result_drms[:nstru_out.value])
@@ -1795,7 +1795,7 @@ def drms_analysis(
     if status.value != 0:
         error_msg = msg.value.decode('utf-8', errors='replace').strip()
         stderr_output = captured.stderr if captured else ""
-        raise_fortran_error(status.value, error_msg, stderr_output)
+        raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
     # Return result sliced to actual size
     return DrmsAnalysisResult(result_drms[:nstru_out.value])
@@ -2064,7 +2064,7 @@ def diffusion_analysis(
     if status.value != 0:
         error_msg = msg.value.decode('utf-8', errors='replace').strip()
         stderr_output = captured.stderr if captured else ""
-        raise_fortran_error(status.value, error_msg, stderr_output)
+        raise_fortran_error(error_msg, code=status.value, stderr_output=stderr_output)
 
     # Transpose to (ndata, ncols) for Python convention
     out_data = out_data_f.T
