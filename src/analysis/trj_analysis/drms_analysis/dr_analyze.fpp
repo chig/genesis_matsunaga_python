@@ -15,6 +15,8 @@
 module dr_analyze_mod
 
   use dr_option_str_mod
+  use trj_source_mod
+  use result_sink_mod
   use fileio_trj_mod
   use fitting_mod
   use fitting_str_mod
@@ -26,7 +28,7 @@ module dr_analyze_mod
   use messages_mod
   use constants_mod
   use atom_libs_mod
- 
+
   implicit none
   private
 
@@ -40,6 +42,7 @@ module dr_analyze_mod
 
   ! subroutines
   public  :: analyze
+  public  :: analyze_drms_unified
   private :: compute_drms
 
 contains
@@ -305,5 +308,99 @@ contains
 
     return
   end subroutine compute_drms_two_states
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    analyze_drms_unified
+  !> @brief        Unified DRMS analysis loop using source/sink abstractions
+  !! @authors      Claude Code
+  !! @param[inout] source          : trajectory source (file, memory, or lazy)
+  !! @param[inout] sink            : result sink (file or array)
+  !! @param[in]    contact_list    : contact atom pairs (2, n_contact)
+  !! @param[in]    contact_dist    : reference distances for contacts
+  !! @param[in]    n_contact       : number of contacts
+  !! @param[in]    pbc_correct     : apply PBC correction
+  !! @param[out]   nstru_out       : number of frames analyzed
+  !! @note         This function can be called from both CLI and Python interface.
+  !!               The source abstraction handles FILE, MEMORY, and LAZY_DCD modes.
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine analyze_drms_unified(source, sink, contact_list, contact_dist, &
+                                  n_contact, pbc_correct, nstru_out)
+
+    ! formal arguments
+    type(s_trj_source),  intent(inout) :: source
+    type(s_result_sink), intent(inout) :: sink
+    integer,             intent(in)    :: contact_list(:,:)  ! (2, n_contact)
+    real(wp),            intent(in)    :: contact_dist(:)    ! (n_contact)
+    integer,             intent(in)    :: n_contact
+    logical,             intent(in)    :: pbc_correct
+    integer,             intent(out)   :: nstru_out
+
+    ! local variables
+    type(s_trajectory)    :: trajectory
+    integer               :: nstru, status
+    integer               :: i, i1, i2
+    real(wp)              :: d12(3), r12, tmp, dn, drms
+    real(wp)              :: box(3)
+
+    ! Main analysis loop
+    nstru = 0
+    dn = real(n_contact, wp)
+
+    do while (has_more_frames(source))
+
+      ! Get next frame
+      call get_next_frame(source, trajectory, status)
+      if (status /= 0) exit
+
+      nstru = nstru + 1
+
+      write(MsgOut,*) '      number of structures = ', nstru
+
+      ! Get box size for PBC
+      box(1) = trajectory%pbc_box(1,1)
+      box(2) = trajectory%pbc_box(2,2)
+      box(3) = trajectory%pbc_box(3,3)
+
+      ! Compute DRMS
+      drms = 0.0_wp
+
+      !$omp parallel do default(none)                          &
+      !$omp private(i, d12, r12, tmp, i1, i2)                  &
+      !$omp shared(trajectory, contact_list, contact_dist, n_contact, box, pbc_correct) &
+      !$omp reduction(+:drms)
+      do i = 1, n_contact
+        i1 = contact_list(1, i)
+        i2 = contact_list(2, i)
+        d12(1:3) = trajectory%coord(1:3, i1) - trajectory%coord(1:3, i2)
+        if (pbc_correct) &
+          d12(1:3) = d12(1:3) - anint(d12(1:3) / box(1:3)) * box(1:3)
+        r12 = sqrt(d12(1)*d12(1) + d12(2)*d12(2) + d12(3)*d12(3))
+        tmp = r12 - contact_dist(i)
+        drms = drms + tmp * tmp
+      end do
+      !$omp end parallel do
+
+      if (dn > EPS) drms = sqrt(drms / dn)
+
+      ! Write result
+      call write_result_with_index(sink, nstru, drms)
+
+      ! Output progress
+      write(MsgOut,'(a,f10.5)') '              DRMS = ', drms
+      write(MsgOut,*) ''
+
+    end do
+
+    nstru_out = nstru
+
+    ! Cleanup
+    if (allocated(trajectory%coord)) deallocate(trajectory%coord)
+
+    return
+
+  end subroutine analyze_drms_unified
 
 end module dr_analyze_mod

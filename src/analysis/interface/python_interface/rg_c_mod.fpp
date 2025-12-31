@@ -16,11 +16,12 @@ module rg_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use rg_impl_mod
+  use rg_analyze_mod           ! Use unified analysis from CLI module
+  use trj_source_mod
+  use result_sink_mod
 
   use trajectory_str_mod
   use molecules_str_mod
-  use trj_source_mod
   use string_mod
   use error_mod
   use messages_mod
@@ -78,6 +79,8 @@ contains
 
     ! Local variables
     type(s_error) :: err
+    type(s_trj_source) :: source
+    type(s_result_sink) :: sink
     real(wp), pointer :: mass_f(:)
     real(wp), pointer :: result_f(:)
     integer, pointer :: idx_f(:)
@@ -119,10 +122,8 @@ contains
       return
     end if
 
-    ! Create zero-copy view of mass array from Python
+    ! Create zero-copy views of arrays from Python
     call C_F_POINTER(mass_ptr, mass_f, [n_atoms])
-
-    ! Create zero-copy view of result array from Python
     call C_F_POINTER(result_ptr, result_f, [result_size])
 
     ! Convert analysis indices from C pointer to Fortran array
@@ -138,16 +139,23 @@ contains
     nproc_city   = 1
     main_rank    = .true.
 
-    ! Run analysis
-    write(MsgOut,'(A)') '[STEP1] RG Analysis'
+    ! Initialize source (memory mode) and sink (array mode)
+    call init_source_memory(source, s_trajes_c%coords, s_trajes_c%pbc_boxes, &
+                            s_trajes_c%natom, s_trajes_c%nframe, ana_period)
+    call init_sink_array(sink, result_f, result_size)
+
+    ! Run unified RG analysis
+    write(MsgOut,'(A)') '[STEP1] RG Analysis (unified)'
     write(MsgOut,'(A)') ' '
 
-    call analyze(mass_f, s_trajes_c, ana_period, &
-                 idx_copy, n_analysis, use_mass, result_f, nstru)
+    call analyze_rg_unified(source, sink, mass_f, n_atoms, &
+                            idx_copy, n_analysis, use_mass, nstru)
 
     nstru_out = nstru
 
-    ! Cleanup local arrays (mass_f, result_f are views, don't deallocate)
+    ! Cleanup
+    call finalize_sink(sink)
+    call finalize_source(source)
     deallocate(idx_copy)
 
   end subroutine rg_analysis_c
@@ -208,16 +216,15 @@ contains
     ! Local variables
     type(s_error) :: err
     type(s_trj_source) :: source
-    type(s_trajectory) :: trajectory
+    type(s_result_sink) :: sink
     character(MaxFilename) :: filename_f
     real(wp), pointer :: mass_f(:)
     real(wp), pointer :: result_f(:)
     integer, pointer :: idx_f(:)
     integer, allocatable :: idx_copy(:)
     logical :: use_mass
-    integer :: nstru, frame_status
-    integer :: i, iatom, idx
-    real(wp) :: com(3), weight, tot_weight, rg
+    integer :: nstru
+    integer :: i
 
     ! Initialize
     call error_init(err)
@@ -299,66 +306,22 @@ contains
       return
     end if
 
-    ! Main analysis loop
-    write(MsgOut,'(A)') '[STEP2] RG Analysis (lazy loading)'
+    ! Initialize sink (array mode)
+    call init_sink_array(sink, result_f, result_size)
+
+    ! Run unified RG analysis (lazy loading via source abstraction)
+    write(MsgOut,'(A)') '[STEP2] RG Analysis (lazy loading, unified)'
     write(MsgOut,'(A)') ' '
 
-    nstru = 0
-
-    do while (has_more_frames(source))
-
-      ! Get next frame via lazy loading
-      call get_next_frame(source, trajectory, frame_status)
-      if (frame_status /= 0) exit
-
-      nstru = nstru + 1
-      write(MsgOut,*) '      number of structures = ', nstru
-
-      ! Compute center of mass
-      com(1:3) = 0.0_wp
-      tot_weight = 0.0_wp
-      do iatom = 1, n_analysis
-        idx = idx_copy(iatom)
-        weight = 1.0_wp
-        if (use_mass) weight = mass_f(idx)
-        com(:) = com(:) + weight * trajectory%coord(:,idx)
-        tot_weight = tot_weight + weight
-      end do
-      com(:) = com(:) / tot_weight
-
-      ! Compute radius of gyration
-      rg = 0.0_wp
-      do iatom = 1, n_analysis
-        idx = idx_copy(iatom)
-        weight = 1.0_wp
-        if (use_mass) weight = mass_f(idx)
-        do i = 1, 3
-          rg = rg + weight * ((trajectory%coord(i,idx) - com(i)) ** 2)
-        end do
-      end do
-      rg = sqrt(rg / tot_weight)
-
-      ! Write result to zerocopy array
-      if (nstru <= result_size) then
-        result_f(nstru) = rg
-      end if
-
-      write(MsgOut,'(a,f10.5)') '              RG of analysis atoms = ', rg
-      write(MsgOut,*) ''
-
-    end do
+    call analyze_rg_unified(source, sink, mass_f, n_atoms, &
+                            idx_copy, n_analysis, use_mass, nstru)
 
     nstru_out = nstru
 
-    ! Output summary
-    write(MsgOut,'(A)') ''
-    write(MsgOut,'(A)') 'Analyze> RG lazy analysis completed'
-    write(MsgOut,'(A)') ''
-
     ! Cleanup
+    call finalize_sink(sink)
     call finalize_source(source)
     deallocate(idx_copy)
-    if (allocated(trajectory%coord)) deallocate(trajectory%coord)
 
   end subroutine rg_analysis_lazy_c
 

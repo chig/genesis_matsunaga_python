@@ -35,11 +35,8 @@ libpython_interface_la_SOURCES = \
         trj_c_mod.fpp \
         trj_impl.fpp \
         rg_c_mod.fpp \
-        rg_impl.fpp \
         rmsd_c_mod.fpp \
-        rmsd_impl.fpp \
         drms_c_mod.fpp \
-        drms_impl.fpp \
         msd_c_mod.fpp \
         msd_impl.fpp \
         hb_c_mod.fpp \

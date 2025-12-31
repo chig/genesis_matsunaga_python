@@ -2,7 +2,7 @@
 !
 !> Program  ra_main
 !! @brief   RMSD analysis
-!! @authors Takaharu Mori (TM), Yuji Sugita (YS)
+!! @authors Takaharu Mori (TM), Yuji Sugita (YS), Claude Code
 !
 !  (c) Copyright 2014 RIKEN. All rights reserved.
 !
@@ -16,8 +16,9 @@ module rmsd_c_mod
   use, intrinsic :: iso_c_binding
   use s_molecule_c_mod
   use s_trajectories_c_mod
-  use rmsd_impl_mod
+  use ra_analyze_mod           ! Use unified analysis from CLI module
   use trj_source_mod
+  use result_sink_mod
 
   use fitting_mod
   use fitting_str_mod
@@ -84,11 +85,14 @@ contains
 
     ! Local variables
     type(s_error) :: err
+    type(s_trj_source) :: source
+    type(s_result_sink) :: sink
     real(wp), pointer :: mass_f(:)
     real(wp), pointer :: ref_coord_f(:,:)
     real(wp), pointer :: result_f(:)
     integer, pointer :: idx_f(:)
-    integer, allocatable :: idx_copy(:)
+    integer, allocatable :: analysis_idx_copy(:)
+    integer, allocatable :: dummy_fitting_idx(:)
     logical :: use_mass
     integer :: nstru
 
@@ -140,8 +144,12 @@ contains
 
     ! Convert analysis indices from C pointer to Fortran array
     call C_F_POINTER(analysis_idx, idx_f, [n_analysis])
-    allocate(idx_copy(n_analysis))
-    idx_copy(:) = idx_f(:)
+    allocate(analysis_idx_copy(n_analysis))
+    analysis_idx_copy(:) = idx_f(:)
+
+    ! Create dummy fitting indices (no fitting for this function)
+    allocate(dummy_fitting_idx(1))
+    dummy_fitting_idx(1) = 1
 
     ! Convert mass_weighted to logical
     use_mass = (mass_weighted /= 0)
@@ -151,17 +159,27 @@ contains
     nproc_city   = 1
     main_rank    = .true.
 
-    ! Run analysis
-    write(MsgOut,'(A)') '[STEP1] RMSD Analysis (no fitting)'
+    ! Initialize source (memory mode) and sink (array mode)
+    call init_source_memory(source, s_trajes_c%coords, s_trajes_c%pbc_boxes, &
+                            s_trajes_c%natom, s_trajes_c%nframe, ana_period)
+    call init_sink_array(sink, result_f, result_size)
+
+    ! Run unified RMSD analysis (no fitting: n_fitting=0, method=FittingMethodNO)
+    write(MsgOut,'(A)') '[STEP1] RMSD Analysis (no fitting, unified)'
     write(MsgOut,'(A)') ' '
 
-    call analyze(mass_f, ref_coord_f, s_trajes_c, ana_period, &
-                 idx_copy, n_analysis, use_mass, result_f, nstru)
+    call analyze_rmsd_unified(source, sink, ref_coord_f, mass_f, n_atoms, &
+                              dummy_fitting_idx, 0, &
+                              analysis_idx_copy, n_analysis, &
+                              FittingMethodNO, use_mass, nstru)
 
     nstru_out = nstru
 
-    ! Cleanup local arrays (views don't need deallocation)
-    deallocate(idx_copy)
+    ! Cleanup
+    call finalize_sink(sink)
+    call finalize_source(source)
+    deallocate(analysis_idx_copy)
+    deallocate(dummy_fitting_idx)
 
   end subroutine rmsd_analysis_c
 
@@ -221,6 +239,8 @@ contains
 
     ! Local variables
     type(s_error) :: err
+    type(s_trj_source) :: source
+    type(s_result_sink) :: sink
     real(wp), pointer :: mass_f(:)
     real(wp), pointer :: ref_coord_f(:,:)
     real(wp), pointer :: result_f(:)
@@ -315,20 +335,25 @@ contains
     nproc_city   = 1
     main_rank    = .true.
 
-    ! Run analysis
-    write(MsgOut,'(A)') '[STEP1] RMSD Analysis (with fitting)'
+    ! Initialize source (memory mode) and sink (array mode)
+    call init_source_memory(source, s_trajes_c%coords, s_trajes_c%pbc_boxes, &
+                            s_trajes_c%natom, s_trajes_c%nframe, ana_period)
+    call init_sink_array(sink, result_f, result_size)
+
+    ! Run unified RMSD analysis with fitting
+    write(MsgOut,'(A)') '[STEP1] RMSD Analysis (with fitting, unified)'
     write(MsgOut,'(A)') ' '
 
-    call analyze_with_fitting(mass_f, ref_coord_f, n_atoms, &
-                              s_trajes_c, ana_period, &
+    call analyze_rmsd_unified(source, sink, ref_coord_f, mass_f, n_atoms, &
                               fitting_idx_copy, n_fitting, &
                               analysis_idx_copy, n_analysis, &
-                              fitting_method, use_mass, &
-                              result_f, nstru)
+                              fitting_method, use_mass, nstru)
 
     nstru_out = nstru
 
-    ! Cleanup local arrays (views don't need deallocation)
+    ! Cleanup
+    call finalize_sink(sink)
+    call finalize_source(source)
     deallocate(fitting_idx_copy)
     deallocate(analysis_idx_copy)
 
@@ -380,8 +405,7 @@ contains
     ! Local variables
     type(s_error) :: err
     type(s_trj_source) :: source
-    type(s_trajectory) :: trajectory
-    type(s_fitting) :: fitting
+    type(s_result_sink) :: sink
     character(MaxFilename) :: filename_f
     real(wp), pointer :: mass_f(:)
     real(wp), pointer :: ref_coord_f(:,:)
@@ -390,16 +414,8 @@ contains
     integer, pointer :: analysis_idx_f(:)
     integer, allocatable :: fitting_idx_copy(:)
     integer, allocatable :: analysis_idx_copy(:)
-    real(wp), allocatable :: mass_fitting(:)
-    real(wp), allocatable :: coord_work(:,:)
-    logical :: use_mass, use_fitting
-    integer :: nstru, frame_status, idx, iatom
-    ! Fitting-related variables
-    real(wp) :: rot_matrix(3,3)
-    real(wp) :: com_ref(3), com_mov(3)
-    real(wp) :: fit_rmsd
-    integer :: ierr
-    real(wp) :: rmsd, tot_mass, weight
+    logical :: use_mass
+    integer :: nstru, n_fitting_use, fitting_method_use
     integer :: i
 
     ! Initialize
@@ -462,14 +478,20 @@ contains
     allocate(analysis_idx_copy(n_analysis))
     analysis_idx_copy(:) = analysis_idx_f(:)
 
-    ! Check for fitting
-    use_fitting = (n_fitting > 0 .and. fitting_method > 0 .and. &
-                   c_associated(fitting_idx_ptr))
-
-    if (use_fitting) then
+    ! Check for fitting and prepare fitting indices
+    if (n_fitting > 0 .and. fitting_method > 0 .and. &
+        c_associated(fitting_idx_ptr)) then
       call C_F_POINTER(fitting_idx_ptr, fitting_idx_f, [n_fitting])
       allocate(fitting_idx_copy(n_fitting))
       fitting_idx_copy(:) = fitting_idx_f(:)
+      n_fitting_use = n_fitting
+      fitting_method_use = fitting_method
+    else
+      ! No fitting - create dummy array
+      allocate(fitting_idx_copy(1))
+      fitting_idx_copy(1) = 1
+      n_fitting_use = 0
+      fitting_method_use = FittingMethodNO
     end if
 
     ! Convert mass_weighted to logical
@@ -497,115 +519,29 @@ contains
       call error_to_c(err, status, msg, msglen)
       call finalize_source(source)
       deallocate(analysis_idx_copy)
-      if (allocated(fitting_idx_copy)) deallocate(fitting_idx_copy)
+      deallocate(fitting_idx_copy)
       return
     end if
 
-    ! Allocate work arrays
-    allocate(coord_work(3, n_atoms))
-    allocate(mass_fitting(n_atoms))
+    ! Initialize sink (array mode)
+    call init_sink_array(sink, result_f, result_size)
 
-    ! Prepare mass array for fitting
-    if (use_fitting .and. use_mass) then
-      mass_fitting(:) = mass_f(:)
-    else
-      mass_fitting(:) = 1.0_wp
-    end if
-
-    ! Main analysis loop
-    write(MsgOut,'(A)') '[STEP2] RMSD Analysis (lazy loading)'
+    ! Run unified RMSD analysis (lazy loading via source abstraction)
+    write(MsgOut,'(A)') '[STEP2] RMSD Analysis (lazy loading, unified)'
     write(MsgOut,'(A)') ' '
 
-    nstru = 0
-
-    do while (has_more_frames(source))
-
-      ! Get next frame via lazy loading
-      call get_next_frame(source, trajectory, frame_status)
-      if (frame_status /= 0) exit
-
-      nstru = nstru + 1
-      write(MsgOut,*) '      number of structures = ', nstru
-
-      ! Copy coordinates for fitting
-      coord_work(:,:) = trajectory%coord(:,:)
-
-      ! Apply fitting if requested
-      if (use_fitting) then
-        select case(fitting_method)
-        case(FittingMethodNO)
-          ! no fitting
-
-        case(FittingMethodTR_ROT)
-          call fit_trrot(n_fitting, fitting_idx_copy, ref_coord_f, mass_fitting, &
-                         coord_work, rot_matrix, com_ref, com_mov, fit_rmsd, ierr)
-          call transform(n_atoms, rot_matrix, com_ref, com_mov, coord_work)
-
-        case(FittingMethodTR)
-          call fit_trans(n_fitting, fitting_idx_copy, ref_coord_f, coord_work, mass_fitting, &
-                         .true., rot_matrix, com_ref, com_mov, fit_rmsd, ierr)
-          call transform(n_atoms, rot_matrix, com_ref, com_mov, coord_work)
-
-        case(FittingMethodXYTR)
-          call fit_trans(n_fitting, fitting_idx_copy, ref_coord_f, coord_work, mass_fitting, &
-                         .false., rot_matrix, com_ref, com_mov, fit_rmsd, ierr)
-          call transform(n_atoms, rot_matrix, com_ref, com_mov, coord_work)
-
-        case default
-          ! For other methods (TR_ZROT, XYTR_ZROT), fall back to TR+ROT
-          call fit_trrot(n_fitting, fitting_idx_copy, ref_coord_f, mass_fitting, &
-                         coord_work, rot_matrix, com_ref, com_mov, fit_rmsd, ierr)
-          call transform(n_atoms, rot_matrix, com_ref, com_mov, coord_work)
-
-        end select
-      end if
-
-      ! Compute RMSD for analysis atoms
-      rmsd = 0.0_wp
-      tot_mass = 0.0_wp
-
-      do iatom = 1, n_analysis
-        idx = analysis_idx_copy(iatom)
-
-        if (use_mass) then
-          weight = mass_f(idx)
-        else
-          weight = 1.0_wp
-        end if
-
-        rmsd = rmsd + weight * ( &
-               (ref_coord_f(1,idx) - coord_work(1,idx))**2 + &
-               (ref_coord_f(2,idx) - coord_work(2,idx))**2 + &
-               (ref_coord_f(3,idx) - coord_work(3,idx))**2)
-
-        tot_mass = tot_mass + weight
-      end do
-
-      if (tot_mass > EPS) then
-        rmsd = sqrt(rmsd / tot_mass)
-      else
-        rmsd = 0.0_wp
-      end if
-
-      ! Write result to zerocopy array
-      if (nstru <= result_size) then
-        result_f(nstru) = rmsd
-      end if
-
-      write(MsgOut,'(a,f10.5)') '              RMSD of analysis atoms = ', rmsd
-      write(MsgOut,*) ''
-
-    end do
+    call analyze_rmsd_unified(source, sink, ref_coord_f, mass_f, n_atoms, &
+                              fitting_idx_copy, n_fitting_use, &
+                              analysis_idx_copy, n_analysis, &
+                              fitting_method_use, use_mass, nstru)
 
     nstru_out = nstru
 
     ! Cleanup
+    call finalize_sink(sink)
     call finalize_source(source)
-    deallocate(coord_work)
-    deallocate(mass_fitting)
     deallocate(analysis_idx_copy)
-    if (allocated(fitting_idx_copy)) deallocate(fitting_idx_copy)
-    if (allocated(trajectory%coord)) deallocate(trajectory%coord)
+    deallocate(fitting_idx_copy)
 
   end subroutine rmsd_analysis_lazy_c
 
