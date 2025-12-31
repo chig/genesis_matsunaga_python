@@ -1,9 +1,13 @@
 import ctypes
 import warnings
-from typing import Self
+from typing import Self, Optional
 import numpy as np
 import numpy.typing as npt
 from .s_trajectories_c import STrajectoriesC
+
+# Trajectory type constants (matching Fortran)
+TRJ_TYPE_COOR = 1
+TRJ_TYPE_COOR_BOX = 2
 from .libgenesis import LibGenesis
 from .s_molecule import SMolecule
 from .exceptions import GenesisValidationError, GenesisMemoryError
@@ -16,6 +20,12 @@ class STrajectories:
     coords: npt.NDArray[np.float64]  # shape=(n_frame, n_atom, 3)
     pbc_boxes: npt.NDArray[np.float64]  # shape=(trajs_c.nframe, 3, 3)
     c_obj: STrajectoriesC
+
+    # Lazy loading fields (Python-only, not in C structure)
+    is_lazy: bool
+    lazy_dcd_file: Optional[str]
+    lazy_trj_type: int
+    selection_indices: Optional[npt.NDArray[np.int32]]  # 1-indexed atom indices
 
     def __init__(self, natom: int = 0, nframe: int = 0,
                  trajs_c: STrajectoriesC = None, mem_owner: bool = True):
@@ -69,6 +79,12 @@ class STrajectories:
             self.pbc_boxes = np.empty((0, 3, 3), dtype=np.float64)
 
         self._mem_owner = mem_owner
+
+        # Initialize lazy loading fields (non-lazy by default)
+        self.is_lazy = False
+        self.lazy_dcd_file = None
+        self.lazy_trj_type = TRJ_TYPE_COOR_BOX
+        self.selection_indices = None
 
     def __del__(self) -> None:
         try:
@@ -228,6 +244,54 @@ class STrajectories:
         c_obj.coords = obj.coords.ctypes.data_as(ctypes.c_void_p).value
         c_obj.pbc_boxes = obj.pbc_boxes.ctypes.data_as(ctypes.c_void_p).value
         obj.c_obj = c_obj
+
+        # Initialize lazy loading fields (non-lazy)
+        obj.is_lazy = False
+        obj.lazy_dcd_file = None
+        obj.lazy_trj_type = TRJ_TYPE_COOR_BOX
+        obj.selection_indices = None
+
+        return obj
+
+    @classmethod
+    def from_lazy(cls, dcd_file: str, trj_type: int, nframe: int, natom: int,
+                  selection_indices: Optional[npt.NDArray[np.int32]] = None) -> Self:
+        """Create a lazy STrajectories that reads from DCD file on demand.
+
+        This creates an STrajectories that doesn't load coordinate data into
+        memory. Instead, it holds a reference to the DCD file, and analysis
+        functions will read frames directly from the file.
+
+        Args:
+            dcd_file: Path to DCD trajectory file
+            trj_type: Trajectory type (TRJ_TYPE_COOR or TRJ_TYPE_COOR_BOX)
+            nframe: Number of frames in DCD file (from DCD header)
+            natom: Number of atoms in DCD file (from DCD header)
+            selection_indices: Optional pre-computed atom indices (1-indexed).
+                              If None, all atoms are used.
+
+        Returns:
+            STrajectories instance with is_lazy=True
+
+        Note:
+            Lazy trajectories have restrictions:
+            - No fitting (requires all coordinates in memory)
+            - Single DCD file only (no concatenation)
+            - Sequential frame access only
+        """
+        obj = object.__new__(cls)
+        obj.natom = natom
+        obj.nframe = nframe
+        obj.coords = None  # No data loaded
+        obj.pbc_boxes = None  # No data loaded
+        obj.c_obj = None  # No C structure needed
+        obj._mem_owner = False  # Nothing to deallocate
+
+        # Set lazy loading fields
+        obj.is_lazy = True
+        obj.lazy_dcd_file = dcd_file
+        obj.lazy_trj_type = trj_type
+        obj.selection_indices = selection_indices
 
         return obj
 

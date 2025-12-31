@@ -6,6 +6,8 @@ if __name__ == "__main__" and __package__ is None:
     __package__ = "genepie.tests"
 # --------------------------------------------
 import os
+import subprocess
+import sys
 import numpy as np
 from .conftest import BPTI_PDB, BPTI_PSF, BPTI_DCD
 from ..s_molecule import SMolecule
@@ -91,15 +93,163 @@ def test_drms_analysis():
               f"min={min(result.drms):.5f}, max={max(result.drms):.5f}")
 
 
+def test_drms_lazy():
+    """Test DRMS analysis with lazy loading using unified API."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
+
+    # Create lazy trajectory via crd_convert(lazy=True)
+    lazy_trajs, subset_mol = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+
+    lazy_traj = lazy_trajs[0]
+    assert lazy_traj.is_lazy, "Trajectory should be lazy"
+
+    # Get CA atom indices for contact computation
+    ca_indices = genesis_exe.selection(mol, "an: CA")
+    print(f"Number of CA atoms: {len(ca_indices)}")
+
+    # Compute contact list using Python
+    contact_list, contact_dist = compute_contact_list_from_refcoord(
+        mol, ca_indices,
+        min_dist=1.0, max_dist=6.0, exclude_residues=4
+    )
+    print(f"Number of contacts: {contact_list.shape[1]}")
+
+    # Run DRMS analysis with lazy trajectory
+    result = genesis_exe.drms_analysis(
+        lazy_traj,
+        contact_list=contact_list,
+        contact_dist=contact_dist,
+        ana_period=1,
+        pbc_correct=False,
+    )
+
+    # Validate results
+    assert result.drms is not None, "DRMS result should not be None"
+    assert len(result.drms) > 0, "DRMS result should have values"
+    assert all(d >= 0 for d in result.drms), "DRMS values should be non-negative"
+
+    print(f"Lazy DRMS (n={len(result.drms)}): "
+          f"min={min(result.drms):.5f}, max={max(result.drms):.5f}")
+
+
+def test_drms_lazy_vs_memory():
+    """Compare lazy DRMS analysis with memory-based DRMS analysis."""
+    mol = SMolecule.from_file(pdb=BPTI_PDB, psf=BPTI_PSF, ref=BPTI_PDB)
+
+    # Get CA atom indices for contact computation
+    ca_indices = genesis_exe.selection(mol, "an: CA")
+
+    # Compute contact list using Python
+    contact_list, contact_dist = compute_contact_list_from_refcoord(
+        mol, ca_indices,
+        min_dist=1.0, max_dist=6.0, exclude_residues=4
+    )
+
+    # Memory-based DRMS
+    trajs_mem, mol_mem = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=False,
+    )
+    result_mem = genesis_exe.drms_analysis(
+        trajs_mem[0],
+        contact_list=contact_list,
+        contact_dist=contact_dist,
+        ana_period=1,
+        pbc_correct=False,
+    )
+
+    # Lazy-based DRMS
+    trajs_lazy, mol_lazy = genesis_exe.crd_convert(
+        mol,
+        trj_files=[str(BPTI_DCD)],
+        trj_format="DCD",
+        trj_type="COOR+BOX",
+        selection="all",
+        lazy=True,
+    )
+    result_lazy = genesis_exe.drms_analysis(
+        trajs_lazy[0],
+        contact_list=contact_list,
+        contact_dist=contact_dist,
+        ana_period=1,
+        pbc_correct=False,
+    )
+
+    # Compare results
+    assert len(result_mem.drms) == len(result_lazy.drms), \
+        f"Frame count mismatch: memory={len(result_mem.drms)}, lazy={len(result_lazy.drms)}"
+
+    for i, (mem_val, lazy_val) in enumerate(zip(result_mem.drms, result_lazy.drms)):
+        assert np.isclose(mem_val, lazy_val, rtol=1e-4, atol=1e-6), \
+            f"Frame {i}: memory={mem_val}, lazy={lazy_val}"
+
+    print(f"Memory vs Lazy DRMS comparison passed: {len(result_mem.drms)} frames")
+    print(f"  Memory: min={min(result_mem.drms):.5f}, max={max(result_mem.drms):.5f}")
+    print(f"  Lazy:   min={min(result_lazy.drms):.5f}, max={max(result_lazy.drms):.5f}")
+
+
+def _run_test_in_subprocess(test_name: str) -> bool:
+    """Run a single test function in isolated subprocess to avoid Fortran state issues."""
+    code = f'''
+import sys
+if __name__ == "__main__":
+    import pathlib
+    pkg_dir = pathlib.Path("{__file__}").resolve().parent
+    sys.path.insert(0, str(pkg_dir.parent.parent))
+
+from genepie.tests.test_drms import {test_name}
+{test_name}()
+'''
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=120
+    )
+
+    if result.returncode == 0:
+        if result.stdout:
+            print(result.stdout, end='')
+        return True
+    else:
+        print(f"stdout: {result.stdout}" if result.stdout else "")
+        print(f"stderr: {result.stderr}" if result.stderr else "")
+        return False
+
+
 def main():
     if os.path.exists("dummy.trj"):
         os.remove("dummy.trj")
-    try:
-        test_drms_analysis()
-        print("\nAll DRMS tests passed!")
-    except Exception as e:
-        print(f"\nDRMS test FAILED: {e}")
-        raise
+
+    tests = [
+        "test_drms_analysis",
+        "test_drms_lazy",
+        "test_drms_lazy_vs_memory",
+    ]
+
+    failed = []
+    for test_name in tests:
+        if _run_test_in_subprocess(test_name):
+            print(f"\n{test_name}: PASSED")
+        else:
+            print(f"\n{test_name}: FAILED")
+            failed.append(test_name)
+
+    if failed:
+        raise RuntimeError(f"Tests failed: {', '.join(failed)}")
+
+    print("\nAll DRMS tests passed!")
 
 
 if __name__ == "__main__":

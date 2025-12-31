@@ -244,6 +244,28 @@ class LibGenesis:
                 ]
         self.lib.rg_analysis_c.restype = None
 
+        # RG analysis with lazy DCD loading (memory efficient)
+        self.lib.rg_analysis_lazy_c.argtypes = [
+                ctypes.c_char_p,                  # dcd_filename
+                ctypes.c_int,                     # filename_len
+                ctypes.c_int,                     # trj_type
+                ctypes.c_void_p,                  # mass_ptr
+                ctypes.c_int,                     # n_atoms
+                ctypes.c_int,                     # ana_period
+                ctypes.c_void_p,                  # analysis_idx_ptr
+                ctypes.c_int,                     # n_analysis
+                ctypes.c_int,                     # mass_weighted
+                ctypes.c_void_p,                  # result_ptr (pre-allocated)
+                ctypes.c_int,                     # result_size
+                ctypes.POINTER(ctypes.c_int),     # nstru_out (output)
+                ctypes.POINTER(ctypes.c_int),     # dcd_nframe_out (output)
+                ctypes.POINTER(ctypes.c_int),     # dcd_natom_out (output)
+                ctypes.POINTER(ctypes.c_int),     # status (output)
+                ctypes.c_char_p,                  # msg (output)
+                ctypes.c_int,                     # msglen
+                ]
+        self.lib.rg_analysis_lazy_c.restype = None
+
         # RMSD analysis (no fitting, pre-allocated result array)
         self.lib.rmsd_analysis_c.argtypes = [
                 ctypes.c_void_p,                  # mass_ptr
@@ -327,6 +349,28 @@ class LibGenesis:
                 ctypes.c_int,                     # msglen
                 ]
         self.lib.drms_analysis_c.restype = None
+
+        # DRMS analysis with lazy DCD loading (memory efficient)
+        self.lib.drms_analysis_lazy_c.argtypes = [
+                ctypes.c_char_p,                  # dcd_filename
+                ctypes.c_int,                     # filename_len
+                ctypes.c_int,                     # trj_type
+                ctypes.c_void_p,                  # contact_list_ptr
+                ctypes.c_void_p,                  # contact_dist_ptr
+                ctypes.c_int,                     # n_contact
+                ctypes.c_int,                     # n_atoms
+                ctypes.c_int,                     # ana_period
+                ctypes.c_int,                     # pbc_correct
+                ctypes.c_void_p,                  # result_ptr (pre-allocated)
+                ctypes.c_int,                     # result_size
+                ctypes.POINTER(ctypes.c_int),     # nstru_out (output)
+                ctypes.POINTER(ctypes.c_int),     # dcd_nframe_out (output)
+                ctypes.POINTER(ctypes.c_int),     # dcd_natom_out (output)
+                ctypes.POINTER(ctypes.c_int),     # status (output)
+                ctypes.c_char_p,                  # msg (output)
+                ctypes.c_int,                     # msglen
+                ]
+        self.lib.drms_analysis_lazy_c.restype = None
 
         self.lib.ma_analysis_c.argtypes = [
                 ctypes.POINTER(SMoleculeC),
