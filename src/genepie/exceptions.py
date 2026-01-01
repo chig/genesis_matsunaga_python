@@ -149,6 +149,35 @@ class GenesisOverflowError(GenesisError):
     pass
 
 
+class GenesisLibraryLoadError(GenesisError):
+    """Raised when the GENESIS shared library fails to load.
+
+    This exception provides detailed diagnostics about why the library
+    could not be loaded, including:
+    - Missing dependencies (libgfortran, LAPACK, BLAS)
+    - glibc version incompatibility
+    - libmvec symbol errors (legacy wheels)
+    - Architecture mismatches
+
+    Attributes:
+        library_path: Path to the library that failed to load
+        original_error: The underlying OSError
+        diagnostics: Detailed diagnostic information
+    """
+
+    def __init__(
+        self,
+        message: str,
+        library_path: Optional[str] = None,
+        original_error: Optional[Exception] = None,
+        diagnostics: Optional[str] = None
+    ):
+        self.library_path = library_path
+        self.original_error = original_error
+        self.diagnostics = diagnostics or ""
+        super().__init__(message)
+
+
 def raise_fortran_error(
     message: str,
     code: int = 0,

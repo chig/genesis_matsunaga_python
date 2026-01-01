@@ -23,6 +23,7 @@ from .exceptions import (
     GenesisValidationError,
     GenesisMemoryError,
     GenesisOverflowError,
+    GenesisLibraryLoadError,
     ErrorCode,
     raise_fortran_error,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "GenesisValidationError",
     "GenesisMemoryError",
     "GenesisOverflowError",
+    "GenesisLibraryLoadError",
     # Error handling utilities
     "ErrorCode",
     "raise_fortran_error",

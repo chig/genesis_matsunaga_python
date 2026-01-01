@@ -19,11 +19,18 @@ CANDIDATES: tuple[str, ...] = (
 def _get_glibc_version() -> Optional[Tuple[int, int]]:
     """Get glibc version on Linux systems.
 
+    Uses multiple detection methods for robustness:
+    1. platform.libc_ver() - standard library method
+    2. ctypes CDLL + gnu_get_libc_version() - direct C library call
+    3. /lib libc.so.6 symlink parsing - fallback for edge cases
+
     Returns:
         Tuple of (major, minor) version numbers, or None if not on Linux/glibc.
     """
     if platform.system() != 'Linux':
         return None
+
+    # Method 1: platform.libc_ver()
     try:
         libc_name, version = platform.libc_ver()
         if libc_name.lower() == 'glibc' and version:
@@ -32,6 +39,39 @@ def _get_glibc_version() -> Optional[Tuple[int, int]]:
                 return (int(parts[0]), int(parts[1]))
     except Exception:
         pass
+
+    # Method 2: ctypes direct call to gnu_get_libc_version()
+    try:
+        import ctypes.util
+        libc_path = ctypes.util.find_library('c')
+        if libc_path:
+            libc = ctypes.CDLL(libc_path, mode=ctypes.RTLD_LOCAL)
+            gnu_get_libc_version = libc.gnu_get_libc_version
+            gnu_get_libc_version.restype = ctypes.c_char_p
+            version_bytes = gnu_get_libc_version()
+            if version_bytes:
+                version_str = version_bytes.decode('utf-8')
+                parts = version_str.split('.')
+                if len(parts) >= 2:
+                    return (int(parts[0]), int(parts[1]))
+    except Exception:
+        pass
+
+    # Method 3: Parse /lib/libc.so.6 or similar symlink
+    try:
+        import re
+        for lib_dir in ['/lib', '/lib64', '/lib/x86_64-linux-gnu']:
+            libc_path = Path(lib_dir) / 'libc.so.6'
+            if libc_path.exists():
+                # Try to read the symlink target or library itself
+                target = libc_path.resolve().name if libc_path.is_symlink() else libc_path.name
+                # Match patterns like "libc-2.31.so" or "libc.so.6"
+                match = re.search(r'libc[.-](\d+)\.(\d+)', target)
+                if match:
+                    return (int(match.group(1)), int(match.group(2)))
+    except Exception:
+        pass
+
     return None
 
 
@@ -93,8 +133,95 @@ def _find_pkg_lib_python_interface_dotlib(mod_file: str) -> Optional[Path]:
                 return hit
     return None
 
+def _diagnose_load_error(path: Path, error: OSError) -> str:
+    """Diagnose library load failure and provide helpful suggestions.
+
+    Args:
+        path: Path to the library that failed to load
+        error: The OSError that was raised
+
+    Returns:
+        Diagnostic message with suggestions
+    """
+    error_msg = str(error)
+    suggestions = []
+
+    # Check for libmvec symbol errors (legacy wheels or -ffast-math builds)
+    if '_ZGVdN4v_' in error_msg or '_ZGVbN' in error_msg or 'libmvec' in error_msg:
+        suggestions.append(
+            "libmvec symbol error detected. This may occur with older wheel versions.\n"
+            "  Workaround:\n"
+            "    ARCH_DIR=$(gcc -print-multiarch 2>/dev/null || echo \"x86_64-linux-gnu\")\n"
+            "    export LD_PRELOAD=/lib/${ARCH_DIR}/libmvec.so.1:/lib/${ARCH_DIR}/libm.so.6\n"
+            "    python your_script.py\n"
+            "  Or upgrade to the latest genepie version."
+        )
+
+    # Check for libgfortran errors
+    if 'libgfortran' in error_msg:
+        suggestions.append(
+            "libgfortran not found. Install gfortran runtime:\n"
+            "  Ubuntu/Debian: sudo apt install libgfortran5\n"
+            "  RHEL/CentOS:   sudo yum install libgfortran\n"
+            "  Fedora:        sudo dnf install libgfortran"
+        )
+
+    # Check for LAPACK/BLAS errors
+    if 'lapack' in error_msg.lower() or 'blas' in error_msg.lower():
+        suggestions.append(
+            "LAPACK/BLAS not found. Install linear algebra libraries:\n"
+            "  Ubuntu/Debian: sudo apt install liblapack3 libblas3\n"
+            "  RHEL/CentOS:   sudo yum install lapack blas\n"
+            "  Fedora:        sudo dnf install lapack blas"
+        )
+
+    # Check for general undefined symbol errors
+    if 'undefined symbol' in error_msg:
+        suggestions.append(
+            "Undefined symbol error. This may indicate:\n"
+            "  - Missing system library dependency\n"
+            "  - glibc version incompatibility\n"
+            "  - Library built with incompatible compiler"
+        )
+
+    # Check for GLIBC version errors
+    if 'GLIBC_' in error_msg:
+        import re
+        match = re.search(r'GLIBC_(\d+\.\d+)', error_msg)
+        if match:
+            required = match.group(1)
+            suggestions.append(
+                f"glibc {required} or newer is required.\n"
+                "  Check your glibc version: ldd --version\n"
+                "  Ubuntu 20.04+ provides glibc 2.31+\n"
+                "  Options:\n"
+                "    1. Upgrade your Linux distribution\n"
+                "    2. Build genepie from source"
+            )
+
+    if suggestions:
+        return "\n\n".join(suggestions)
+    else:
+        return (
+            "Library load failed. Possible causes:\n"
+            "  - Missing runtime dependencies\n"
+            "  - Architecture mismatch (x86_64 vs arm64)\n"
+            "  - Corrupted library file\n"
+            "Check dependencies: ldd " + str(path)
+        )
+
+
 def _load(path: Path) -> ctypes.CDLL:
-    return ctypes.CDLL(os.fspath(path), mode=ctypes.RTLD_GLOBAL)
+    """Load shared library with detailed error diagnostics."""
+    try:
+        return ctypes.CDLL(os.fspath(path), mode=ctypes.RTLD_GLOBAL)
+    except OSError as e:
+        diagnostic = _diagnose_load_error(path, e)
+        raise OSError(
+            f"Failed to load {path}:\n"
+            f"  Original error: {e}\n\n"
+            f"Diagnosis:\n{diagnostic}"
+        ) from e
 
 
 def _find_in_same_dir(mod_file: str) -> Optional[Path]:
